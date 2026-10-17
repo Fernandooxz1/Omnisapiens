@@ -1,0 +1,141 @@
+"""`POST /rooms` y `GET /rooms/{code}` contra la API y la base reales."""
+
+import re
+import uuid
+from datetime import UTC, datetime
+
+import httpx
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.game.constants import ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH
+from app.models import Room
+
+CODIGO_RE = re.compile(f"^[{ROOM_CODE_ALPHABET}]{{{ROOM_CODE_LENGTH}}}$")
+
+
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _guest(client: httpx.AsyncClient, nick: str | None = None) -> dict:
+    cuerpo = {} if nick is None else {"nick": nick}
+    return (await client.post("/auth/guest", json=cuerpo)).json()
+
+
+async def test_creating_a_room_requires_a_token(client: httpx.AsyncClient) -> None:
+    respuesta = await client.post("/rooms", json={})
+
+    assert respuesta.status_code == 401
+
+
+async def test_creates_a_room_with_defaults(
+    client: httpx.AsyncClient, session: AsyncSession
+) -> None:
+    alta = await _guest(client, "ana")
+
+    respuesta = await client.post("/rooms", json={}, headers=_auth(alta["token"]))
+
+    assert respuesta.status_code == 201
+    cuerpo = respuesta.json()
+    assert CODIGO_RE.fullmatch(cuerpo["code"])
+    assert cuerpo["config"] == {"rounds": 5, "seconds": 20}
+
+    sala = await session.scalar(select(Room).where(Room.code == cuerpo["code"]))
+    assert sala is not None
+    assert sala.host_user_id == uuid.UUID(alta["user"]["id"])
+    assert sala.status == "waiting"
+    assert sala.expires_at > datetime.now(UTC)
+
+
+async def test_honors_the_requested_config(client: httpx.AsyncClient) -> None:
+    alta = await _guest(client, "ana")
+
+    respuesta = await client.post(
+        "/rooms", json={"rounds": 7, "seconds": 30}, headers=_auth(alta["token"])
+    )
+
+    assert respuesta.status_code == 201
+    assert respuesta.json()["config"] == {"rounds": 7, "seconds": 30}
+
+
+async def test_rejects_a_rounds_value_out_of_the_options(
+    client: httpx.AsyncClient,
+) -> None:
+    alta = await _guest(client, "ana")
+
+    respuesta = await client.post(
+        "/rooms", json={"rounds": 4}, headers=_auth(alta["token"])
+    )
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+async def test_rejects_a_seconds_value_out_of_the_options(
+    client: httpx.AsyncClient,
+) -> None:
+    alta = await _guest(client, "ana")
+
+    respuesta = await client.post(
+        "/rooms", json={"seconds": 15}, headers=_auth(alta["token"])
+    )
+
+    assert respuesta.status_code == 422
+
+
+async def test_two_rooms_get_different_codes(client: httpx.AsyncClient) -> None:
+    alta = await _guest(client, "ana")
+
+    primero = (
+        await client.post("/rooms", json={}, headers=_auth(alta["token"]))
+    ).json()
+    segundo = (
+        await client.post("/rooms", json={}, headers=_auth(alta["token"]))
+    ).json()
+
+    assert primero["code"] != segundo["code"]
+
+
+async def test_preview_returns_the_room_and_its_host(
+    client: httpx.AsyncClient,
+) -> None:
+    alta = await _guest(client, "ana")
+    creada = (await client.post("/rooms", json={}, headers=_auth(alta["token"]))).json()
+
+    respuesta = await client.get(f"/rooms/{creada['code']}")
+
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+    assert cuerpo["code"] == creada["code"]
+    assert cuerpo["status"] == "waiting"
+    assert cuerpo["config"] == creada["config"]
+    assert cuerpo["host_nick"] == "ana"
+
+
+async def test_preview_does_not_require_a_token(client: httpx.AsyncClient) -> None:
+    alta = await _guest(client, "ana")
+    creada = (await client.post("/rooms", json={}, headers=_auth(alta["token"]))).json()
+
+    respuesta = await client.get(f"/rooms/{creada['code']}")
+
+    assert respuesta.status_code == 200
+
+
+async def test_preview_normalizes_a_lowercase_code(
+    client: httpx.AsyncClient,
+) -> None:
+    alta = await _guest(client, "ana")
+    creada = (await client.post("/rooms", json={}, headers=_auth(alta["token"]))).json()
+
+    respuesta = await client.get(f"/rooms/{creada['code'].lower()}")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["code"] == creada["code"]
+
+
+async def test_preview_of_an_unknown_code_is_a_404(client: httpx.AsyncClient) -> None:
+    respuesta = await client.get("/rooms/ZZZZZZ")
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["error"]["code"] == "ROOM_NOT_FOUND"

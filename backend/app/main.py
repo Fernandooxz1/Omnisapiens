@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import errors
-from app.api.routers import auth, health, me
+from app.api.routers import auth, health, me, rooms
 from app.config import settings
 from app.db import engine
 from app.redis import redis_client
@@ -34,6 +34,7 @@ errors.install(app)
 app.include_router(auth.router)
 app.include_router(health.router)
 app.include_router(me.router)
+app.include_router(rooms.router)
 
 
 @app.get("/")

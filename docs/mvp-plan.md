@@ -698,7 +698,7 @@ Todas las respuestas en JSON. Los errores siguen el formato `{"error": {"code": 
 | Método | Ruta | Descripción |
 |---|---|---|
 | `POST` | `/rooms` | Crea la sala. Body `{"rounds": 5, "seconds": 20}`. Devuelve `{"code": "K7M2QP", "config": {...}}`. |
-| `GET` | `/rooms/{code}` | Vista previa: si existe, si está llena, cuántos jugadores hay. |
+| `GET` | `/rooms/{code}` | Vista previa: devuelve `code`, `config`, `status`, `host_nick` y `expires_at` (normaliza el código a mayúsculas). La cantidad de jugadores se suma cuando exista la presencia por WebSocket. |
 
 ### Ranking
 
@@ -727,7 +727,7 @@ Todas las respuestas en JSON. Los errores siguen el formato `{"error": {"code": 
 ## 12. Autenticación
 
 - **Invitado primero.** `POST /auth/guest` crea un `users` con `is_guest = true` y un nick generado si no se manda uno (por ejemplo `Jugador4821`). Con un token válido en el header **no** da de alta a nadie: devuelve el mismo usuario con un token fresco, e ignora el nick que venga en el body (la identidad la manda el token).
-- **Códigos de error** que devuelve hoy: `AUTH_REQUIRED` (401), `NICK_TAKEN` (409), `NICK_FORBIDDEN` y `NICK_LENGTH` (400), `VALIDATION_ERROR` (422, forma del body). El formato es el de §11: `{"error": {"code", "message"}}`.
+- **Códigos de error** que devuelve hoy: `AUTH_REQUIRED` (401), `NICK_TAKEN` (409), `NICK_FORBIDDEN` y `NICK_LENGTH` (400), `ROOM_NOT_FOUND` (404), `VALIDATION_ERROR` (422, forma del body). El formato es el de §11: `{"error": {"code", "message"}}`.
 - **El nick se limpia y se valida** en `security/nicks.py` (espacios de sobra, 1–16 caracteres, lista corta de palabras prohibidas que no ve leet ni homoglifos). El mismo módulo sirve para el `PATCH /me`.
 - **`/me`**: `GET` devuelve el perfil y pisa `last_seen_at`; `PATCH` cambia el nick (mismos códigos `NICK_*`) y devuelve un token fresco (el viejo lleva el nick viejo); `DELETE` es baja lógica (204) y a partir de ahí el token da 401 y el nick queda libre.
 - **CORS:** los orígenes salen de `CORS_ORIGINS` y el frontend corre en otro puerto (`5173`), así que el navegador exige el middleware para poder llamar a la API.
