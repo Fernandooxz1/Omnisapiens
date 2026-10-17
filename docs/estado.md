@@ -17,12 +17,13 @@ Diseño acordado: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`
 - [x] Commits `8eebea9` (motor y base) y `fe77e4c` (selector)
 - [x] `models/base.py` (`MetaData` con convención de nombres), `models/user.py`, `models/question.py`; commit `e6756cb`
 - [x] `users` y `questions` verificadas contra el Postgres real: 11 + 24 sondas de constraints, 0 fallas
+- [x] `models/match.py` (`rooms`, `matches`, `match_rounds`): 43 sondas más, 0 fallas
+- [x] Commit `96f3b2e` (tabla `questions`)
 
 ## Próximos pasos (en orden, según el plan de capa de datos)
 - [x] Confirmar los 3 puntos ⚠️ del plan
-- [ ] `models/room.py`: `code` único con CHECK del alfabeto y `config` jsonb
-- [ ] `models/match.py` + `models/match_round.py`: FKs, único `(match_id, round_index)`
-- [ ] `models/arcade_run.py` + `models/arcade_answer.py`: los índices parciales del ranking
+- [x] `models/match.py`: salas, partidas y rondas (comparten el JSONB de `config`)
+- [ ] `models/arcade.py`: `arcade_runs` + `arcade_answers` y los índices parciales del ranking
 - [ ] Alembic async + migración inicial; `alembic check` limpio
 - [ ] Fixtures de test contra Postgres real, con rollback por test
 - [ ] `api/deps.py` (`get_session`) + `POST /auth/guest` con JWT y filtro de nicks
@@ -43,4 +44,6 @@ Diseño acordado: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`
 - Comentarios con criterio senior (regla 13). No leer `docs/mvp-plan.md` entero: consultarlo por fragmento.
 - El motor (`app/game/`) no depende de FastAPI, Postgres ni Redis, y no pregunta la hora: el tiempo y el azar se inyectan.
 - Molde de modelo fijado en `models/user.py`: `Mapped[X]` decide el NOT NULL, `uuid4` en Python, `DateTime(timezone=True)` + `server_default=now()`, checks con nombre propio y único parcial para el borrado lógico.
+- Un `CHECK` que evalúa a `NULL` no viola nada (SQL trata "desconocido" como válido): para claves ausentes de un `jsonb` hay que usar `IS NOT DISTINCT FROM`, no `=`.
+- El `uuid` de PK lo genera Python (`default=uuid.uuid4`), así que un `INSERT` crudo por `psql` tiene que mandar el `id` a mano; el ORM lo hace solo.
 - ruff 0.17 trae un preset estricto (814 reglas); el lock fija la versión, así que CI se comporta igual.
