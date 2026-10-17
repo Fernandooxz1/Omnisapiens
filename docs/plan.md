@@ -13,42 +13,33 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`) y el importador están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **386 tests en ~15 s** contra Postgres y Redis reales.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador y **el estado vivo de las salas** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **398 tests en ~30 s** contra Postgres y Redis reales.
 
-**Todavía no hay WebSocket.** La identidad y las salas ya andan por HTTP: `/me` (perfil, nick, baja) y `/rooms` (crear + vista previa). El protocolo de mensajes (`game/protocols.py`) y la **máquina de estados pura de la sala** (`runtime/room.py`) están hechos; falta la parte con lock, entrega y timers: `runtime/room_manager.py`.
+**Todavía no hay WebSocket.** Falta el handler `ws/room_ws.py`: traducir los mensajes de §10.1 a llamadas del `RoomStore`, abrir el canal por `hello` y leer el `outbox` de cada jugador. La vista previa de `/rooms/{code}` sigue sin mostrar `players`: el dato ya existe (`RoomStore.player_count`), solo falta conectarlo.
 
-**Pausa acá:** `runtime/room.py` (lobby, rondas, desempate, gracia, revancha) quedó cerrado y verificado con `tests/test_room.py` (ruff/format/mypy en verde). Sigue el `RoomStore` real (`room_manager.py`): lock por sala, sink de entrega y task de vencimientos.
-
-> Pendiente en `/rooms`: la vista previa devuelve `host_nick` y no "cuántos jugadores hay", porque la presencia vive en el WS (aún sin hacer). Se suma cuando exista `RoomStore`.
+**Pausa acá:** `runtime/room_manager.py` quedó cerrado y verificado (ruff/format/mypy en verde; `tests/test_room_manager.py`, validado con sabotajes). El `RoomStore` en memoria tiene lock por sala, entrega por jugador, la task de vencimientos, la elección de la próxima pregunta y las dos escrituras de la partida (§5.4). Sigue `ws/room_ws.py`.
 
 Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
 ### Hecho
 
-- [x] Base del repo: `.gitignore`, `.editorconfig`, `AGENTS.md`, `docker-compose.yml`, `Makefile`, `/health` con lifespan
-- [x] `app/game/` (motor puro) + `app/services/questions.py` (selección sin repetición)
-- [x] `models/`: las 7 tablas (nombres propios, enums por `CHECK`, único parcial de `nick`) y Alembic async con `0001`–`0003` sobre base limpia; `make check-schema` en verde
-- [x] Tests contra Postgres real (`trivia_test` recreada por sesión, rollback por test con SAVEPOINT): constraints con motivo exigido, guardia de schema y harness, cada uno validado con sabotaje
-- [x] Host de la sala = quien la crea (`rooms.host_user_id`); nick único sin distinguir mayúsculas (`lower(nick)`, parcial). `alembic check` resultó **ciego a los `CHECK`** (ve tablas, columnas, tipos, defaults, índices, unique y FK)
-- [x] Capa HTTP de entrada: `security/tokens.py` (JWT HS256) + `security/nicks.py` (limpieza, 1–16, prohibidas), `api/deps.py`, `api/errors.py`, `POST /auth/guest` y CORS
-- [x] Banco de preguntas (`services/question_bank.py`): candidatas publicadas de Postgres, `RoundQuestion` sin la respuesta correcta, y las vistas del arcade en Redis (tope 50, 24 h) con degradación si Redis no contesta
-- [x] Importador (`services/importer.py`): parseo CSV/JSON + validación puros (un motivo por fila) y carga a Postgres con `ON CONFLICT (content_hash) DO NOTHING`; informe de importadas/duplicadas/rechazadas
-- [x] `app/cli.py` (`import-questions`, `seed`) + `make seed` / `make import FILE=...` + 60 semilla publicadas (`seeds/questions.csv`, 10 por categoría) + `test_importer.py`
+- [x] Base del repo (`.gitignore`, `.editorconfig`, `AGENTS.md`, `docker-compose.yml`, `Makefile`, `/health` con lifespan) y `models/`: las 7 tablas, Alembic async `0001`–`0003`, guardia de schema y las sondas de constraints contra Postgres real
+- [x] Capa HTTP de entrada: `security/tokens.py` (JWT HS256) + `security/nicks.py`, `api/deps.py`, `api/errors.py`, `POST /auth/guest`, `GET/PATCH/DELETE /me`, `POST /rooms` + `GET /rooms/{code}` y CORS
+- [x] Banco de preguntas (`services/question_bank.py`), importador (`services/importer.py`), `app/cli.py` + 60 semilla publicadas y `make seed`/`make import`
+- [x] Motor puro: `match_engine`, `scoring`, `answers`, `services/questions.py`, `game/protocols.py` (mensajes WS) y `runtime/room.py` (lobby, rondas, desempate, gracia, revancha)
+- [x] `runtime/room_manager.py`: `RoomStore` + implementación en memoria (lock por sala, `outbox` por jugador, task de vencimientos, próxima pregunta y las dos escrituras de §5.4) + `tests/test_room_manager.py`
+- [x] Revancha: el segundo pedido arranca la partida nueva (hasta ahora `ready_for_rematch` era código muerto) + `tests/test_room.py` al día
 - [x] Plan alineado con el código: §5.4, §8 (tablas), §12 (auth y códigos de error), §14 (desempate), §6 (árbol), §13 (import/semilla) y §18 (tests)
-- [x] `GET /me` (perfil + pisa `last_seen_at`), `PATCH /me` (nick, reemite token) y `DELETE /me` (baja lógica) con `get_current_user`; `UserOut`/`AuthOut`/`NickUpdate` en `schemas/users.py`
-- [x] `POST /rooms` (código de 6 sin ambiguos vía `secrets`, config por `field_validator` contra constants, host = creador, expira a `ROOM_IDLE_TIMEOUT_SECONDS`) + `GET /rooms/{code}` (preview, normaliza a mayúsculas, `ROOM_NOT_FOUND`)
-- [x] `game/protocols.py`: las formas del WS de salas (§10.1) como dataclasses + `encode` (sobre `{t, id, d}`); `round_start` sin `correct_index` por tipo
-- [x] `runtime/room.py`: máquina de estados pura de la sala (estado inmutable, transiciones con `now_ms` inyectado, mensajes por jugador) + `tests/test_room.py` (26 tests)
 
 ### Próximos pasos
 
-- [ ] `runtime/room_manager.py`: el `RoomStore` (Protocol) con lock por sala, sink de entrega y task de vencimientos sobre `room.py`
-- [ ] `ws/room_ws.py`: el handler WebSocket sobre el `RoomStore`
-- [ ] Barrendero de salas/matches viejas al arrancar (hoy `expires_at` se escribe pero nadie la marca `expired`)
+- [ ] `ws/room_ws.py`: el handler WebSocket sobre el `RoomStore` (token por query, `hello`/`start`/`answer`/`rematch`/`ping`, heartbeat y cierre limpio)
+- [ ] `GET /rooms/{code}`: sumar `players` con `room_store.player_count` (el dato ya está; falta el cable)
+- [ ] `test_room_ws.py`: partida completa entre dos clientes simulados, con desconexión y reconexión dentro de la gracia
+- [ ] Barrendero al arrancar: salas con `expires_at` vencido → `expired`, y matches `playing` más viejos que N minutos → `void`
 - [ ] Arcade sobre WS + ranking + corte semanal en `America/Argentina/Buenos_Aires`
 - [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
-- [ ] `GET /rooms/{code}`: sumar `players` (presencia) cuando exista `RoomStore`
-- [ ] Pendiente de Fase 0: `README.md` con los cinco comandos de la sección 23
+- [ ] `README.md` con los cinco comandos de la sección 23 (pendiente de Fase 0)
 - [ ] Página mínima para probar dos pestañas (la API sola ya se prueba con el smoke test de `/tmp`, fuera del repo)
 
 ### Después
@@ -100,6 +91,16 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - Al reanudar una ronda pausada se corre **todo** (arranque y respuestas ya dadas) por el hueco de la pausa: el tiempo medido de quien ya contestó no cambia y el reloj no gasta pausa. La gracia la fija el primer ausente.
 - Repetir una respuesta es idempotente (no cambia nada): al reconectar, el cliente puede reenviarla.
 - La última ronda de la partida emite `round_result` **y** `match_end` juntos: el resumen no necesita que el cliente recuerde la última revelación.
+- El `RoomStore` es un `Protocol` y no una clase base (A3.6): el handler del WebSocket dependerá de la interfaz, así multi-instancia = otra implementación y el handler no se toca. El estado vivo es **uno por proceso** (`room_store`, mismo patrón que `engine` y `redis_client`) y se apaga en el lifespan, o sus tasks de vencimiento quedan colgadas.
+- La partida se escribe en dos momentos y el manager **commitea a mano**: no corre dentro de un pedido, así que no hereda el commit de `get_session` (mismo criterio que la CLI). Si la escritura falla, el estado en memoria vuelve atrás: todavía nadie vio nada.
+- La revancha la arranca el **segundo** pedido, y `_persist` escribe la fila nueva porque mira "la partida pasó a `playing`" en vez de "arrancó de cero": el rematch reusa el mismo bloque que `start`.
+- El pool de preguntas se recorta al tramo de dificultad de la ronda **antes** de elegir: `next_round` revienta si la pregunta no entra en el tramo y `select` puede devolver una fuera de rango por sus fallbacks. Sin pregunta en el tramo, los dos reciben `NO_QUESTIONS` y la sala queda en `playing`: la fila abierta la cierra el barrendero, no el vacío.
+- Los vencimientos son una task por sala que duerme hasta el próximo plazo (ronda o gracia) y se despierta con un `Event` cuando el estado cambia. Bajo el lock vuelve a chequear el plazo: entre despertar y tomar el lock, otra acción pudo resolver la ronda o servir la siguiente.
+- El reloj y el `sleep` se inyectan: el `FakeClock` de los tests no duerme, espera a que el test mueva la hora. Así una partida entera por vencimientos corre en milisegundos, sin esperar los 10–20 s reales de cada ronda.
+- Los tests del `room_manager` pasan la **sesión del test** como factory (su `commit` se vuelve SAVEPOINT): igual que la fixture `client`, sin ensuciar `trivia_test`.
+- La entrega es un `outbox` (cola) por jugador y no un callback: el vencimiento tiene que entregar sin que haya nadie esperando del otro lado, y el timer no conoce sockets. `disconnect` suelta esa cola: mensajes para un socket que ya no está no le sirven a nadie y se acumularían.
+- En los tests, `drain()` vacía la cola: dos `drain` seguidos para pedir dos tipos distintos descartan el que no se miró (un `uno(...)` que devuelve vacío). Un solo `drain` por tanda.
+- El barrendero queda pendiente y es el que cierra lo que nadie más cierra: una sala `playing` sin preguntas o un proceso que muere a mitad de partida dejan la fila abierta a propósito (§5.4).
 
 ---
 

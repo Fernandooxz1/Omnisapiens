@@ -8,11 +8,15 @@ from app.api.routers import auth, health, me, rooms
 from app.config import settings
 from app.db import engine
 from app.redis import redis_client
+from app.runtime.room_manager import room_store
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
+    # El estado de las salas vive en memoria: al apagar hay que cortar sus tareas
+    # de vencimiento o quedan colgadas.
+    await room_store.close()
     await engine.dispose()
     await redis_client.aclose()
 
