@@ -15,11 +15,14 @@ Diseño acordado: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`
 - [x] `app/game/`: motor puro con invariantes (`answers`, `scoring`, `arcade_engine`, `match_engine`)
 - [x] `app/services/questions.py`: selector puro, `Random` inyectado, estrategia observable
 - [x] Commits `8eebea9` (motor y base) y `fe77e4c` (selector)
+- [x] `models/base.py` (`MetaData` con convención de nombres), `models/user.py`, `models/question.py`; commit `e6756cb`
+- [x] `users` y `questions` verificadas contra el Postgres real: 11 + 24 sondas de constraints, 0 fallas
 
 ## Próximos pasos (en orden, según el plan de capa de datos)
 - [x] Confirmar los 3 puntos ⚠️ del plan
-- [x] `models/base.py`: `MetaData` con convención de nombres + `DeclarativeBase`
-- [ ] `models/user.py`: primera tabla, para fijar el patrón (uuid, timestamps, checks)
+- [ ] `models/room.py`: `code` único con CHECK del alfabeto y `config` jsonb
+- [ ] `models/match.py` + `models/match_round.py`: FKs, único `(match_id, round_index)`
+- [ ] `models/arcade_run.py` + `models/arcade_answer.py`: los índices parciales del ranking
 - [ ] Alembic async + migración inicial; `alembic check` limpio
 - [ ] Fixtures de test contra Postgres real, con rollback por test
 - [ ] `api/deps.py` (`get_session`) + `POST /auth/guest` con JWT y filtro de nicks
@@ -39,4 +42,5 @@ Diseño acordado: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`
 - Cada paso se prueba (test, curl o navegador) antes de seguir.
 - Comentarios con criterio senior (regla 13). No leer `docs/mvp-plan.md` entero: consultarlo por fragmento.
 - El motor (`app/game/`) no depende de FastAPI, Postgres ni Redis, y no pregunta la hora: el tiempo y el azar se inyectan.
+- Molde de modelo fijado en `models/user.py`: `Mapped[X]` decide el NOT NULL, `uuid4` en Python, `DateTime(timezone=True)` + `server_default=now()`, checks con nombre propio y único parcial para el borrado lógico.
 - ruff 0.17 trae un preset estricto (814 reglas); el lock fija la versión, así que CI se comporta igual.
