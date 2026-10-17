@@ -169,6 +169,14 @@ def start(state: RoomState, *, user_id: str, match_id: str) -> Transition:
     if not _full(state) or not _both_connected(state):
         return state, {user_id: (_error("NOT_READY", "Hacen falta dos jugadores"),)}
 
+    room, message = _new_match(state, match_id)
+    return room, _broadcast(room, message)
+
+
+def _new_match(
+    state: RoomState, match_id: str
+) -> tuple[RoomState, protocols.MatchStart]:
+    """La partida nueva: el bloque que comparten el arranque y la revancha."""
     room = replace(
         state,
         status=RoomStatus.PLAYING,
@@ -183,7 +191,7 @@ def start(state: RoomState, *, user_id: str, match_id: str) -> Transition:
         config={"rounds": state.config.rounds, "seconds": state.config.seconds},
         rounds_total=state.config.rounds,
     )
-    return room, _broadcast(room, message)
+    return room, message
 
 
 def serve(state: RoomState, *, question: LoadedQuestion, now_ms: int) -> Transition:
@@ -312,7 +320,7 @@ def expire(state: RoomState, *, now_ms: int) -> Transition:
     return state, {}
 
 
-def rematch(state: RoomState, *, user_id: str) -> Transition:
+def rematch(state: RoomState, *, user_id: str, match_id: str) -> Transition:
     slot = state.player_of(user_id)
     if slot is None or state.status is not RoomStatus.FINISHED:
         return state, {
@@ -320,6 +328,12 @@ def rematch(state: RoomState, *, user_id: str) -> Transition:
         }
 
     room = replace(state, rematch_requests=state.rematch_requests | {slot})
+    if room.ready_for_rematch:
+        # El segundo pedido arranca la partida nueva: el que esperaba ya no
+        # espera, así que los dos reciben el `match_start` y no un aviso.
+        room, message = _new_match(room, match_id)
+        return room, _broadcast(room, message)
+
     other_seat = room.seats[_index(_other(slot))]
     if other_seat is None:
         return room, {}

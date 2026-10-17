@@ -365,20 +365,41 @@ def test_both_gone_is_a_void_match() -> None:
 def test_rematch_needs_both_and_warns_the_other() -> None:
     state = finished()
 
-    state, effects = R.rematch(state, user_id=HOST)
+    state, effects = R.rematch(state, user_id=HOST, match_id="m2")
     assert isinstance(only(effects, GUEST), RematchWaiting)
     assert not state.ready_for_rematch
+    assert state.status is R.RoomStatus.FINISHED
 
-    state, _ = R.rematch(state, user_id=GUEST)
-    assert state.ready_for_rematch
+    state, effects = R.rematch(state, user_id=GUEST, match_id="m2")
+    assert not state.ready_for_rematch  # los pedidos se consumieron al arrancar
+    assert state.status is R.RoomStatus.PLAYING
+    assert state.match_id == "m2"
+    assert state.match is not None and state.match.round_index == 0
+    assert state.round is None
+    assert isinstance(only(effects, HOST), MatchStart)
+    assert isinstance(only(effects, GUEST), MatchStart)
+
+
+def test_rematch_after_finishing_starts_a_fresh_match() -> None:
+    state = finished()
+    first_match_id = state.match_id
+
+    state, _ = R.rematch(state, user_id=HOST, match_id="m2")
+    state, _ = R.rematch(state, user_id=GUEST, match_id="m2")
+
+    assert state.match_id == "m2" and state.match_id != first_match_id
+    assert state.match is not None
+    assert state.match.rounds == ()  # historial en blanco, no el de la partida vieja
+    assert state.needs_next_round
 
 
 def test_rematch_before_finishing_is_rejected() -> None:
     state = playing()
 
-    state, effects = R.rematch(state, user_id=HOST)
+    state, effects = R.rematch(state, user_id=HOST, match_id="m2")
 
     assert isinstance(only(effects, HOST), Error)
+    assert state.match_id != "m2"
 
 
 def test_leaving_a_finished_room_returns_it_to_waiting() -> None:
