@@ -4,11 +4,11 @@
 
 ## Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`) y el importador están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **351 tests en ~16 s** contra Postgres y Redis reales.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`) y el importador están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **360 tests en ~15 s** contra Postgres y Redis reales.
 
-**Todavía no hay WebSocket.** La identidad y las salas ya andan por HTTP: `/me` (perfil, nick, baja) y `/rooms` (crear + vista previa). Lo que sigue es el WS: `game/protocols.py` + `RoomStore` en memoria.
+**Todavía no hay WebSocket.** La identidad y las salas ya andan por HTTP: `/me` (perfil, nick, baja) y `/rooms` (crear + vista previa). El protocolo de mensajes del WS (`game/protocols.py`) está hecho; lo que sigue es el estado vivo: `RoomStore` en memoria (`runtime/room.py` + `room_manager.py`).
 
-**Pausa acá:** `/rooms` quedó cerrado y verificado (351 tests, ruff/format/mypy en verde). `/me` ya está commiteado; los archivos de este paso (`routers/rooms.py`, `services/rooms.py`, `schemas/rooms.py`, `main.py`, `tests/test_rooms_api.py`) están sin commitear.
+**Pausa acá:** `game/protocols.py` quedó cerrado y verificado (360 tests, ruff/format/mypy en verde). `/me` y `/rooms` ya están commiteados; lo de este paso (`game/protocols.py`, `tests/test_protocols.py`) está sin commitear.
 
 > Pendiente en `/rooms`: la vista previa devuelve `host_nick` y no "cuántos jugadores hay", porque la presencia vive en el WS (aún sin hacer). Se suma cuando exista `RoomStore`.
 
@@ -28,11 +28,12 @@ Diseño acordado, leer antes de tocar datos o auth: **`docs/capa-de-datos.md`**.
 - [x] `docs/mvp-plan.md` alineado: §5.4, §8 (tablas), §12 (auth y códigos de error), §14 (desempate), §6 (árbol), §13 (import/semilla) y §18 (tests)
 - [x] `GET /me` (perfil + pisa `last_seen_at`), `PATCH /me` (nick, reemite token) y `DELETE /me` (baja lógica) con `get_current_user`; `UserOut`/`AuthOut`/`NickUpdate` en `schemas/users.py`
 - [x] `POST /rooms` (código de 6 sin ambiguos vía `secrets`, config por `field_validator` contra constants, host = creador, expira a `ROOM_IDLE_TIMEOUT_SECONDS`) + `GET /rooms/{code}` (preview, normaliza a mayúsculas, `ROOM_NOT_FOUND`)
+- [x] `game/protocols.py`: las formas del WS de salas (§10.1) como dataclasses + `encode` (sobre `{t, id, d}`); `round_start` sin `correct_index` por tipo
 
 ## Próximos pasos
 
-- [ ] `game/protocols.py` y `RoomStore` en memoria con lock por sala
-- [ ] `ws/room_ws.py`: lobby, rondas, desempate, gracia de 20 s, revancha
+- [ ] `RoomStore` en memoria (`runtime/room.py` + `runtime/room_manager.py`) con lock por sala: lobby, rondas, desempate, gracia, revancha
+- [ ] `ws/room_ws.py`: el handler WebSocket sobre el `RoomStore`
 - [ ] Barrendero de salas/matches viejas al arrancar (hoy `expires_at` se escribe pero nadie la marca `expired`)
 - [ ] Arcade sobre WS + ranking + corte semanal en `America/Argentina/Buenos_Aires`
 - [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
