@@ -20,12 +20,13 @@ Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.openc
 - [x] Alcance real de `alembic check` medido: ve tablas, columnas, tipos, defaults, índices, unique y **FK**; es **ciego a los `CHECK`** en las 4 formas
 - [x] Tests contra Postgres real (`trivia_test` recreada por sesión, rollback por test con SAVEPOINT) y test de guardia de schema, validado con dos sabotajes
 - [x] `tests/factories.py` + `tests/constraints.py`: las 108 sondas convertidas en 114 tests con nombre propio; validado dropeando los 70 `CHECK` (fallan esos 70 y ningún otro)
+- [x] `docs/mvp-plan.md` alineado con el código: §5.4 (la partida se escribe al arrancar), §8 (las 7 tablas, `varchar(6)`, único parcial de `nick`, columnas de auditoría), §14 (desempate por quién llegó antes, con el `DISTINCT ON`), §6 (árbol de archivos) y §18 (los tests de constraints y la guardia de schema)
 
 ## Próximos pasos (orden del plan de capa de datos, §6)
 
-- [ ] Reflejar en `docs/mvp-plan.md` (§8 y §14) las tres decisiones ⚠️ ya confirmadas: fila de `matches` al arrancar, desempate por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick`; ahí sigue el `char(6)` y el `ORDER BY MAX(ended_at) ASC` viejos
-- [ ] `ROOMS.host_user_id` del plan no existe en el modelo: decidir si el host es "el que creó la sala" (hace falta la columna) o "el primero que entra" (no hace falta)
-- [ ] `api/deps.py` (`get_session`) + `POST /auth/guest` con JWT y filtro de nicks
+- [ ] Decidir **quién es el host de la sala** (⚠️ en el plan §8): si es "el que la creó" hace falta `host_user_id` en `rooms` + migración; si es "el primero que entra", no. Antes del WS de sala
+- [ ] `api/deps.py` (`get_session`) + `POST /auth/guest` con JWT y filtro de nicks. Dos decisiones: si el JWT y el filtro viven en `security/tokens.py` + `security/nicks.py` (como el plan) o dentro de `api/`, y si la lista de palabras prohibidas es una constante versionada o una tabla
+- [ ] Pendiente de Fase 0: `README.md` con los cinco comandos de la sección 23
 - [ ] Repositorio de preguntas (`RoundQuestion`, sin la respuesta correcta) + vistos en Redis
 - [ ] Importador CSV/JSON + `cli.py` + 60 preguntas semilla
 - [ ] `game/protocols.py` y `RoomStore` en memoria con lock por sala
@@ -51,10 +52,8 @@ Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.openc
 - La verificación de la migración no es "mirar el archivo": se comparan inventarios del `pg_constraint`/`pg_indexes` del schema migrado contra el DDL de los modelos. Es el control que va a repetirse cuando haya cambios de schema.
 - Los tests usan `trivia_test`, no SQLite, y cada uno corre en una transacción que se revierte (SAVEPOINT para los `commit()` del código bajo prueba). Antes de confiar en un fixture de aislamiento, sabotearlo (`rollback` → `commit`) y ver que el test que lo delata falle de verdad.
 - `trivia_test` se **recrea** al empezar cada sesión de pytest: si alguien edita la base a mano para probar algo, el próximo `pytest` lo borra. Se ve bien, pero sorprende al principio.
-- Un test que pasa no dice nada por sí solo: los dos sabotajes del test de guardia (cambiar un `CHECK` en el modelo y borrarlo en la base) son parte de la verificación, no un extra.
+- Un test que pasa no dice nada por sí solo: lo que prueba es el sabotaje. El de la guardia se validó cambiando y borrando un `CHECK`; el suite de constraints, dropeando los `ck_%` de la base (fallan exactamente los tests que los exigen y ninguno más; si falla otro, ese test no medía lo que decía).
 - **Sin `relationship()` en los modelos, el ORM no deduce el orden de los INSERT**: si una partida y sus jugadores van en el mismo flush, el INSERT de `matches` sale primero y la FK lo rechaza. En los tests lo ordena `acepta()` (un flush por tabla, en orden de `metadata.sorted_tables`); el día que el repositorio inserte filas relacionadas, va a tener el mismo problema.
-- Técnica para validar todo el suite de constraints de una vez: dropear los `ck_%` de la base y correrlo. Deben fallar exactamente los tests que exigen un `CHECK` y ninguno más; si falla otro, ese test no medía lo que decía.
-- `docs/mvp-plan.md` todavía describe el esquema viejo (§8) y el desempate viejo (§14): es deuda de documentación, el código va adelante.
+- `docs/mvp-plan.md` quedó alineado con el código (2026-10-17). Si el código se vuelve a adelantar, se sincroniza el md en el mismo paso: el plan es lo que lee la próxima sesión.
 - Ojo con los tests que rompen dos reglas a la vez: el error que llega puede ser el de la otra regla. Cuando pasa, aislar la fila inválida (`seconds=0, ms=0`) en vez de aflojar el `motivo`.
 - La URL de la base **no** está en `alembic.ini`: sale de `.env` por `app.config.settings`. Un solo lugar donde se configura.
-- `docs/mvp-plan.md` es referencia: no leerlo entero, consultarlo por fragmento.

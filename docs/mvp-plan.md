@@ -126,7 +126,7 @@ Estos puntos no fueron definidos explícitamente y se resuelven así. Si el due�
 1. **El servidor decide todo.** El cliente pide, el servidor resuelve y notifica. El cliente nunca calcula puntajes ni decide si una respuesta es correcta.
 2. **El motor de juego es código puro.** Las reglas viven en funciones sin acceso a base de datos, Redis ni red. Eso las hace testeables al 100% y reusables por los dos modos.
 3. **Un modo, un flujo.** Online y arcade comparten el motor pero tienen flujos separados.
-4. **Nada de estado de partida en la base de datos mientras la partida ocurre.** El estado vivo está en memoria y en Redis. La base de datos se escribe al terminar, para el historial y las estadísticas.
+4. **Nada de estado de partida en la base de datos mientras la partida ocurre.** El estado vivo está en memoria y en Redis. De la partida se escribe solo el historial, y en dos momentos: la fila de `matches` **al arrancar** (con `status = playing`, para que `void` sea alcanzable si el proceso muere en el medio) y, al terminar, el `UPDATE` de esa fila más sus rondas en bloque. Cero escrituras por ronda.
 5. **Escalado por Pub/Sub.** Cada instancia del backend atiende sus conexiones y publica los cambios de sala en Redis. Cualquier instancia puede reconstruir una sala desde Redis. Con una sola instancia todo funciona igual.
 
 ---
@@ -157,10 +157,10 @@ trivia/
 │   │   ├── redis.py              # pool de Redis
 │   │   ├── cli.py                # comandos: import-questions, seed, create-admin
 │   │   ├── models/               # SQLAlchemy 2.0
+│   │   │   ├── base.py           # MetaData con convención de nombres
 │   │   │   ├── user.py
 │   │   │   ├── question.py
-│   │   │   ├── room.py
-│   │   │   ├── match.py
+│   │   │   ├── match.py          # rooms + matches + match_rounds (comparten el config)
 │   │   │   └── arcade.py
 │   │   ├── schemas/              # Pydantic v2 de entrada y salida
 │   │   ├── security/
@@ -199,10 +199,18 @@ trivia/
 │   │   └── i18n/
 │   │       └── es.json
 │   └── tests/
+│       ├── conftest.py           # Postgres real (trivia_test) y rollback por test
+│       ├── factories.py          # una fila válida por tabla, con overrides
+│       ├── constraints.py        # acepta() / rechaza(motivo)
 │       ├── test_match_engine.py
 │       ├── test_arcade_engine.py
 │       ├── test_scoring.py
 │       ├── test_questions_service.py
+│       ├── test_constraints_users.py
+│       ├── test_constraints_questions.py
+│       ├── test_constraints_match.py
+│       ├── test_constraints_arcade.py
+│       ├── test_schema_matches_models.py
 │       ├── test_rooms_api.py
 │       ├── test_room_ws.py
 │       └── test_arcade_ws.py
@@ -362,12 +370,14 @@ make lint          # ruff + mypy + svelte-check
 
 PostgreSQL. Todo `snake_case`. UUID como clave primaria. Timestamps `timestamptz` en UTC.
 
+La letra chica —constraints con nombre propio, índices parciales, `CHECK` que replican las reglas del motor— está en **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`**. Acá queda el mapa de las tablas; cuando los dos documentos difieran, manda aquel.
+
 ### `users`
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | uuid PK | |
-| `nick` | varchar(16) | único, no nulo |
+| `nick` | varchar(16) | único **entre vivos**: el índice es parcial (`WHERE deleted_at IS NULL`), así un usuario borrado lógico no bloquea su nick para siempre |
 | `is_guest` | boolean | default `true` |
 | `email` | varchar(255) | nulo en MVP |
 | `provider` | varchar(32) | nulo en MVP |
@@ -402,37 +412,44 @@ PostgreSQL. Todo `snake_case`. UUID como clave primaria. Timestamps `timestamptz
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | uuid PK | |
-| `code` | char(6) | único, sin caracteres ambiguos |
-| `host_user_id` | uuid FK | |
-| `config` | jsonb | `{"rounds": 5, "seconds": 20}` |
+| `code` | varchar(6) | único, sin caracteres ambiguos (sin `0`, `1`, `I`, `O`). varchar y no char: char rellena con espacios y vuelve sutiles las comparaciones |
+| `config` | jsonb | `{"rounds": 5, "seconds": 20}`, con `CHECK` de forma y de valores permitidos |
 | `status` | varchar(16) | `waiting`, `playing`, `finished`, `expired` |
 | `created_at`, `expires_at` | timestamptz | |
+
+⚠️ **Pendiente de decidir: quién es el host de la sala.** Hoy el esquema **no** guarda quién la creó. Si el host tiene que sobrevivir a una reconexión, o ser el único que elige la config y arranca la partida, hace falta una columna `host_user_id` (con su FK y su índice). Si alcanza con "el primero que entra es el host", no hace falta. Se define antes del WebSocket de sala (Fase 2).
 
 ### `matches`
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | uuid PK | |
-| `room_id` | uuid FK | |
+| `room_id` | uuid FK | nulo si la sala se purgó (`ON DELETE SET NULL`): el historial sobrevive |
 | `player_a_id`, `player_b_id` | uuid FK | |
-| `config` | jsonb | copia de la configuración usada |
+| `config` | jsonb | copia de la configuración usada, validada igual que la de `rooms` |
 | `status` | varchar(16) | `playing`, `finished`, `abandoned`, `void` |
-| `winner_id` | uuid | nulo en empate o anulada |
-| `score_a`, `score_b` | integer | |
+| `winner_id` | uuid | nulo en empate o anulada; si no, tiene que ser uno de los dos jugadores |
+| `score_a`, `score_b` | integer | copia derivada del historial de rondas; las escribe solo el motor |
 | `started_at`, `ended_at` | timestamptz | |
+
+La fila se crea **al arrancar** la partida con `status = playing` y sin `ended_at`. Un barrendero al arrancar la API marca como `void` toda partida que siga en `playing` más vieja que N minutos.
 
 ### `match_rounds`
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | uuid PK | |
-| `match_id` | uuid FK | |
-| `round_index` | smallint | 0-based |
-| `question_id` | uuid FK | |
+| `match_id` | uuid FK | `ON DELETE CASCADE`: las rondas no tienen vida propia |
+| `round_index` | smallint | 0-based; único junto con `match_id` |
+| `question_id` | uuid FK | nulo si la pregunta se purgó (`ON DELETE SET NULL`) |
+| `correct_index`, `difficulty`, `seconds` | smallint | copia de lo que se mostró: con estos tres la fila se puede auditar y recalcular años después |
 | `a_choice`, `b_choice` | smallint | nulo si no contestó a tiempo |
-| `a_ms`, `b_ms` | integer | milisegundos desde que se abrió la ronda |
+| `a_ms`, `b_ms` | integer | milisegundos desde que se abrió la ronda; nulo si no hubo elección |
+| `a_correct`, `b_correct` | boolean | no se derivan de `(choice, correct_index)`: fuera de la ventana hasta el acierto cuenta mal |
 | `a_points`, `b_points` | integer | |
-| `created_at` | timestamptz | |
+| `a_rejected`, `b_rejected` | varchar(24) | motivo del descarte (`outside_window`) o nulo |
+
+Los nombres espejan `RoundRecord` del motor, sin traducir.
 
 ### `arcade_runs`
 
@@ -443,15 +460,15 @@ PostgreSQL. Todo `snake_case`. UUID como clave primaria. Timestamps `timestamptz
 | `score` | integer | |
 | `correct_count` | integer | |
 | `max_difficulty` | smallint | |
-| `longest_streak` | integer | |
-| `status` | varchar(16) | `playing`, `finished`, `invalid` |
-| `started_at`, `ended_at` | timestamptz | |
+| `longest_streak` | integer | nunca mayor que `correct_count` |
+| `status` | varchar(16) | `playing`, `finished`, `invalid`. `invalid` es el estado que saca una corrida del ranking |
+| `started_at`, `ended_at` | timestamptz | `ended_at` es nulo si y solo si está `playing` |
 
-Índices: `(user_id, score desc)`, `(ended_at)`, `(score desc)`.
+Índices: los tres del ranking (`(user_id, score desc)`, `(score desc)`, `(ended_at)`) son **parciales**, todos con `WHERE status = 'finished'`: una corrida en curso o dudosa no ocupa lugar en el índice.
 
 ### `arcade_answers`
 
-Opcional pero recomendado para validar y para depurar: `run_id`, `question_id`, `chosen_index`, `is_correct`, `ms`, `points`, `created_at`.
+Una fila por ronda, `ON DELETE CASCADE` desde la corrida y único `(run_id, round_index)`: `question_id` (nulo si se purgó), `difficulty`, `seconds`, `correct_index`, `chosen_index` (nulo si no contestó), `is_correct`, `ms` (nunca nulo: mide la ventana agotada), `points` y `rejected` (nulo o `outside_window`).
 
 ### Migraciones
 
@@ -756,21 +773,24 @@ Cuando se agregue "adiviná la canción" o "adiviná la película", el cambio es
 
 ## 14. Ranking
 
-- **Global histórico:** por cada usuario, su mejor `score` de todas las corridas válidas. Ordenado descendente. Desempate por fecha más antigua primero.
-- **Semanal:** mismo criterio pero solo corridas terminadas desde el lunes 00:00 en `America/Argentina/Buenos_Aires`. Se puede materializar en un sorted set de Redis, pero para el MVP un `SELECT` con `GROUP BY` alcanza y es más simple de entender.
+- **Global histórico:** por cada usuario, su mejor `score` de todas las corridas válidas. Ordenado descendente. El empate se resuelve por **el momento más temprano en que ese jugador alcanzó ese puntaje**: quien llegó antes al mismo número va primero. (No por `MAX(ended_at)`, que significa "el que jugó por última vez hace más tiempo va primero": arbitrario y se mueve solo.)
+- **Semanal:** mismo criterio pero solo corridas terminadas desde el lunes 00:00 en `America/Argentina/Buenos_Aires`. Se puede materializar en un sorted set de Redis, pero para el MVP un `SELECT` alcanza y es más simple de entender.
 - **Mejor marca personal:** máximo de las corridas del usuario.
 - El ranking se refresca al abrir la pantalla. No hay push en vivo en el MVP.
 
-Consulta base:
+Consulta base. El `DISTINCT ON` elige, por usuario, su corrida de mayor puntaje y, entre las que empatan, la más temprana; después reordena esa lista:
 
 ```sql
-SELECT u.id, u.nick, MAX(r.score) AS best, MAX(r.ended_at) AS achieved_at
-FROM arcade_runs r
-JOIN users u ON u.id = r.user_id
-WHERE r.status = 'finished'
-  AND r.ended_at >= :since          -- solo se usa en el ranking semanal
-  AND u.deleted_at IS NULL
-GROUP BY u.id, u.nick
+SELECT * FROM (
+  SELECT DISTINCT ON (u.id)
+         u.id, u.nick, r.score AS best, r.ended_at AS achieved_at
+  FROM arcade_runs r
+  JOIN users u ON u.id = r.user_id
+  WHERE r.status = 'finished'
+    AND u.deleted_at IS NULL
+    -- AND r.ended_at >= :since   -- solo en el ranking semanal
+  ORDER BY u.id, r.score DESC, r.ended_at ASC
+) AS mejor
 ORDER BY best DESC, achieved_at ASC
 LIMIT :limit;
 ```
@@ -925,6 +945,8 @@ El audio debe ser CC0 o de producción propia. Se inicializa después de la prim
 - `test_match_engine.py` y `test_arcade_engine.py`: pruebas puras del motor. Casos obligatorios: acierto rápido, acierto al límite, error, sin respuesta, empate y desempate, progresión de dificultad y de tiempo, corte por vidas.
 - `test_scoring.py`: tabla de valores exacta para que el puntaje no se rompa al refactorizar.
 - `test_questions_service.py`: que nunca se repita una pregunta dentro de una partida, que respete la dificultad, y que no explote si no hay preguntas suficientes.
+- `test_constraints_*.py`: **un test por regla de la base**, contra un Postgres real y exigiendo el constraint que corresponde. Nada de SQLite: no tiene `jsonb`, ni índices parciales, ni `CHECK` con regex.
+- `test_schema_matches_models.py`: guardia contra el drift entre los modelos y la migración. Hace falta porque `alembic check` **no compara los `CHECK`** (los deja pasar agregados, cambiados, renombrados o borrados).
 - `test_rooms_api.py` y `test_arcade_ws.py`: con `httpx` y el cliente de test de FastAPI, incluyendo WebSocket.
 - `test_room_ws.py`: partida completa entre dos clientes simulados, con desconexión y reconexión dentro de la ventana de gracia.
 
