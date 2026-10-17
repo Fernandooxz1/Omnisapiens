@@ -2,7 +2,7 @@
 
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from sqlalchemy import select
@@ -12,6 +12,8 @@ from app.game.constants import ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH
 from app.game.match_engine import MatchConfig
 from app.models import Room
 from app.runtime.room_manager import Outbox, room_store
+
+from .factories import room, user
 
 CODIGO_RE = re.compile(f"^[{ROOM_CODE_ALPHABET}]{{{ROOM_CODE_LENGTH}}}$")
 
@@ -72,6 +74,7 @@ async def test_rejects_a_rounds_value_out_of_the_options(
 
     assert respuesta.status_code == 422
     assert respuesta.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert "rounds:" in respuesta.json()["error"]["message"]
 
 
 async def test_rejects_a_seconds_value_out_of_the_options(
@@ -173,3 +176,33 @@ async def test_preview_of_an_unknown_code_is_a_404(client: httpx.AsyncClient) ->
 
     assert respuesta.status_code == 404
     assert respuesta.json()["error"]["code"] == "ROOM_NOT_FOUND"
+
+
+async def test_preview_of_an_expired_room_is_a_404(
+    client: httpx.AsyncClient, session: AsyncSession
+) -> None:
+    ana = user(nick="ana")
+    session.add(ana)
+    await session.flush()
+    vencida = room(ana.id, status="expired")
+    session.add(vencida)
+    await session.flush()
+
+    respuesta = await client.get(f"/rooms/{vencida.code}")
+
+    assert respuesta.status_code == 404
+
+
+async def test_preview_of_a_waiting_room_past_its_deadline_is_a_404(
+    client: httpx.AsyncClient, session: AsyncSession
+) -> None:
+    ana = user(nick="ana")
+    session.add(ana)
+    await session.flush()
+    vencida = room(ana.id, expires_at=datetime.now(UTC) - timedelta(minutes=1))
+    session.add(vencida)
+    await session.flush()
+
+    respuesta = await client.get(f"/rooms/{vencida.code}")
+
+    assert respuesta.status_code == 404

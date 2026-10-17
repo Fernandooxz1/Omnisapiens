@@ -1,13 +1,14 @@
 """Salas: crear y consultar una por código."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.api.deps import CurrentUserDep, SessionDep
 from app.api.errors import ApiError
+from app.api.rate_limit import room_rate_limit
 from app.models import User
 from app.runtime.room_manager import room_store
 from app.schemas.rooms import RoomCreate, RoomOut, RoomPreview
-from app.services.rooms import create_room, get_by_code
+from app.services.rooms import create_room, get_by_code, room_is_available
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
@@ -23,10 +24,10 @@ async def new_room(
     return RoomOut(code=sala.code, config=sala.config)
 
 
-@router.get("/{code}")
+@router.get("/{code}", dependencies=[Depends(room_rate_limit)])
 async def room_preview(code: str, session: SessionDep) -> RoomPreview:
     sala = await get_by_code(session, code)
-    if sala is None:
+    if sala is None or not room_is_available(sala):
         raise ApiError(404, "ROOM_NOT_FOUND", "No hay una sala con ese código.")
     host = await session.get(User, sala.host_user_id)
     return RoomPreview(

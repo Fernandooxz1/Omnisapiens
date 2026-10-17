@@ -28,12 +28,13 @@ from starlette.websockets import WebSocketDisconnected
 
 from app.api.deps import SessionDep, authenticate
 from app.api.errors import ApiError
+from app.api.rate_limit import room_limit
 from app.config import settings
 from app.game import protocols
 from app.game.match_engine import MatchConfig
 from app.models import Room, User
-from app.runtime.room_manager import Outbox, RoomStore, room_store
-from app.services.rooms import get_by_code
+from app.runtime.room_manager import OUTBOX_MAX, Outbox, RoomStore, room_store
+from app.services.rooms import get_by_code, room_is_available
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ async def room_socket(
     # recibir el `error` con el que el cliente vuelve al inicio (§12).
     await websocket.accept()
     try:
+        await room_limit(websocket.client.host if websocket.client else None)
         usuario = await _identify(websocket, session)
         sala = await _load_room(session, code)
     except ApiError as exc:
@@ -79,7 +81,7 @@ async def room_socket(
         host_id=str(sala.host_user_id),
     )
 
-    outbox: Outbox = asyncio.Queue()
+    outbox: Outbox = asyncio.Queue(maxsize=OUTBOX_MAX)
     await store.join(code=codigo, user_id=user_id, nick=usuario.nick, outbox=outbox)
     send_lock = asyncio.Lock()
     if not store.seated(code=codigo, user_id=user_id):
@@ -127,7 +129,7 @@ async def _identify(websocket: WebSocket, session: AsyncSession) -> User:
 
 async def _load_room(session: AsyncSession, code: str) -> Room:
     sala = await get_by_code(session, code)
-    if sala is None:
+    if sala is None or not room_is_available(sala):
         raise ApiError(404, "ROOM_NOT_FOUND", "No hay una sala con ese código.")
     return sala
 

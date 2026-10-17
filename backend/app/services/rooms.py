@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.game.constants import ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH
 from app.models import Room, User
+from app.runtime.room import RoomStatus
 
 ROOM_CODE_ATTEMPTS = 5
 
@@ -37,6 +38,19 @@ async def get_by_code(session: AsyncSession, code: str) -> Room | None:
     return await session.scalar(
         select(Room).where(Room.code == normalize_room_code(code))
     )
+
+
+def room_is_available(sala: Room, *, now: datetime | None = None) -> bool:
+    """Si todavía se puede entrar.
+
+    Una sala `expired` no vuelve, y una `waiting` con `expires_at` vencido tampoco
+    (H-10): si no, abrir el WS la resucitaba en memoria y el código vencido seguía
+    sirviendo. `playing` y `finished` siguen abiertas para reconectar/revancha.
+    """
+    if sala.status == RoomStatus.EXPIRED.value:
+        return False
+    ahora = now or datetime.now(UTC)
+    return not (sala.status == RoomStatus.WAITING.value and sala.expires_at <= ahora)
 
 
 async def create_room(

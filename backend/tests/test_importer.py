@@ -182,6 +182,27 @@ async def test_imports_valid_rows_and_reports_the_rest(session: AsyncSession) ->
     assert report.total == 4
 
 
+async def test_the_insert_goes_in_batches(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Con lotes de 2, cinco filas son tres INSERT: prueba el bucle sin cargar 500.
+    monkeypatch.setattr(importer, "INSERT_BATCH", 2)
+    ejecutadas: list[object] = []
+    original = session.execute
+
+    async def espia(*args: object, **kwargs: object):
+        ejecutadas.append(args[0])
+        return await original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(session, "execute", espia)
+    rows = [RawRow(n, fila(prompt=f"Pregunta número {n}")) for n in range(2, 7)]
+
+    report = await importer.import_rows(session, rows, status="published")
+
+    assert report.imported == 5
+    assert len(ejecutadas) == 3
+
+
 async def test_imported_questions_are_playable_when_published(
     session: AsyncSession,
 ) -> None:

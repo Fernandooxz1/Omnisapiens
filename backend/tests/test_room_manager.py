@@ -230,6 +230,23 @@ async def test_join_sits_the_two_players_and_the_third_is_rejected(
     assert h.store.player_count(fila.code) == 2
 
 
+async def test_a_full_outbox_does_not_block_the_room(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    """H-13: un cliente que no lee no puede frenar la sala ni crecer sin tope."""
+    h, ana, beto, fila = await sala_armada(session, abrir)
+    apretado: Outbox = asyncio.Queue(maxsize=1)
+    await h.store.join(code=fila.code, user_id=str(ana.id), nick="ana", outbox=apretado)
+    assert apretado.qsize() == 1
+
+    # La entrada de Beto le manda otro estado a Ana: se descarta el viejo.
+    await h.store.join(
+        code=fila.code, user_id=str(beto.id), nick="beto", outbox=Outbox()
+    )
+
+    assert apretado.qsize() == 1
+
+
 async def test_the_host_starts_and_the_match_row_is_written(
     session: AsyncSession, abrir: Callable[..., Harness]
 ) -> None:

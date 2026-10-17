@@ -281,33 +281,42 @@ async def import_rows(
     return ImportReport(imported=insertadas, duplicated=duplicadas, rejected=rechazadas)
 
 
+INSERT_BATCH = 500
+
+
 async def _insert(session: AsyncSession, filas: list[ParsedRow], status: str) -> int:
-    """Inserta las filas y devuelve cuántas entraron de verdad."""
-    if not filas:
-        return 0
-    valores = [
-        {
-            "id": uuid.uuid4(),
-            "category": fila.category,
-            "difficulty": fila.difficulty,
-            "prompt": fila.prompt,
-            "options": fila.options,
-            "correct_index": fila.correct_index,
-            "explanation": fila.explanation,
-            "source": fila.source,
-            "status": status,
-            "content_hash": fila.content_hash,
-            "tags": fila.tags,
-        }
-        for fila in filas
-    ]
-    resultado = await session.execute(
-        pg_insert(Question)
-        .values(valores)
-        .on_conflict_do_nothing(index_elements=["content_hash"])
-        .returning(Question.id)
-    )
-    return len(resultado.all())
+    """Inserta las filas en lotes y devuelve cuántas entraron de verdad.
+
+    Un INSERT con 100.000 filas es una sentencia gigante y un pico de memoria
+    (H-15). Lotes de `INSERT_BATCH` mantienen la sentencia y el viaje acotados.
+    """
+    insertadas = 0
+    for inicio in range(0, len(filas), INSERT_BATCH):
+        lote = filas[inicio : inicio + INSERT_BATCH]
+        valores = [
+            {
+                "id": uuid.uuid4(),
+                "category": fila.category,
+                "difficulty": fila.difficulty,
+                "prompt": fila.prompt,
+                "options": fila.options,
+                "correct_index": fila.correct_index,
+                "explanation": fila.explanation,
+                "source": fila.source,
+                "status": status,
+                "content_hash": fila.content_hash,
+                "tags": fila.tags,
+            }
+            for fila in lote
+        ]
+        resultado = await session.execute(
+            pg_insert(Question)
+            .values(valores)
+            .on_conflict_do_nothing(index_elements=["content_hash"])
+            .returning(Question.id)
+        )
+        insertadas += len(resultado.all())
+    return insertadas
 
 
 async def import_file(

@@ -67,6 +67,10 @@ SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 MAX_EXPIRY_FAILURES = 5
 EXPIRY_BACKOFF_S = 1.0
 
+# Tope por conexión: un cliente que deja de leer no puede hacer crecer la cola sin
+# fin (H-13). Si se llena se descarta lo más viejo; la conexión la corta el idle.
+OUTBOX_MAX = 64
+
 
 class RoomStore(Protocol):
     """Lo que el WebSocket de una sala necesita del estado vivo (A3.6).
@@ -395,11 +399,7 @@ class InMemoryRoomStore:
         low, high = difficulty_range(match)
         used = {record.question_id for record in match.rounds}
         async with self._sessions() as session:
-            pool = [
-                candidate
-                for candidate in await candidates(session)
-                if low <= candidate.difficulty <= high
-            ]
+            pool = await candidates(session, low=low, high=high)
             if not pool:
                 logger.warning(
                     "la sala %s no tiene preguntas en el tramo %s-%s",
@@ -604,7 +604,18 @@ async def _deliver(entry: _Room, effects: Effects) -> None:
         if outbox is None:
             continue
         for message in messages:
-            await outbox.put(message)
+            _push(outbox, message)
+
+
+def _push(outbox: Outbox, message: protocols.Message) -> None:
+    try:
+        outbox.put_nowait(message)
+    except asyncio.QueueFull:
+        # El cliente dejó de leer (TCP sin drenar). Se descarta el mensaje más
+        # viejo y queda el más nuevo; la conexión la corta el timeout de inactividad.
+        outbox.get_nowait()
+        outbox.put_nowait(message)
+        logger.warning("el outbox de una conexión se llenó: se descartó un mensaje")
 
 
 def _error_to_seats(state: RoomState, code: str, message: str) -> Effects:

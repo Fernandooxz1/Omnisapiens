@@ -13,11 +13,11 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas**, **el WebSocket de sala** y **el barrendero** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **436 tests en ~10 s** contra Postgres y Redis reales.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas**, **el WebSocket de sala** y **el barrendero** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **448 tests en ~12 s** contra Postgres y Redis reales.
 
 El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`) y el barrendero cierra al arrancar lo que quedó abierto. Las opciones se barajan al servir (H-25), el token no se escribe en los logs (H-08) y el desempate tiene tope (H-24). Falta el resto del tiempo real: **el arcade por WS**.
 
-**Pausa acá:** cerrados los P0/P1, H-11, H-12/H-08, H-24, H-25, `players`, el barrendero y los P3 (H-16..H-23). Quedan los **P2 de seguridad/escala**: H-09 (rate limiting), H-10 (sala vencida en la vista previa), H-13 (outbox sin tope y candidatas completas por ronda), H-14 (`loc` del 422) y H-15 (límites de tamaño). Después el `README.md`, el barrendero periódico y el **arcade por WS + ranking**.
+**Pausa acá:** **la auditoría completa está cerrada** (H-01..H-25) más `players`, barrendero y calidad. Quedan el `README.md`, el barrendero periódico y el **arcade por WS + ranking**.
 
 Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
@@ -42,6 +42,7 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - [x] **H-25**: `shuffle_options` baraja los índices al servir y remapea `correct_index`; la pregunta guardada no se toca. Adiós al sesgo de posición (B en 48 %) + 4 tests
 - [x] **H-24**: tope de `MAX_TIEBREAK_ROUNDS = 3`: si siguen empatados, la partida termina en empate (`FINISHED`, `winner=None`, `MatchEnd.winner="tie"`) en vez de servir rondas para siempre + tests de motor y de sala
 - [x] **P3 (H-16..H-21, H-23)**: `orjson`/`python-multipart`/`admin_token` fuera; `services/rooms.get_by_code` único (HTTP y WS); `GET /` devuelve `{name, version}`; `/health` responde 503 si falta DB o Redis; handlers de salas en inglés; `JWT_SECRET` de dev ≥ 32 bytes y validado si `env != "local"`; `GET /me` refresca `last_seen_at` como mucho una vez por minuto + tests
+- [x] **P2 (H-09, H-10, H-13, H-14, H-15)**: rate limiting por IP en Redis (degrada si Redis no está) en alta, vista previa y WS; las salas `expired` o `waiting` vencidas no se reviven desde HTTP ni WS; `outbox` acotado a 64 y candidatas filtradas por dificultad en SQL; el 422 lleva `loc`; tope de cuerpo de 1 MB, `max_length` del nick y import por lotes de 500
 
 ### Próximos pasos
 
@@ -49,7 +50,6 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 > Los P0 y P1 de la auditoría, el barrendero, la calidad y los P3 están cerrados;
 > sigue la cola de abajo.
 
-- [ ] **P2 de seguridad/escala**: H-09 rate limiting en `/auth/guest` y en el fallo de `ROOM_NOT_FOUND` (Redis); H-10 no revivir salas `expired` desde el WS y decidir auth de la vista previa; H-13 `outbox` con tope y filtro de dificultad en la consulta; H-14 sumar `loc` al 422; H-15 `max_length` del nick, límite de cuerpo y lotes del importador
 - [ ] Arcade sobre WS (`ws/arcade_ws.py`) + ranking + corte semanal en `America/Argentina/Buenos_Aires`
 - [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
 - [ ] Barrendero periódico (no solo al arrancar): el mismo `sweep` en una task con intervalo, para que una sala `waiting` venza sin esperar un reinicio. Coordinar con H-03 y con `expires_at` (H-04 ya lo refresca)
@@ -114,6 +114,10 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - El token del WS viaja en `?token=` (el navegador no deja headers en `new WebSocket`), y uvicorn loguea el handshake con la URL completa en `uvicorn.error`. `logging_config._HideWebSocketTokens` descarta los registros cuyos argumentos son `/ws/...` o contienen `?token=`; el resto de `uvicorn.error` (arranque, errores) sigue visible. El filtro va por logger, no por handler, porque uvicorn escribe esos renglones directamente en `uvicorn.access`/`uvicorn.error`.
 - Las opciones se barajan **al servir** (`shuffle_options`) y `correct_index` se remapea en la misma copia: `RoundStart` y `match_rounds` ven el índice nuevo, y la pregunta guardada no se toca. Se barajan **índices**, no textos, para que un banco con opciones repetidas no desplace la respuesta. El `RoomStore` acepta `shuffle_served_options=False` para los tests que necesitan predecir la letra; producción lo deja en `True`.
 - El desempate tiene tope (`MAX_TIEBREAK_ROUNDS = 3`): si tras tres rondas extra siguen empatados, la partida termina **en empate** (`FINISHED`, `winner=None`). `MatchState` sólo acepta un terminado sin ganador si `round_index >= config.rounds + MAX_TIEBREAK_ROUNDS`; antes del tope sigue siendo inválido. `MatchEnd` ya traducía `winner=None` a `"tie"`.
+- **Rate limiting** (`api/rate_limit.py`): ventana fija de 60 s por IP y bucket en Redis (`INCR` + `EXPIRE`). Aplica al alta de invitado, a la vista previa y al WS. Si Redis no contesta se deja pasar y se loguea: el juego degrada, no se cae. En tests, un fixture autouse lo apunta al Redis de test con límites altos; los tests del corte lo bajan a mano (si no, toda la suite comparte el contador de la misma IP).
+- Una sala **vencida no se revive** (`room_is_available`): `expired`, o `waiting` con `expires_at` pasado, dan 404 en la vista previa y `ROOM_NOT_FOUND` en el WS. `playing` y `finished` siguen abiertas para reconectar o pedir revancha.
+- El **`outbox`** está acotado (`OUTBOX_MAX = 64`); si el cliente deja de leer, se descarta el mensaje más viejo en vez de bloquear la sala o crecer sin techo. El timeout de inactividad termina cortando esa conexión.
+- Los bordes tienen tope de tamaño: cuerpo HTTP de 1 MB (`BodySizeLimitMiddleware`), `max_length` generoso en el schema del nick (el límite real de 16 sigue en `clean_nick`) y el importador inserta en lotes de 500. El 422 de validación incluye el campo (`loc[1:]`) para que el cliente sepa qué corregir.
 - El reloj y el `sleep` se inyectan: el `FakeClock` de los tests no duerme, espera a que el test mueva la hora. Así una partida entera por vencimientos corre en milisegundos, sin esperar los 10–20 s reales de cada ronda.
 - Los tests del `room_manager` pasan la **sesión del test** como factory (su `commit` se vuelve SAVEPOINT): igual que la fixture `client`, sin ensuciar `trivia_test`.
 - La entrega es un `outbox` (cola) por jugador y no un callback: el vencimiento tiene que entregar sin que haya nadie esperando del otro lado, y el timer no conoce sockets. `disconnect` suelta esa cola: mensajes para un socket que ya no está no le sirven a nadie y se acumularían.
@@ -461,6 +465,8 @@ RECONNECT_GRACE_SECONDS=20
 ROOM_IDLE_TIMEOUT_SECONDS=600
 STALE_MATCH_MINUTES=15
 WS_IDLE_TIMEOUT_SECONDS=45
+RATE_LIMIT_GUEST_PER_MINUTE=10
+RATE_LIMIT_ROOM_PER_MINUTE=60
 ```
 
 ### Comandos

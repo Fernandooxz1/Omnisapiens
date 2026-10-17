@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     jwt_ttl_days: int = 30
     reconnect_grace_seconds: int = 20
+    # Rate limiting por IP y minuto (H-09). Redis caído = se deja pasar.
+    rate_limit_guest_per_minute: int = 10
+    rate_limit_room_per_minute: int = 60
     room_idle_timeout_seconds: int = 600
     # Una partida `playing` más vieja que esto es de un proceso que murió a mitad:
     # el barrendero la anula al arrancar. El techo de una partida normal (7 rondas

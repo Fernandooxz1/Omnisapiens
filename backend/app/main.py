@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import errors
+from app.api.limits import BodySizeLimitMiddleware
 from app.api.routers import auth, health, me, rooms
 from app.config import settings
 from app.db import engine, session_factory
@@ -50,6 +51,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Omnisapiens API", version="0.1", lifespan=lifespan)
+
+# Un cuerpo enorme se corta en la puerta, antes de que lo parsee ningún modelo.
+app.add_middleware(BodySizeLimitMiddleware)
 
 # El frontend vive en otro puerto (5173), así que el navegador exige CORS: sin
 # esto el `POST /auth/guest` ni sale del browser. Los orígenes salen de `.env`.

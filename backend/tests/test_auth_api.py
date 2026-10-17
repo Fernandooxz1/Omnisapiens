@@ -88,6 +88,16 @@ async def test_a_nick_that_is_too_long_is_rejected(client: httpx.AsyncClient) ->
     assert respuesta.json()["error"]["code"] == "NICK_LENGTH"
 
 
+async def test_an_absurd_nick_never_reaches_the_nick_rules(
+    client: httpx.AsyncClient,
+) -> None:
+    # El tope del schema actúa antes de `clean_nick`: no se procesa un nick enorme.
+    respuesta = await client.post("/auth/guest", json={"nick": "a" * 65})
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
 async def test_a_valid_token_reuses_the_same_user_instead_of_creating_another(
     client: httpx.AsyncClient, session: AsyncSession
 ) -> None:

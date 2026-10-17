@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
+from app.api import rate_limit
 from app.api.deps import get_session
 from app.config import settings
 from app.main import app
@@ -127,6 +128,18 @@ async def redis(redis_test: Redis) -> AsyncIterator[Redis]:
     """
     yield redis_test
     await redis_test.flushdb()
+
+
+@pytest.fixture(autouse=True)
+async def _rate_limit_aislado(redis: Redis, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Los tests no comparten el contador de rate limit del Redis de desarrollo.
+
+    Usan la base de test (que se vacía al final) y un límite alto: los tests que
+    prueban el corte lo bajan a mano.
+    """
+    monkeypatch.setattr(rate_limit, "redis_client", redis)
+    monkeypatch.setattr(rate_limit.settings, "rate_limit_guest_per_minute", 10_000)
+    monkeypatch.setattr(rate_limit.settings, "rate_limit_room_per_minute", 10_000)
 
 
 def _sesion_del_test(

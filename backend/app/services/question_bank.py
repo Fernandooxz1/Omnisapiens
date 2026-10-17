@@ -80,18 +80,26 @@ def shuffle_options(loaded: LoadedQuestion, rng: Random) -> LoadedQuestion:
     )
 
 
-async def candidates(session: AsyncSession) -> list[Candidate]:
+async def candidates(
+    session: AsyncSession,
+    *,
+    low: int | None = None,
+    high: int | None = None,
+) -> list[Candidate]:
     """Las publicadas, con lo mínimo para elegir.
 
-    Se traen todas y se filtra en memoria porque el selector es puro. Con 60
-    preguntas es gratis; con decenas de miles esto pasa a ser un `TABLESAMPLE` o
-    una consulta por categoría y dificultad (riesgo de escala ya anotado en el plan).
+    El filtro de dificultad puede bajar a la consulta (`low`/`high`): con el banco
+    grande, traer todo y filtrar en memoria en cada ronda y por sala era el riesgo
+    de escala de H-13. Sin rango, trae todas (lo que usan los tests y la CLI).
     """
-    filas = await session.execute(
-        select(Question.id, Question.category, Question.difficulty).where(
-            Question.status == "published"
-        )
+    consulta = select(Question.id, Question.category, Question.difficulty).where(
+        Question.status == "published"
     )
+    if low is not None:
+        consulta = consulta.where(Question.difficulty >= low)
+    if high is not None:
+        consulta = consulta.where(Question.difficulty <= high)
+    filas = await session.execute(consulta)
     return [
         Candidate(question_id=str(id_), category=category, difficulty=difficulty)
         for id_, category, difficulty in filas

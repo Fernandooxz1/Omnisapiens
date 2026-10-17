@@ -225,6 +225,17 @@ async def test_redis_really_is_answering(redis: Redis) -> None:
     assert await redis.ping() is True
 
 
+async def test_candidates_can_filter_the_difficulty_in_the_query(
+    session: AsyncSession,
+) -> None:
+    await banco_publicado(session)
+
+    candidatas = await candidates(session, low=4, high=5)
+
+    assert candidatas
+    assert {candidata.difficulty for candidata in candidatas} == {4, 5}
+
+
 def _cargada(*, correct_index: int = 1) -> LoadedQuestion:
     return LoadedQuestion(
         question=RoundQuestion(

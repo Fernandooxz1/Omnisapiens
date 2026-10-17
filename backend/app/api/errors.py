@@ -33,7 +33,12 @@ def install(app: FastAPI) -> None:
     async def _validation_error(
         _: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        detalle = "; ".join(error["msg"] for error in exc.errors())
+        # `loc[1:]` saltea el `body`/`query` que antepone FastAPI: el cliente
+        # necesita "rounds: Input should be...", no "body.rounds: ..." (H-14).
+        detalle = "; ".join(
+            f"{'.'.join(str(parte) for parte in error['loc'][1:])}: {error['msg']}"
+            for error in exc.errors()
+        )
         return JSONResponse(
             status_code=422,
             content={

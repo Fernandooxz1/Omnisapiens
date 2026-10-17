@@ -10,8 +10,10 @@ from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 
 import pytest
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api import rate_limit
 from app.api.deps import get_session
 from app.config import settings
 from app.main import app
@@ -201,6 +203,33 @@ async def test_an_unknown_room_is_rejected(
     async with connect(api.host, code="ZZZZZZ") as socket:
         error = await socket.receive()
         assert error["d"]["code"] == "ROOM_NOT_FOUND"
+
+
+async def test_an_expired_room_is_rejected(
+    api: Api, connect: Callable[..., WebSocketClient], session: AsyncSession
+) -> None:
+    api.room.status = "expired"
+    await session.flush()
+
+    async with connect(api.host) as socket:
+        error = await socket.receive()
+        assert error["d"]["code"] == "ROOM_NOT_FOUND"
+
+
+async def test_the_websocket_is_limited_per_ip(
+    api: Api,
+    connect: Callable[..., WebSocketClient],
+    redis: Redis,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rate_limit, "redis_client", redis)
+    monkeypatch.setattr(rate_limit.settings, "rate_limit_room_per_minute", 1)
+
+    async with connect(api.host) as primera:
+        assert (await primera.receive())["t"] == "room_state"
+        async with connect(api.host) as segunda:
+            error = await segunda.receive()
+            assert error["d"]["code"] == "RATE_LIMITED"
 
 
 async def test_a_disconnect_and_reconnect_inside_the_grace(
