@@ -28,7 +28,7 @@ from app.game.protocols import (
     RoundStart,
 )
 from app.game.protocols import RoomState as RoomStateMessage
-from app.models import Match, MatchRound, Room, User
+from app.models import Match, MatchRound, Question, Room, User
 from app.runtime.room_manager import InMemoryRoomStore, Outbox
 
 from .factories import question, room, user
@@ -92,6 +92,7 @@ async def abrir(session: AsyncSession) -> AsyncIterator[Callable[..., Harness]]:
         session_factory: (
             Callable[[], AbstractAsyncContextManager[AsyncSession]] | None
         ) = None,
+        shuffle_served_options: bool = False,
     ) -> Harness:
         clock = FakeClock()
         store = InMemoryRoomStore(
@@ -100,6 +101,7 @@ async def abrir(session: AsyncSession) -> AsyncIterator[Callable[..., Harness]]:
             now_ms=clock.now_ms,
             sleep=clock.sleep,
             rng=Random(seed),
+            shuffle_served_options=shuffle_served_options,
         )
         abiertos.append(store)
         return Harness(store=store, clock=clock)
@@ -120,9 +122,14 @@ async def sala_armada(
     session_factory: (
         Callable[[], AbstractAsyncContextManager[AsyncSession]] | None
     ) = None,
+    shuffle_served_options: bool = False,
 ) -> tuple[Harness, User, User, Room]:
     """Dos jugadores, la fila de la sala y el banco que se le pida."""
-    h = abrir(grace=grace, session_factory=session_factory)
+    h = abrir(
+        grace=grace,
+        session_factory=session_factory,
+        shuffle_served_options=shuffle_served_options,
+    )
     ana, beto = user(nick="ana"), user(nick="beto")
     # Dos flushes: sin `relationship()` el ORM no deduce que `rooms` va después
     # de `users` (el mismo problema que ya está anotado en el plan).
@@ -251,6 +258,38 @@ async def test_the_host_starts_and_the_match_row_is_written(
     assert partida.config == {"rounds": 3, "seconds": 10}
     assert partida.status == "playing"
     assert partida.ended_at is None
+
+
+async def test_serving_shuffles_the_options_and_the_correct_one_moves(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    """H-25: la respuesta correcta no puede quedar siempre en la misma letra."""
+    h, ana, beto, fila = await sala_armada(session, abrir, shuffle_served_options=True)
+    a_out, b_out = await sentar(h, fila, ana, beto)
+    await h.store.start(code=fila.code, user_id=str(ana.id))
+    ronda = uno(drain(a_out), RoundStart)
+    drain(b_out)
+
+    # La pregunta servida está en la base; su respuesta es el texto, no la letra.
+    pregunta = await session.get(Question, uuid.UUID(ronda.question_id))
+    assert pregunta is not None
+    correcta = pregunta.options[pregunta.correct_index]
+    eleccion = ronda.options.index(correcta)
+
+    # Con esta semilla la mezcla cambió el orden: si dejara de barajar, el índice
+    # correcto volvería a ser el de la base.
+    assert ronda.options != pregunta.options
+    assert eleccion != pregunta.correct_index
+
+    # Ana contesta el índice ya remapeado: el motor tiene que darla por correcta.
+    await h.store.answer(
+        code=fila.code, user_id=str(ana.id), round_index=0, choice=eleccion
+    )
+    await h.store.answer(
+        code=fila.code, user_id=str(beto.id), round_index=0, choice=(eleccion + 1) % 4
+    )
+
+    assert uno(drain(a_out), RoundResult).you.correct is True
 
 
 async def test_only_the_host_starts(

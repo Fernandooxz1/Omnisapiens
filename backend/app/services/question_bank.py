@@ -15,8 +15,9 @@ Dos decisiones que se ven en los tipos:
 
 import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
+from random import Random
 from typing import cast
 
 from redis.asyncio import Redis
@@ -56,6 +57,27 @@ class LoadedQuestion:
 
     question: RoundQuestion
     correct_index: int
+
+
+def shuffle_options(loaded: LoadedQuestion, rng: Random) -> LoadedQuestion:
+    """Baraja las opciones y remapea el índice correcto (H-25).
+
+    La correcta está en B en el 48 % de la semilla y las opciones no se mezclaban
+    al servir: "tocar siempre la segunda" acertaba casi la mitad. Se barajan los
+    **índices** y no los textos, así un banco con opciones repetidas no desplaza
+    la respuesta. La pregunta guardada no se toca: vuelve una copia con la lista
+    y el índice nuevos, y ese índice es el que viaja al motor y a `match_rounds`.
+    """
+    opciones = loaded.question.options
+    if len(opciones) < 2:
+        return loaded
+    orden = list(range(len(opciones)))
+    rng.shuffle(orden)
+    return replace(
+        loaded,
+        question=replace(loaded.question, options=[opciones[i] for i in orden]),
+        correct_index=orden.index(loaded.correct_index),
+    )
 
 
 async def candidates(session: AsyncSession) -> list[Candidate]:

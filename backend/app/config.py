@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
     env: str = "local"
+    # Nivel del root logger de la API. Los loggers de uvicorn mantienen el suyo.
+    log_level: str = "INFO"
 
     database_url: str
     redis_url: str

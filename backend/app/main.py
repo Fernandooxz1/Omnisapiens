@@ -9,6 +9,7 @@ from app.api import errors
 from app.api.routers import auth, health, me, rooms
 from app.config import settings
 from app.db import engine, session_factory
+from app.logging_config import configure_logging
 from app.redis import redis_client
 from app.runtime.room_manager import room_store
 from app.services.reaper import sweep
@@ -38,6 +39,7 @@ async def _sweep_on_startup() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    configure_logging()
     await _sweep_on_startup()
     yield
     # El estado de las salas vive en memoria: al apagar hay que cortar sus tareas

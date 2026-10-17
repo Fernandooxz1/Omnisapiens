@@ -10,17 +10,17 @@
 > una línea del arcade.
 
 > **Estado (2026-10-17, tarde).** Resueltos y verificados: **H-01, H-02** (los dos
-> P0), **H-03, H-04, H-05, H-06, H-11** (P1/P2), el `players` de `GET /rooms/{code}`
-> y el **barrendero**. Van marcados con ✅ en su título; el resto sigue vigente tal
-> como está escrito. El detalle de cada arreglo quedó en `docs/plan.md` (sección
-> *Estado de sesión*).
+> P0), **H-03, H-04, H-05, H-06, H-08, H-11, H-12, H-25**, el `players` de
+> `GET /rooms/{code}` y el **barrendero**. Van marcados con ✅ en su título; el resto
+> sigue vigente tal como está escrito. El detalle de cada arreglo quedó en
+> `docs/plan.md` (sección *Estado de sesión*).
 
 ---
 
 ## 0. Veredicto en cinco renglones
 
 El proyecto está **muy bien construido para tener 2 días de vida**: capas limpias,
-motor puro, constraints de verdad en Postgres, 419 tests que corren en ~10 segundos y
+motor puro, constraints de verdad en Postgres, 426 tests que corren en ~10 segundos y
 comentarios que explican el *porqué* y no el *qué*. El modo online —lo único
 jugable hoy— tenía **dos defectos serios de ciclo de vida**: una reconexión podía
 hacerte **perder la partida por un socket viejo**, y **cualquier error de base mataba
@@ -45,7 +45,7 @@ Comandos y resultado exacto, para que sea verificable:
 | Formato | `uv run ruff format --check .` | `80 files already formatted` |
 | Tipos | `uv run mypy app` | `Success: no issues found in 48 source files` |
 | Schema | `uv run alembic check` | `No new upgrade operations detected.` |
-| Tests | `uv run pytest -q` | **419 passed in ~10 s**, sin warnings (la dev key se filtra en tests, H-21) |
+| Tests | `uv run pytest -q` | **426 passed in ~10 s**, sin warnings (la dev key se filtra en tests, H-21) |
 
 Los warnings eran todos el mismo: `InsecureKeyLengthWarning`, el `JWT_SECRET` de
 dev mide 18 bytes. Ya no ensucian la salida de los tests (filtro en
@@ -83,7 +83,7 @@ objetiva. El "%" es contra el backend terminado (el frontend no cuenta acá).
 | Redis (ranking, rate limit, Pub/Sub) | solo historial de vistas | **15** | sorted sets, límites, multi-instancia |
 | Concurrencia / ciclo de vida de sala | camino feliz, P0 y fugas corregidos | **90** | H-07 (multi-instancia) |
 | Infra local (compose, Makefile, env) | completa, con CI | **90** | `README.md` |
-| Tests | 419 verdes, 92 % de cobertura, con tests de carrera | **95** | nada |
+| Tests | 426 verdes, 92 % de cobertura, con tests de carrera | **95** | nada |
 | Frontend | **fuera de alcance de este repo** | — | lo hace otra persona |
 
 **Backend ponderado: ≈ 60 %** al cerrar la auditoría. Los arreglos de esta tarde
@@ -118,7 +118,7 @@ Cumplidos a nivel backend: **3,5 de 6** (el 1 y el 3 esperan al frontend/arcade)
 | Commits | 30, en **2 días** (16–17 oct 2026) | ritmo altísimo, un commit = un paso testeado |
 | LOC `app/` | 3.994 en 47 módulos (mypy) | razonable para el alcance |
 | LOC `tests/` | 5.006 | **ratio test:código 1,25:1** — excelente |
-| Tests | 419, ~10 s, contra Postgres y Redis reales | sin SQLite, sin mocks de base |
+| Tests | 426, ~10 s, contra Postgres y Redis reales | sin SQLite, sin mocks de base |
 | Tablas | 7 (users, questions, rooms, matches, match_rounds, arcade_runs, arcade_answers) | 1:1 con §8 del plan |
 | Migraciones | 3 (`0001`–`0003`), **sin drift** | `alembic check` limpio |
 | Dependencias | 12 runtime + 5 dev | 2 son código muerto (H-16) |
@@ -428,7 +428,7 @@ despliegue también se declaran**.
 
 ## 6. Hallazgos P2 — seguridad, observabilidad, escala
 
-### H-08. El token viaja en el query string y termina en los logs
+### H-08 — ✅ RESUELTO. El token viaja en el query string y termina en los logs
 
 `ws/room_ws.py:121` lee `?token=`. No es una decisión cuestionable —el navegador no
 deja mandar headers en `new WebSocket`— pero **uvicorn loguea la URL completa**, así
@@ -438,6 +438,13 @@ que cada conexión escribe el JWT (válido 30 días) en el access log.
 un ticket de un solo uso por HTTP antes de abrir el socket. Mientras tanto: filtro de
 access log para `/ws/`. Y hoy es peor de lo que parece, porque **no hay logging
 configurado** (H-12): el día que se prenda, se prende esto también.
+
+**✅ Implementado (2026-10-17).** Se tomó el "mientras tanto": `logging_config.py`
+instala un filtro en `uvicorn.access` y `uvicorn.error` que descarta los renglones
+cuyos argumentos son `/ws/...` o contienen `?token=`. El token sigue yendo por el
+query (cambiarlo rompería al frontend que ya existe), pero deja de quedar escrito.
+Tests: `tests/test_logging.py` (handshake con token descartado; el resto de uvicorn
+pasa). El subprotocolo/ticket queda como mejora futura.
 
 ### H-09. No hay rate limiting, aunque §5 del plan lo promete
 
@@ -494,7 +501,7 @@ global); y `.github/workflows/ci.yml` con Postgres 16 y Redis 7 como servicios, 
 corre `make lint`, `make migrate`, `make check-schema` y `make cov`. Los 95 warnings
 quedaron filtrados en tests, con **0 warnings** en la salida.
 
-### H-12. Sin configuración de logging, el tiempo real es ciego
+### H-12 — ✅ RESUELTO. Sin configuración de logging, el tiempo real es ciego
 
 `room_ws.py:151` loguea `logger.info("la sala %s cortó a %s por inactividad")`,
 `room_manager.py:333` y `:388` loguean `warning`, y `:433` un `exception`. **Nada de
@@ -505,6 +512,12 @@ modo online no existe.
 **Arreglo.** Configurar logging en `main.py` (o un `logging.yaml` leído en el
 lifespan) con formato que incluya hora y logger. Es la contraparte barata de H-02:
 si el reloj de una sala se muere, quiero verlo.
+
+**✅ Implementado (2026-10-17).** `logging_config.configure_logging()` corre al
+arrancar el lifespan: `basicConfig` con `LOG_LEVEL` (nuevo, default `INFO`) y formato
+`hora nivel logger: mensaje`. Los loggers de uvicorn conservan su configuración y el
+root de la app ya emite. El barrido inicial, el reloj de la sala y los cortes por
+inactividad quedaron visibles.
 
 ### H-13. Outbox sin tope y banco de preguntas completo en cada ronda
 
@@ -552,15 +565,17 @@ detalle = "; ".join(f"{'.'.join(str(p) for p in e['loc'][1:])}: {e['msg']}" for 
 | H-19 | `/health` responde **200 degradado** (db/redis en `error`) | `routers/health.py:28` | 503 si algo está mal; si no, ningún balanceador va a reaccionar |
 | H-20 | Mezcla de idiomas: handlers `crear_sala`/`vista_previa` en español, el resto en inglés | `rooms.py:16,24` | §15 del plan dice código en inglés; renombrar |
 | H-21 | Warnings idénticos que tapan cualquier warning nuevo | `pytest` output | **mitad hecho:** `filterwarnings` en tests deja la salida limpia; **falta** subir el `JWT_SECRET` de dev a ≥ 32 bytes en `.env.example` |
-| ✅ H-22 | Drift de docs: el plan y `.env.example` quedaron al día (419 tests, ~10 s; `WS_IDLE_TIMEOUT_SECONDS` y `STALE_MATCH_MINUTES` listados) | `plan.md:16`, `.env.example` | mantener los números al día en el mismo paso |
+| ✅ H-22 | Drift de docs: el plan y `.env.example` quedaron al día (426 tests, ~10 s; `WS_IDLE_TIMEOUT_SECONDS` y `STALE_MATCH_MINUTES` listados) | `plan.md:16`, `.env.example` | mantener los números al día en el mismo paso |
 | H-23 | `GET /me` hace un `flush` por lectura (pisa `last_seen_at`) | `routers/me.py:19-20` | correcto, pero es una escritura por cada GET; si el frontend lo llama seguido, conviene un `UPDATE ... WHERE last_seen_at < now() - interval '1 minute'` |
 | H-24 | **El desempate no tiene tope**: si los dos siguen empatando, la partida no termina nunca (cada ronda de desempate es de `seconds//2` y suma más rondas) | `match_engine.py:207-217`, `:109-114` | un máximo de rondas de desempate (p.ej. 3) y, agotado, gana quien tenga mejor tiempo acumulado o se declara empate |
-| H-25 | **Sesgo de posición en la semilla**: correcta en B 48,3 %, C 28,3 %, A 21,7 %, D 1,7 % (n=60). Y las opciones **no se mezclan al servir** (`room.py:429`, `list(question.question.options)`) | `seeds/questions.csv` | (a) barajar opciones al servir, recalculando `correct_index` en el servidor —arregla el problema para siempre y también el banco futuro—; (b) rebalancear la semilla |
+| ✅ H-25 | **Sesgo de posición en la semilla**: correcta en B 48,3 %, C 28,3 %, A 21,7 %, D 1,7 % (n=60). Las opciones **no se mezclaban al servir** | `seeds/questions.csv` | **resuelto:** `shuffle_options` baraja los índices al servir y remapea `correct_index`; la semilla no se toca |
 
-H-25 merece un comentario aparte porque **no es un bug de software y es el que más
-rápido se va a notar jugando**: "toco siempre la segunda" acierta casi la mitad.
-Barajar al servir es una función pura de 5 líneas en el motor (o en `LoadedQuestion`)
-y elimina la clase entera de problemas.
+H-25 era el hallazgo que más rápido se iba a notar jugando: "toco siempre la
+segunda" acertaba casi la mitad. Ya no: `shuffle_options` baraja los índices al
+servir (función pura, con el `Random` inyectado) y remapea `correct_index` en la
+misma copia; la pregunta guardada y la semilla no se tocan. El `RoomStore` permite
+apagar el barajado en tests (`shuffle_served_options=False`) cuando necesitan
+predecir la letra; producción lo deja encendido.
 
 ---
 
@@ -572,7 +587,7 @@ senior y son las que hacen que el resto sea barato de arreglar:
 1. **El motor es puro y el borde es sucio a propósito.** `game/` no conoce Postgres,
    ni sockets, ni `time.time()`. `now_ms`, `sleep` y `rng` se inyectan
    (`room_manager.py:136-149`): una partida entera corre en milisegundos en los tests
-   con el `FakeClock`. Esa decisión sola explica los 419 tests en ~10 s.
+   con el `FakeClock`. Esa decisión sola explica los 426 tests en ~10 s.
 2. **La respuesta correcta no puede filtrarse: no está en el tipo.** `RoundQuestion`
    (`question_bank.py:39-50`) no tiene `correct_index`; el `match_end` con
    `RoundResult` es lo único que lo expone. Un test con `hasattr` lo vigila. Esto es
@@ -677,7 +692,7 @@ la corrida atado a `ended_at`. Las FK tienen índice (Postgres no lo crea solo).
 | `questions.language` sólo admite `'es'` | `models/question.py:68` | es una decisión, pero va a doler cuando entre el primer idioma nuevo (el día que pase, la migración es un `CHECK` a mano) |
 | `matches` sin "una sola partida `playing` por sala" | `matches` | si el barrendero tarda, dos filas `playing` de la misma sala son posibles; el ranking no lo usa, así que es cosmético |
 | Índice para "mis últimas partidas" | `matches` tiene `(player_a_id)`, `(player_b_id)`, `(status, started_at)` | la consulta del ranking 1v1 filtrará por dos columnas distintas; conviene `(player_a_id, started_at DESC)` y lo mismo para B (o un `UNION`) |
-| **Sesgo de posición de la respuesta correcta** | semilla | ver H-25 |
+| ✅ **Sesgo de posición de la respuesta correcta** | semilla | resuelto barajando al servir (H-25) |
 | `arcade_*` sin usar | las 2 tablas están listas y no hay código que las escriba | correcto por ahora; es el próximo módulo |
 
 **Sin `relationship()` en los modelos** es una decisión explícita y bien fundada
@@ -702,12 +717,13 @@ online; nada de eso debería esperar al arcade.
 | ✅ 5 | **H-04 + H-03 + barrendero**: `UPDATE ... WHERE status='waiting' AND expires_at < now()`, refresco de `expires_at` al arrancar y desalojo de salas muertas | el barrendero es el próximo paso y **hacerlo mal mata partidas vivas** | medio |
 | ✅ 6 | **H-06** `start` sólo desde `WAITING` | dos verdades para el mismo estado | trivial |
 | ✅ 7 | **H-11** `mypy strict`, `ruff select`, `pytest-cov`, CI | convierte a los puntos 1-6 en algo que no puede volver a pasar | chico |
-| 8 | **H-12** logging + **H-08** sacar el token de los logs | sin logs, el punto 2 es invisible | chico |
-| 9 | **H-25** barajar opciones al servir + rebalancear la semilla | es lo que más rápido se va a notar jugando, y es una función pura | chico |
+| ✅ 8 | **H-12** logging + **H-08** sacar el token de los logs | sin logs, el punto 2 es invisible | chico |
+| ✅ 9 | **H-25** barajar opciones al servir + rebalancear la semilla | es lo que más rápido se va a notar jugando, y es una función pura | chico |
 | 10 | Fase 4: WS de arcade + persistencia + ranking + binario de Redis | el resto del MVP | grande |
 
-Los puntos 1-7 ya están **hechos**. Sigue el 8 (logging y token fuera de los logs)
-y, después, el rebalanceo de la semilla (H-25).
+Los puntos 1-9 ya están **hechos**. Quedan los P3 sueltos (H-16 a H-24), el
+`README.md` y el arcade. La lista de la sección 11 está ordenada por riesgo: el 10 es
+el siguiente bloque grande.
 
 ---
 
@@ -717,7 +733,7 @@ y, después, el rebalanceo de la semilla (H-25).
 make up                      # Postgres 16 + Redis 7
 make lint                    # ruff (select) + format + mypy strict
 make check-schema            # alembic check: sin drift entre modelos y migraciones
-make test                    # 419 verdes, ~10 s (sin umbral)
+make test                    # 426 verdes, ~10 s (sin umbral)
 make cov                     # el gate: 92 % contra un umbral de 85 %
 ```
 
@@ -731,7 +747,11 @@ verifica leyendo `routers/auth.py`, `routers/rooms.py` y `routers/me.py`.
 Para el barrendero: `tests/test_reaper.py` (salas y partidas) más
 `test_the_room_row_follows_the_match_lifecycle` y
 `test_a_dead_room_is_evicted_when_another_one_opens` en `test_room_manager.py`.
-Para H-25:
+Para H-08/H-12: `tests/test_logging.py` (el handshake con token se descarta; el resto
+de uvicorn sigue visible).
+Para H-25: `test_shuffle_options_breaks_the_position_bias` y
+`test_serving_shuffles_the_options_and_the_correct_one_moves`. El sesgo de la semilla
+sigue midiéndose así (ya no importa al servir, pero documenta el porqué del barajado):
 
 ```bash
 python3 - <<'PY'
@@ -754,6 +774,6 @@ justamente donde todavía no hay nadie mirando: el socket que se va tarde, el re
 que se muere callado y lo que nadie cierra al apagar. Ya están corregidos, con sus
 tests y sabotajes.
 
-Lo que sigue, en orden: **H-12 + H-08** (logging y token fuera de los access logs),
-después **H-25** (barajar las opciones al servir) y recién ahí el arcade. La barra de
-calidad ya no es una promesa: `make lint`, `make cov` y el CI la hacen cumplir.
+Lo que sigue, en orden: **H-24** (tope del desempate), después el **arcade por WS +
+ranking**, y los P3 sueltos (H-16 a H-23) más el `README.md`. La barra de calidad ya
+no es una promesa: `make lint`, `make cov` y el CI la hacen cumplir.

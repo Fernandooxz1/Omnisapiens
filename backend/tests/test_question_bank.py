@@ -13,11 +13,13 @@ from app.models import Question
 from app.services.question_bank import (
     SEEN_MAX,
     SEEN_TTL,
+    LoadedQuestion,
     RoundQuestion,
     candidates,
     load,
     remember_seen,
     seen_ids,
+    shuffle_options,
 )
 from app.services.questions import select
 
@@ -221,3 +223,46 @@ async def test_redis_really_is_answering(redis: Redis) -> None:
     # Sin esto, los tests de arriba podrían estar pasando por el camino de
     # degradación y no por el camino real, y nadie se enteraría.
     assert await redis.ping() is True
+
+
+def _cargada(*, correct_index: int = 1) -> LoadedQuestion:
+    return LoadedQuestion(
+        question=RoundQuestion(
+            id="q",
+            prompt="¿Cuál es el río más largo?",
+            options=["Paraná", "Amazonas", "Orinoco", "Magdalena"],
+            category="geography",
+            difficulty=1,
+        ),
+        correct_index=correct_index,
+    )
+
+
+def test_shuffle_options_moves_the_answer_with_its_text() -> None:
+    original = _cargada(correct_index=1)  # "Amazonas"
+
+    for seed in range(20):
+        barajada = shuffle_options(original, Random(seed))
+
+        assert sorted(barajada.question.options) == sorted(original.question.options)
+        assert barajada.question.options[barajada.correct_index] == "Amazonas"
+
+
+def test_shuffle_options_breaks_the_position_bias() -> None:
+    original = _cargada(correct_index=1)
+    posiciones = {
+        shuffle_options(original, Random(seed)).correct_index for seed in range(40)
+    }
+
+    # La semilla tiene la correcta en B el 48 % de las veces; barajando, el
+    # índice correcto tiene que repartirse y no quedar siempre en el mismo lugar.
+    assert posiciones == {0, 1, 2, 3}
+
+
+def test_shuffle_options_does_not_mutate_the_loaded_question() -> None:
+    original = _cargada()
+
+    shuffle_options(original, Random(1))
+
+    assert original.question.options == ["Paraná", "Amazonas", "Orinoco", "Magdalena"]
+    assert original.correct_index == 1

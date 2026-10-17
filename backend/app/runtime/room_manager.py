@@ -48,7 +48,7 @@ from app.game.match_engine import (
 from app.models import Match, MatchRound, Room
 from app.runtime import room
 from app.runtime.room import Effects, RoomState, Transition
-from app.services.question_bank import LoadedQuestion, candidates, load
+from app.services.question_bank import LoadedQuestion, candidates, load, shuffle_options
 from app.services.questions import select
 
 logger = logging.getLogger(__name__)
@@ -164,6 +164,7 @@ class InMemoryRoomStore:
         max_failures: int = MAX_EXPIRY_FAILURES,
         backoff_s: float = EXPIRY_BACKOFF_S,
         idle_timeout_seconds: int = settings.room_idle_timeout_seconds,
+        shuffle_served_options: bool = True,
     ) -> None:
         self._sessions = session_factory
         self._grace_seconds = grace_seconds
@@ -173,6 +174,7 @@ class InMemoryRoomStore:
         self._max_failures = max_failures
         self._backoff_s = backoff_s
         self._idle_timeout_ms = idle_timeout_seconds * 1000
+        self._shuffle = shuffle_served_options
         self._rooms: dict[str, _Room] = {}
 
     async def open(
@@ -372,6 +374,8 @@ class InMemoryRoomStore:
                 ),
             )
             return
+        if self._shuffle:
+            question = shuffle_options(question, self._rng)
         after, effects = room.serve(
             entry.state, question=question, now_ms=self._now_ms()
         )
