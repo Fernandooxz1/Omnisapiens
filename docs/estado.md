@@ -6,9 +6,9 @@
 
 Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`) y el importador están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **360 tests en ~15 s** contra Postgres y Redis reales.
 
-**Todavía no hay WebSocket.** La identidad y las salas ya andan por HTTP: `/me` (perfil, nick, baja) y `/rooms` (crear + vista previa). El protocolo de mensajes del WS (`game/protocols.py`) está hecho; lo que sigue es el estado vivo: `RoomStore` en memoria (`runtime/room.py` + `room_manager.py`).
+**Todavía no hay WebSocket.** La identidad y las salas ya andan por HTTP: `/me` (perfil, nick, baja) y `/rooms` (crear + vista previa). El protocolo de mensajes (`game/protocols.py`) y la **máquina de estados pura de la sala** (`runtime/room.py`) están hechos; falta la parte con lock, entrega y timers: `runtime/room_manager.py`.
 
-**Pausa acá:** `game/protocols.py` quedó cerrado y verificado (360 tests, ruff/format/mypy en verde). `/me` y `/rooms` ya están commiteados; lo de este paso (`game/protocols.py`, `tests/test_protocols.py`) está sin commitear.
+**Pausa acá:** `runtime/room.py` (lobby, rondas, desempate, gracia, revancha) quedó cerrado y verificado con `tests/test_room.py` (**386 tests**, ruff/format/mypy en verde). Sigue el `RoomStore` real (`room_manager.py`): lock por sala, sink de entrega y task de vencimientos.
 
 > Pendiente en `/rooms`: la vista previa devuelve `host_nick` y no "cuántos jugadores hay", porque la presencia vive en el WS (aún sin hacer). Se suma cuando exista `RoomStore`.
 
@@ -29,10 +29,11 @@ Diseño acordado, leer antes de tocar datos o auth: **`docs/capa-de-datos.md`**.
 - [x] `GET /me` (perfil + pisa `last_seen_at`), `PATCH /me` (nick, reemite token) y `DELETE /me` (baja lógica) con `get_current_user`; `UserOut`/`AuthOut`/`NickUpdate` en `schemas/users.py`
 - [x] `POST /rooms` (código de 6 sin ambiguos vía `secrets`, config por `field_validator` contra constants, host = creador, expira a `ROOM_IDLE_TIMEOUT_SECONDS`) + `GET /rooms/{code}` (preview, normaliza a mayúsculas, `ROOM_NOT_FOUND`)
 - [x] `game/protocols.py`: las formas del WS de salas (§10.1) como dataclasses + `encode` (sobre `{t, id, d}`); `round_start` sin `correct_index` por tipo
+- [x] `runtime/room.py`: máquina de estados pura de la sala (estado inmutable, transiciones con `now_ms` inyectado, mensajes por jugador) + `tests/test_room.py` (26 tests)
 
 ## Próximos pasos
 
-- [ ] `RoomStore` en memoria (`runtime/room.py` + `runtime/room_manager.py`) con lock por sala: lobby, rondas, desempate, gracia, revancha
+- [ ] `runtime/room_manager.py`: el `RoomStore` (Protocol) con lock por sala, sink de entrega y task de vencimientos sobre `room.py`
 - [ ] `ws/room_ws.py`: el handler WebSocket sobre el `RoomStore`
 - [ ] Barrendero de salas/matches viejas al arrancar (hoy `expires_at` se escribe pero nadie la marca `expired`)
 - [ ] Arcade sobre WS + ranking + corte semanal en `America/Argentina/Buenos_Aires`
@@ -84,3 +85,9 @@ Diseño acordado, leer antes de tocar datos o auth: **`docs/capa-de-datos.md`**.
 - El código de sala se genera con `secrets` (no `random`): es la llave de la sala, tiene que ser impredecible. La colisión la arbitra el único de `code` con reintento, mismo patrón que el nick.
 - La config de `POST /rooms` se valida en el schema con `field_validator` contra `ONLINE_ROUNDS_OPTIONS`/`ONLINE_SECONDS_OPTIONS`: el valor malo sale 422 `VALIDATION_ERROR` (mismo formato que el resto) y no un `IntegrityError` del `CHECK`.
 - El `server_default="waiting"` de `rooms.status` no puebla el atributo en Python tras el `flush` (sin `eager_defaults`): por eso el POST devuelve solo `code`/`config` y el status se lee en el GET, que trae la fila desde la base.
+- La sala viva (`runtime/room.py`) es **estado inmutable + transiciones puras**: recibe `now_ms` y lo ya cargado (la `LoadedQuestion`, el `match_id`), y devuelve estado nuevo + mensajes. La base, los sockets, el reloj y el lock son de afuera: se testea sin nada levantado.
+- Los mensajes salen **por jugador** (`dict[user_id, mensajes]`), no como broadcast: `room_state` lleva `you` y `round_result`/`match_end` cambian de lado según quién mira. El error de un no sentado también viaja así.
+- El host se sienta siempre en `A` (calza con `rooms.host_user_id` / `matches.player_a_id`); el invitado en `B`. Un tercero recibe `ROOM_FULL`.
+- Al reanudar una ronda pausada se corre **todo** (arranque y respuestas ya dadas) por el hueco de la pausa: el tiempo medido de quien ya contestó no cambia y el reloj no gasta pausa. La gracia la fija el primer ausente.
+- Repetir una respuesta es idempotente (no cambia nada): al reconectar, el cliente puede reenviarla.
+- La última ronda de la partida emite `round_result` **y** `match_end` juntos: el resumen no necesita que el cliente recuerde la última revelación.
