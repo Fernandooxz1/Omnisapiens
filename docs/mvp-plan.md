@@ -762,6 +762,8 @@ Reglas de validación:
 
 El import por JSON acepta un array de objetos con las mismas claves.
 
+`make seed` carga `backend/seeds/questions.csv` (60 preguntas, 10 por categoría) y las deja **`published`**: son curadas a mano, no la salida de un generador que haya que revisar. El importador en sí usa `draft` por defecto, como pide §13.2; `make import FILE=...` acepta `--status` para cambiarlo.
+
 ### 13.2 Curación
 
 - Las preguntas generadas con IA entran como `draft`.
@@ -957,6 +959,7 @@ El audio debe ser CC0 o de producción propia. Se inicializa después de la prim
 - `test_nicks.py` y `test_tokens.py`: la seguridad sin HTTP. La lista de palabras prohibidas se recorre entera, y del token se prueba lo que importa: que lo firmado se lee, y que lo tocado, lo vencido y lo firmado por otro no.
 - `test_auth_api.py`: `POST /auth/guest` con `httpx` contra la base real, incluida la reutilización del usuario cuando el token es válido y el rechazo cuando no lo es.
 - `test_question_bank.py`: candidatas contra Postgres real, el tipo que va al cliente sin la respuesta, las vistas contra Redis real (caducidad y tope de 50) y el camino de degradación con un Redis que no contesta.
+- `test_importer.py`: el parseo y la validación sin base (un caso por motivo de rechazo, y que el hash normalice tildes y signos) y la carga contra Postgres real: duplicado por `content_hash`, idempotencia, y que el archivo de semilla cargue las 60 repartidas entre las 6 categorías.
 - `test_schema_matches_models.py`: guardia contra el drift entre los modelos y la migración. Hace falta porque `alembic check` **no compara los `CHECK`** (los deja pasar agregados, cambiados, renombrados o borrados).
 - `test_rooms_api.py` y `test_arcade_ws.py`: con `httpx` y el cliente de test de FastAPI, incluyendo WebSocket.
 - `test_room_ws.py`: partida completa entre dos clientes simulados, con desconexión y reconexión dentro de la ventana de gracia.

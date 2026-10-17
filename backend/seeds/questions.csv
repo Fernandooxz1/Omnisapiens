@@ -1,0 +1,61 @@
+category,difficulty,prompt,option_a,option_b,option_c,option_d,correct,explanation,source,tags
+geography,2,¿Cuál es el río más largo de Sudamérica?,Paraná,Amazonas,Orinoco,Magdalena,B,El Amazonas recorre unos 6.400 km.,manual,mundo;ríos
+geography,3,¿Cuál es la capital de Australia?,Sídney,Melbourne,Camberra,Perth,C,"Camberra es la capital, no la ciudad más poblada.",manual,capitales;oceanía
+geography,1,¿Cuál es el país más grande del mundo por superficie?,Canadá,China,Estados Unidos,Rusia,D,Rusia supera los 17 millones de km².,manual,mundo;récords
+geography,1,¿Qué cordillera recorre el oeste de Sudamérica?,Los Andes,Los Apalaches,Los Urales,El Atlas,A,Los Andes son la cordillera más larga del continente.,manual,relieve;américa
+geography,1,¿Cuál es el océano más extenso del planeta?,Atlántico,Índico,Pacífico,Ártico,C,El Pacífico cubre cerca de un tercio de la superficie.,manual,océanos
+geography,1,¿En qué continente está el desierto del Sahara?,Asia,África,América,Oceanía,B,El Sahara ocupa el norte de África.,manual,desiertos;áfrica
+geography,4,¿Cuál es el lago navegable más alto del mundo?,Titicaca,Maracaibo,Nahuel Huapi,Victoria,A,"El Titicaca está a unos 3.800 m sobre el mar, entre Perú y Bolivia.",manual,lagos;américa
+geography,2,¿Qué país tiene forma de bota?,Portugal,Italia,Grecia,Croacia,B,La península itálica se dibuja como una bota.,manual,europa
+geography,1,¿Cuál es la montaña más alta del mundo?,Aconcagua,Kilimanjaro,Everest,Elbrús,C,El Everest mide 8.848 m.,manual,montañas;récords
+geography,3,¿Cuál es la capital de Canadá?,Toronto,Vancouver,Ottawa,Montreal,C,Ottawa es la capital; Toronto es la ciudad más poblada.,manual,capitales;américa
+history,2,¿En qué año llegó Cristóbal Colón a América?,1492,1500,1480,1519,A,La primera expedición de Colón llegó en 1492.,manual,conquista;fechas
+history,2,¿Quién fue el primer presidente de los Estados Unidos?,Abraham Lincoln,George Washington,Thomas Jefferson,John Adams,B,Washington gobernó entre 1789 y 1797.,manual,américa;política
+history,2,¿Qué civilización construyó Machu Picchu?,Los incas,Los mayas,Los aztecas,Los olmecas,A,Machu Picchu es una ciudadela inca del siglo XV.,manual,américa;civilizaciones
+history,3,¿En qué año cayó el Muro de Berlín?,1989,1991,1985,1979,A,El muro cayó el 9 de noviembre de 1989.,manual,siglo xx;europa
+history,3,¿Quién escribió el Manifiesto Comunista junto a Friedrich Engels?,Karl Marx,Vladímir Lenin,Iósif Stalin,León Trotski,A,Se publicó en 1848.,manual,política;libros
+history,1,¿Quién fue el primer ser humano en pisar la Luna?,Buzz Aldrin,Yuri Gagarin,Neil Armstrong,Michael Collins,C,Armstrong bajó del Apolo 11 en 1969.,manual,espacio;siglo xx
+history,3,¿Qué ciudad fue capital del Imperio bizantino?,Roma,Atenas,Constantinopla,Alejandría,C,Constantinopla es la actual Estambul.,manual,europa;imperios
+history,2,¿En qué año terminó la Segunda Guerra Mundial?,1939,1943,1945,1948,C,Terminó en 1945.,manual,guerras;fechas
+history,4,¿Quién fue la primera persona en ganar dos Premios Nobel?,Marie Curie,Rosalind Franklin,Ada Lovelace,Florence Nightingale,A,Curie ganó Física y Química.,manual,ciencia;premios
+history,1,¿Qué revolución comenzó en Francia en 1789?,La Revolución Industrial,La Revolución Francesa,La Revolución Rusa,La Revolución Cubana,B,Empezó con la toma de la Bastilla.,manual,europa;revoluciones
+science,2,¿Cuál es el planeta más grande del sistema solar?,Marte,Saturno,Júpiter,Neptuno,C,Júpiter es más grande que todos los demás juntos.,manual,espacio;planetas
+science,2,¿Cuál es el símbolo químico del oro?,Au,Ag,Fe,Or,A,Au viene del latín aurum.,manual,química;elementos
+science,3,¿Cuántos huesos tiene el esqueleto de un adulto?,106,206,306,156,B,El adulto tiene 206 huesos.,manual,cuerpo humano
+science,1,¿Qué gas necesitan los seres humanos para respirar?,Nitrógeno,Hidrógeno,Oxígeno,Helio,C,Sin oxígeno las células no producen energía.,manual,biología;gases
+science,2,¿Cuál es la unidad de fuerza del Sistema Internacional?,El newton,El joule,El watt,El pascal,A,El newton se mide en kg·m/s².,manual,física;unidades
+science,1,¿Qué órgano bombea la sangre en el cuerpo humano?,El hígado,Los pulmones,El corazón,El riñón,C,El corazón late unas 100.000 veces por día.,manual,cuerpo humano
+science,1,¿Cuál es la fórmula química del agua?,H2O,CO2,O2,NaCl,A,Dos átomos de hidrógeno y uno de oxígeno.,manual,química;fórmulas
+science,3,¿Quién formuló la teoría de la relatividad?,Isaac Newton,Albert Einstein,Nikola Tesla,Galileo Galilei,B,Einstein la publicó en 1905 y 1915.,manual,física;científicos
+science,2,¿Cuál es el planeta más cercano al Sol?,Venus,Mercurio,Marte,La Tierra,B,Mercurio completa una vuelta en 88 días.,manual,espacio;planetas
+science,3,¿Qué parte de la célula guarda el material genético?,La membrana,El núcleo,El citoplasma,La mitocondria,B,El núcleo contiene el ADN.,manual,biología;células
+art,2,¿Quién pintó la Mona Lisa?,Miguel Ángel,Leonardo da Vinci,Rafael,Sandro Botticelli,B,Se conserva en el Louvre.,manual,pintura;renacimiento
+art,2,¿Quién pintó La noche estrellada?,Claude Monet,Vincent van Gogh,Paul Cézanne,Pablo Picasso,B,Van Gogh la pintó en 1889.,manual,pintura
+art,2,¿En qué museo de París se exhibe la Mona Lisa?,El Museo del Prado,El Louvre,El Museo Británico,Los Uffizi,B,El Louvre la exhibe desde la Revolución.,manual,museos
+art,3,¿Quién esculpió el David de Florencia?,Donatello,Miguel Ángel,Gian Lorenzo Bernini,Auguste Rodin,B,Miguel Ángel la terminó en 1504.,manual,escultura;renacimiento
+art,1,¿Quién escribió Don Quijote de la Mancha?,William Shakespeare,Miguel de Cervantes,Federico García Lorca,Lope de Vega,B,Se publicó en 1605 y 1615.,manual,literatura;españa
+art,2,¿Quién compuso la Quinta Sinfonía?,Wolfgang Amadeus Mozart,Ludwig van Beethoven,Johann Sebastian Bach,Franz Schubert,B,Su famoso motivo son cuatro notas.,manual,música;clásica
+art,4,¿A qué movimiento pertenece Salvador Dalí?,El impresionismo,El cubismo,El surrealismo,El barroco,C,Dalí es el rostro más conocido del surrealismo.,manual,pintura;movimientos
+art,3,¿Quién pintó el Guernica?,Salvador Dalí,Joan Miró,Pablo Picasso,Henri Matisse,C,Picasso lo pintó en 1937.,manual,pintura;siglo xx
+art,2,¿Quién escribió Cien años de soledad?,Mario Vargas Llosa,Gabriel García Márquez,Julio Cortázar,Jorge Luis Borges,B,Se publicó en 1967.,manual,literatura;latinoamérica
+art,3,¿Quién compuso Las cuatro estaciones?,Wolfgang Amadeus Mozart,Johann Sebastian Bach,Antonio Vivaldi,George Frideric Händel,C,Son cuatro conciertos para violín.,manual,música;clásica
+entertainment,3,¿Quién dirigió El Padrino?,Martin Scorsese,Francis Ford Coppola,Steven Spielberg,Ridley Scott,B,Se estrenó en 1972.,manual,cine
+entertainment,1,¿En qué saga aparece el personaje Luke Skywalker?,Star Wars,Star Trek,El Señor de los Anillos,Matrix,A,Luke es el protagonista de la trilogía original.,manual,cine;sagas
+entertainment,1,¿Qué actor interpretó a Jack en Titanic?,Brad Pitt,Leonardo DiCaprio,Johnny Depp,Tom Cruise,B,DiCaprio y Kate Winslet protagonizaron la película.,manual,cine;actores
+entertainment,1,¿Cómo se llama el mago protagonista de la saga de J. K. Rowling?,Frodo Bolsón,Harry Potter,Percy Jackson,Merlín,B,La saga lleva su nombre.,manual,libros;cine
+entertainment,1,"¿Qué banda estuvo formada por John, Paul, George y Ringo?",Los Rolling Stones,The Beatles,Queen,Led Zeppelin,B,Los cuatro Beatles de Liverpool.,manual,música;bandas
+entertainment,2,¿Quién canta la canción Rolling in the Deep?,Adele,Beyoncé,Taylor Swift,Rihanna,A,"Salió en el álbum 21, de 2011.",manual,música;pop
+entertainment,4,¿Quién compuso la banda sonora de Star Wars?,Hans Zimmer,John Williams,Ennio Morricone,Danny Elfman,B,El tema principal es de 1977.,manual,cine;música
+entertainment,3,¿Qué actor interpretó a Iron Man en el universo Marvel?,Chris Evans,Robert Downey Jr.,Chris Hemsworth,Mark Ruffalo,B,Downey Jr. abrió la saga en 2008.,manual,cine;superhéroes
+entertainment,3,¿Quién dirigió Titanic y Avatar?,Steven Spielberg,James Cameron,Christopher Nolan,Ridley Scott,B,Cameron dirigió las dos más taquilleras.,manual,cine;directores
+entertainment,2,¿Qué película de Pixar trata sobre juguetes que cobran vida?,Cars,Toy Story,Buscando a Nemo,"Monsters, Inc.",B,Toy Story fue el primer largometraje animado por computadora.,manual,cine;animación
+sports,1,¿Cada cuántos años se juega la Copa Mundial de fútbol?,Cada 2,Cada 3,Cada 4,Cada 5,C,Se juega cada cuatro años desde 1930.,manual,fútbol;mundial
+sports,1,¿Cuántos jugadores tiene un equipo de fútbol en cancha?,9,10,11,12,C,"Once por equipo, contando al arquero.",manual,fútbol;reglas
+sports,1,¿En qué deporte se encesta en un aro con un balón naranja?,Vóleibol,Básquetbol,Handbol,Hockey,B,El básquetbol nació en 1891.,manual,básquetbol
+sports,2,¿Quién fue campeón del mundo con Argentina en 1986?,Pelé,Diego Maradona,Lionel Messi,Ronaldo,B,Maradona capitaneó a Argentina en México 86.,manual,fútbol;argentina
+sports,2,¿En qué país nacieron los Juegos Olímpicos de la era moderna?,Italia,Grecia,Francia,Inglaterra,B,"Los primeros juegos modernos fueron en Atenas, 1896.",manual,olímpicos;historia
+sports,2,¿Cuántos puntos vale un tiro libre en básquetbol?,1,2,3,4,A,Cada tiro libre vale un punto.,manual,básquetbol;reglas
+sports,2,¿Qué selección ganó más Copas del Mundo de fútbol?,Alemania,Italia,Brasil,Argentina,C,Brasil tiene cinco títulos.,manual,fútbol;mundial
+sports,3,¿Cómo se llama el estadio del Real Madrid?,Camp Nou,Santiago Bernabéu,Wanda Metropolitano,San Siro,B,Lleva el nombre de un expresidente del club.,manual,fútbol;estadios
+sports,2,¿Qué torneo de tenis se juega sobre césped en Londres?,Roland Garros,El US Open,Wimbledon,El Abierto de Australia,C,Wimbledon es el más antiguo de los cuatro Grand Slam.,manual,tenis;torneos
+sports,2,¿Cuántos anillos tiene el símbolo olímpico?,4,5,6,7,B,Cinco anillos por los cinco continentes habitados.,manual,olímpicos;símbolos

@@ -4,29 +4,27 @@
 
 ## Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos **y la primera capa HTTP** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **295 tests en ~3 s** contra Postgres y Redis reales.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la primera capa HTTP y el importador de preguntas están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **326 tests en ~3 s** contra Postgres y Redis reales.
 
-**Todavía no hay WebSocket.** Lo que sigue es el repositorio de preguntas (paso 5 del plan de capa de datos) y, de Fase 1, `GET /me` + `PATCH /me` para que el token sirva de algo.
+**Todavía no hay WebSocket.** Lo que sigue es `GET /me` + `PATCH /me` para que el token sirva de algo.
 
 Diseño acordado, leer antes de tocar datos o auth: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`**. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
 ## Hecho
 
-- [x] Repo, `.gitignore`, `.editorconfig`, `AGENTS.md`, `docker-compose.yml`, `Makefile`, `/health` con lifespan
+- [x] Base del repo: `.gitignore`, `.editorconfig`, `AGENTS.md`, `docker-compose.yml`, `Makefile`, `/health` con lifespan
 - [x] `app/game/` (motor puro) + `app/services/questions.py` (selección sin repetición)
-- [x] `models/`: las 7 tablas, con `MetaData` de nombres propios, enums por `CHECK` y único parcial de `nick`
-- [x] Alembic async y migraciones `0001` + `0002`: `upgrade`/`downgrade`/`upgrade` sobre base limpia, DDL migrado idéntico al de los modelos y `make check-schema`
+- [x] `models/`: las 7 tablas (nombres propios, enums por `CHECK`, único parcial de `nick`) y Alembic async con `0001`–`0003` sobre base limpia; `make check-schema` en verde
 - [x] Tests contra Postgres real (`trivia_test` recreada por sesión, rollback por test con SAVEPOINT): constraints con motivo exigido, guardia de schema y harness, cada uno validado con sabotaje
-- [x] Alcance real de `alembic check` medido: ve tablas, columnas, tipos, defaults, índices, unique y **FK**; es **ciego a los `CHECK`** en las 4 formas
-- [x] Host de la sala: es **quien la crea**, en `rooms.host_user_id` (FK a `users` + índice), migración `0002`
-- [x] Nick único **sin distinguir mayúsculas**: índice funcional sobre `lower(nick)`, parcial como antes, migración `0003`
-- [x] Capa HTTP de entrada: `security/tokens.py` (JWT HS256) + `security/nicks.py` (limpieza, 1–16, lista de prohibidas), `api/deps.py`, `api/errors.py`, `POST /auth/guest` y CORS
+- [x] Host de la sala = quien la crea (`rooms.host_user_id`); nick único sin distinguir mayúsculas (`lower(nick)`, parcial). `alembic check` resultó **ciego a los `CHECK`** (ve tablas, columnas, tipos, defaults, índices, unique y FK)
+- [x] Capa HTTP de entrada: `security/tokens.py` (JWT HS256) + `security/nicks.py` (limpieza, 1–16, prohibidas), `api/deps.py`, `api/errors.py`, `POST /auth/guest` y CORS
 - [x] Banco de preguntas (`services/question_bank.py`): candidatas publicadas de Postgres, `RoundQuestion` sin la respuesta correcta, y las vistas del arcade en Redis (tope 50, 24 h) con degradación si Redis no contesta
-- [x] `docs/mvp-plan.md` alineado: §5.4, §8 (tablas), §12 (auth y códigos de error), §14 (desempate), §6 (árbol) y §18 (tests)
+- [x] Importador (`services/importer.py`): parseo CSV/JSON + validación puros (un motivo por fila) y carga a Postgres con `ON CONFLICT (content_hash) DO NOTHING`; informe de importadas/duplicadas/rechazadas
+- [x] `app/cli.py` (`import-questions`, `seed`) + `make seed` / `make import FILE=...` + 60 semilla publicadas (`seeds/questions.csv`, 10 por categoría) + `test_importer.py`
+- [x] `docs/mvp-plan.md` alineado: §5.4, §8 (tablas), §12 (auth y códigos de error), §14 (desempate), §6 (árbol), §13 (import/semilla) y §18 (tests)
 
 ## Próximos pasos
 
-- [ ] Importador CSV/JSON + `cli.py` + 60 preguntas semilla (sin preguntas cargadas no hay nada que jugar)
 - [ ] `GET /me` y `PATCH /me` (con `get_current_user`, la versión obligatoria de la dependencia) y `DELETE /me` (borrado lógico)
 - [ ] `POST /rooms` + `GET /rooms/{code}` (el host ya tiene dónde guardarse)
 - [ ] Pendiente de Fase 0: `README.md` con los cinco comandos de la sección 23
@@ -64,3 +62,8 @@ Diseño acordado, leer antes de tocar datos o auth: **`/home/fernando/.opencode/
 - Todo lo de frontend es de otra persona: acá solo se toca `backend/`.
 - `docs/mvp-plan.md` se mantiene alineado con el código en el mismo paso: el plan es lo que lee la próxima sesión.
 - La URL de la base **no** está en `alembic.ini`: sale de `.env` por `app.config.settings`. Un solo lugar donde se configura.
+- El `content_hash` (clave del `UNIQUE` de `questions`) se calcula sobre el enunciado **normalizado**: NFKD sin diacríticos, minúsculas, sin signos, espacios colapsados. "¿Cuál es el río?" y "Cual es el rio" son la misma pregunta, así que el importador no puede cargar dos.
+- El default del import es `draft` (§13.2); las 60 semilla entran `published` por flag (`make seed`), si no `candidates()` no las ve y no hay nada que jugar.
+- `import_rows` frena el duplicado **dentro del mismo archivo** en Python (diccionario de hashes): dos filas iguales en un solo `INSERT` no las cubre el `ON CONFLICT`, que solo ve lo ya cargado.
+- La CLI commitea a mano: `session_factory` no tiene el commit automático de `get_session` ("el borde del pedido es el borde de la transacción", pero acá no hay pedido).
+- El importador repite en Python los `CHECK` (categoría, dificultad, 1–300) y suma las reglas que la base no puede expresar (opciones no vacías y distintas, comparadas con `casefold`): así el informe trae la fila y el motivo, en vez de reventar con un `IntegrityError` sin contexto.

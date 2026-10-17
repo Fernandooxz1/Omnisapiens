@@ -1,4 +1,4 @@
-.PHONY: up down api migrate check-schema test lint fmt
+.PHONY: up down api migrate seed import check-schema test lint fmt
 
 up:
 	docker compose up -d --wait
@@ -11,6 +11,14 @@ api:
 
 migrate:
 	cd backend && uv run alembic upgrade head
+
+# Carga las 60 preguntas semilla (ya publicadas) desde backend/seeds/.
+seed:
+	cd backend && uv run python -m app.cli seed
+
+# Carga un archivo propio: make import FILE=mis-preguntas.csv
+import:
+	cd backend && uv run python -m app.cli import-questions $(FILE)
 
 # Guardarraíl: falla si los modelos y las migraciones se desincronizaron.
 check-schema:
