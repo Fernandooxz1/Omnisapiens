@@ -1,6 +1,7 @@
 """`/me` contra la API real y la base real del test."""
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,12 +42,30 @@ async def test_reading_the_profile_refreshes_last_seen(
     alta = await _guest(client, "ana")
     usuario = await session.get(User, uuid.UUID(alta["user"]["id"]))
     assert usuario is not None
+    usuario.last_seen_at = datetime.now(UTC) - timedelta(minutes=5)
+    await session.flush()
     antes = usuario.last_seen_at
 
     await client.get("/me", headers=_auth(alta["token"]))
     await session.refresh(usuario)
 
     assert usuario.last_seen_at > antes
+
+
+async def test_a_recent_read_does_not_write_again(
+    client: httpx.AsyncClient, session: AsyncSession
+) -> None:
+    alta = await _guest(client, "ana")
+    usuario = await session.get(User, uuid.UUID(alta["user"]["id"]))
+    assert usuario is not None
+    usuario.last_seen_at = datetime.now(UTC) - timedelta(seconds=10)
+    await session.flush()
+    antes = usuario.last_seen_at
+
+    await client.get("/me", headers=_auth(alta["token"]))
+    await session.refresh(usuario)
+
+    assert usuario.last_seen_at == antes
 
 
 async def test_patch_changes_the_nick(

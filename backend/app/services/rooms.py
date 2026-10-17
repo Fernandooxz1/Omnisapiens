@@ -1,8 +1,9 @@
-"""Creación de salas. La consulta es tan chica que vive en el router."""
+"""Creación y búsqueda de salas."""
 
 import secrets
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +21,22 @@ class RoomCodeCollision(Exception):
 def generate_room_code() -> str:
     # `secrets` y no `random`: el código es la llave de la sala.
     return "".join(secrets.choice(ROOM_CODE_ALPHABET) for _ in range(ROOM_CODE_LENGTH))
+
+
+def normalize_room_code(code: str) -> str:
+    """El código tal como lo tipeó el usuario: sin espacios y en mayúsculas."""
+    return code.strip().upper()
+
+
+async def get_by_code(session: AsyncSession, code: str) -> Room | None:
+    """La sala del código, o `None`. Un solo lugar normaliza (H-17).
+
+    Lo usan el HTTP y el WebSocket: los dos tienen que aceptar el mismo `k7m2qp`
+    que el usuario ve en pantalla.
+    """
+    return await session.scalar(
+        select(Room).where(Room.code == normalize_room_code(code))
+    )
 
 
 async def create_room(

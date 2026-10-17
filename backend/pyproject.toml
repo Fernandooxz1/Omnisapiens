@@ -13,8 +13,6 @@ dependencies = [
     "pydantic-settings",
     "redis",
     "pyjwt",
-    "python-multipart",
-    "orjson",
 ]
 
 [dependency-groups]

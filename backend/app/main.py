@@ -71,9 +71,5 @@ app.include_router(room_ws.router)
 
 
 @app.get("/")
-def init() -> dict[str, str]:
-    return {
-        "name": "OMNIAPI",
-        "version": "0.1",
-        "description": "Prueba del metodo GET en localhost:8000/",
-    }
+def root() -> dict[str, str]:
+    return {"name": "Omnisapiens API", "version": "0.1"}

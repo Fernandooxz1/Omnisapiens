@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from redis.exceptions import RedisError
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -10,7 +10,7 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-async def health() -> dict[str, str]:
+async def health(response: Response) -> dict[str, str]:
     db_status = "ok"
     redis_status = "ok"
 
@@ -25,4 +25,8 @@ async def health() -> dict[str, str]:
     except (OSError, RedisError):
         redis_status = "error"
 
+    if db_status != "ok" or redis_status != "ok":
+        # Un 200 degradado no lo ve ningún balanceador: si falta una pieza, el
+        # servicio no está sano y tiene que decirlo con el código.
+        response.status_code = 503
     return {"api": "ok", "db": db_status, "redis": redis_status}

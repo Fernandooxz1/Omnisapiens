@@ -1,6 +1,6 @@
 """El perfil: leerlo, cambiar el nick y darse de baja."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Response
 
@@ -16,8 +16,12 @@ router = APIRouter(prefix="/me", tags=["me"])
 
 @router.get("")
 async def me(usuario: CurrentUserDep, session: SessionDep) -> UserOut:
-    usuario.last_seen_at = datetime.now(UTC)
-    await session.flush()
+    ahora = datetime.now(UTC)
+    # Una escritura por cada GET es demasiado si el frontend consulta seguido: se
+    # refresca como mucho una vez por minuto (H-23).
+    if usuario.last_seen_at <= ahora - timedelta(minutes=1):
+        usuario.last_seen_at = ahora
+        await session.commit()
     return UserOut.model_validate(usuario)
 
 

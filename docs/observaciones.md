@@ -10,7 +10,7 @@
 > una línea del arcade.
 
 > **Estado (2026-10-17, tarde).** Resueltos y verificados: **H-01, H-02** (los dos
-> P0), **H-03, H-04, H-05, H-06, H-08, H-11, H-12, H-24, H-25**, el `players` de
+> P0), **H-03..H-06, H-08, H-11, H-12, H-16..H-25**, el `players` de
 > `GET /rooms/{code}` y el **barrendero**. Van marcados con ✅ en su título; el resto
 > sigue vigente tal como está escrito. El detalle de cada arreglo quedó en
 > `docs/plan.md` (sección *Estado de sesión*).
@@ -20,7 +20,7 @@
 ## 0. Veredicto en cinco renglones
 
 El proyecto está **muy bien construido para tener 2 días de vida**: capas limpias,
-motor puro, constraints de verdad en Postgres, 428 tests que corren en ~10 segundos y
+motor puro, constraints de verdad en Postgres, 436 tests que corren en ~10 segundos y
 comentarios que explican el *porqué* y no el *qué*. El modo online —lo único
 jugable hoy— tenía **dos defectos serios de ciclo de vida**: una reconexión podía
 hacerte **perder la partida por un socket viejo**, y **cualquier error de base mataba
@@ -45,7 +45,7 @@ Comandos y resultado exacto, para que sea verificable:
 | Formato | `uv run ruff format --check .` | `80 files already formatted` |
 | Tipos | `uv run mypy app` | `Success: no issues found in 48 source files` |
 | Schema | `uv run alembic check` | `No new upgrade operations detected.` |
-| Tests | `uv run pytest -q` | **428 passed in ~10 s**, sin warnings (la dev key se filtra en tests, H-21) |
+| Tests | `uv run pytest -q` | **436 passed in ~10 s**, sin warnings (la dev key se filtra en tests, H-21) |
 
 Los warnings eran todos el mismo: `InsecureKeyLengthWarning`, el `JWT_SECRET` de
 dev mide 18 bytes. Ya no ensucian la salida de los tests (filtro en
@@ -83,7 +83,7 @@ objetiva. El "%" es contra el backend terminado (el frontend no cuenta acá).
 | Redis (ranking, rate limit, Pub/Sub) | solo historial de vistas | **15** | sorted sets, límites, multi-instancia |
 | Concurrencia / ciclo de vida de sala | camino feliz, P0 y fugas corregidos | **90** | H-07 (multi-instancia) |
 | Infra local (compose, Makefile, env) | completa, con CI | **90** | `README.md` |
-| Tests | 428 verdes, 92 % de cobertura, con tests de carrera | **95** | nada |
+| Tests | 436 verdes, 92 % de cobertura, con tests de carrera | **95** | nada |
 | Frontend | **fuera de alcance de este repo** | — | lo hace otra persona |
 
 **Backend ponderado: ≈ 60 %** al cerrar la auditoría. Los arreglos de esta tarde
@@ -118,10 +118,10 @@ Cumplidos a nivel backend: **3,5 de 6** (el 1 y el 3 esperan al frontend/arcade)
 | Commits | 30, en **2 días** (16–17 oct 2026) | ritmo altísimo, un commit = un paso testeado |
 | LOC `app/` | 3.994 en 47 módulos (mypy) | razonable para el alcance |
 | LOC `tests/` | 5.006 | **ratio test:código 1,25:1** — excelente |
-| Tests | 428, ~10 s, contra Postgres y Redis reales | sin SQLite, sin mocks de base |
+| Tests | 436, ~10 s, contra Postgres y Redis reales | sin SQLite, sin mocks de base |
 | Tablas | 7 (users, questions, rooms, matches, match_rounds, arcade_runs, arcade_answers) | 1:1 con §8 del plan |
 | Migraciones | 3 (`0001`–`0003`), **sin drift** | `alembic check` limpio |
-| Dependencias | 12 runtime + 5 dev | 2 son código muerto (H-16) |
+| Dependencias | 10 runtime + 6 dev | sin código muerto (H-16) |
 | Semilla | 60 preguntas, 10 por categoría | sesgo de posición (H-25) |
 | Plan | `docs/plan.md`, 1.357 líneas | documento único, como se acordó |
 | CI / README / cobertura | ✅ / ❌ / 92 % | queda el `README.md` |
@@ -559,14 +559,14 @@ detalle = "; ".join(f"{'.'.join(str(p) for p in e['loc'][1:])}: {e['msg']}" for 
 
 | # | Hallazgo | Evidencia | Arreglo |
 |---|---|---|---|
-| H-16 | Dependencias y config muertas: `orjson` y `python-multipart` declaradas y **nunca usadas**; `admin_token` en `Settings` sin ningún consumidor | `pyproject.toml:8-19`, `config.py:13`, `grep` sin resultados | borrar `orjson`/`python-multipart`; dejar `admin_token` sólo si se hace el admin ya (si no, también sale y vuelve con el endpoint) |
-| H-17 | El lookup de sala está **tres veces**: `rooms.py:25-28`, `room_ws.py:127-132` y el `Room(...)` de creación | ídem | un `services/rooms.get_by_code(session, code)` que normaliza y valida; los dos bordes lo usan |
-| H-18 | `GET /` devuelve un texto improvisado con typo ("Prueba que de que el metodo GET...") | `main.py:46-52` | borrar la ruta o devolver `{name, version}` en serio |
-| H-19 | `/health` responde **200 degradado** (db/redis en `error`) | `routers/health.py:28` | 503 si algo está mal; si no, ningún balanceador va a reaccionar |
-| H-20 | Mezcla de idiomas: handlers `crear_sala`/`vista_previa` en español, el resto en inglés | `rooms.py:16,24` | §15 del plan dice código en inglés; renombrar |
-| H-21 | Warnings idénticos que tapan cualquier warning nuevo | `pytest` output | **mitad hecho:** `filterwarnings` en tests deja la salida limpia; **falta** subir el `JWT_SECRET` de dev a ≥ 32 bytes en `.env.example` |
-| ✅ H-22 | Drift de docs: el plan y `.env.example` quedaron al día (428 tests, ~10 s; `WS_IDLE_TIMEOUT_SECONDS` y `STALE_MATCH_MINUTES` listados) | `plan.md:16`, `.env.example` | mantener los números al día en el mismo paso |
-| H-23 | `GET /me` hace un `flush` por lectura (pisa `last_seen_at`) | `routers/me.py:19-20` | correcto, pero es una escritura por cada GET; si el frontend lo llama seguido, conviene un `UPDATE ... WHERE last_seen_at < now() - interval '1 minute'` |
+| ✅ H-16 | Dependencias y config muertas: `orjson` y `python-multipart` declaradas y **nunca usadas**; `admin_token` sin consumidor | `pyproject.toml`, `config.py` | **resuelto:** las tres fuera; `admin_token` vuelve con el endpoint de admin |
+| ✅ H-17 | El lookup de sala estaba **tres veces** | `rooms.py`, `room_ws.py` | **resuelto:** `services/rooms.get_by_code` normaliza y consulta; HTTP y WS lo usan |
+| ✅ H-18 | `GET /` devolvía un texto improvisado con typo | `main.py` | **resuelto:** `{"name": "Omnisapiens API", "version": "0.1"}` + test |
+| ✅ H-19 | `/health` respondía **200 degradado** | `routers/health.py` | **resuelto:** 503 si DB o Redis fallan + tests |
+| ✅ H-20 | Mezcla de idiomas: handlers `crear_sala`/`vista_previa` en español | `rooms.py` | **resuelto:** `new_room`/`room_preview` |
+| ✅ H-21 | Warnings idénticos que tapan cualquier warning nuevo | `pytest` output | **resuelto:** dev key de 32+ bytes en `.env.example`, `filterwarnings` en tests y `Settings` rechaza un secreto corto si `env != "local"` |
+| ✅ H-22 | Drift de docs: el plan y `.env.example` quedaron al día (436 tests, ~10 s; `WS_IDLE_TIMEOUT_SECONDS` y `STALE_MATCH_MINUTES` listados) | `plan.md:16`, `.env.example` | mantener los números al día en el mismo paso |
+| ✅ H-23 | `GET /me` escribía en cada lectura | `routers/me.py` | **resuelto:** refresca `last_seen_at` como mucho una vez por minuto + test |
 | ✅ H-24 | **El desempate no tenía tope**: si los dos seguían empatando, la partida no terminaba nunca | `match_engine.py:207-217`, `:109-114` | **resuelto:** `MAX_TIEBREAK_ROUNDS = 3`; agotado, `FINISHED` con `winner=None` (`MatchEnd.winner="tie"`) |
 | ✅ H-25 | **Sesgo de posición en la semilla**: correcta en B 48,3 %, C 28,3 %, A 21,7 %, D 1,7 % (n=60). Las opciones **no se mezclaban al servir** | `seeds/questions.csv` | **resuelto:** `shuffle_options` baraja los índices al servir y remapea `correct_index`; la semilla no se toca |
 
@@ -587,7 +587,7 @@ senior y son las que hacen que el resto sea barato de arreglar:
 1. **El motor es puro y el borde es sucio a propósito.** `game/` no conoce Postgres,
    ni sockets, ni `time.time()`. `now_ms`, `sleep` y `rng` se inyectan
    (`room_manager.py:136-149`): una partida entera corre en milisegundos en los tests
-   con el `FakeClock`. Esa decisión sola explica los 428 tests en ~10 s.
+   con el `FakeClock`. Esa decisión sola explica los 436 tests en ~10 s.
 2. **La respuesta correcta no puede filtrarse: no está en el tipo.** `RoundQuestion`
    (`question_bank.py:39-50`) no tiene `correct_index`; el `match_end` con
    `RoundResult` es lo único que lo expone. Un test con `hasattr` lo vigila. Esto es
@@ -721,9 +721,8 @@ online; nada de eso debería esperar al arcade.
 | ✅ 9 | **H-25** barajar opciones al servir + rebalancear la semilla | es lo que más rápido se va a notar jugando, y es una función pura | chico |
 | 10 | Fase 4: WS de arcade + persistencia + ranking + binario de Redis | el resto del MVP | grande |
 
-Los puntos 1-9 ya están **hechos**. Quedan los P3 sueltos (H-16 a H-24), el
-`README.md` y el arcade. La lista de la sección 11 está ordenada por riesgo: el 10 es
-el siguiente bloque grande.
+Los puntos 1-9 ya están **hechos**. Quedan los P2 de seguridad/escala (H-09, H-10,
+H-13, H-14, H-15), el `README.md` y el arcade: el 10 es el siguiente bloque grande.
 
 ---
 
@@ -733,7 +732,7 @@ el siguiente bloque grande.
 make up                      # Postgres 16 + Redis 7
 make lint                    # ruff (select) + format + mypy strict
 make check-schema            # alembic check: sin drift entre modelos y migraciones
-make test                    # 428 verdes, ~10 s (sin umbral)
+make test                    # 436 verdes, ~10 s (sin umbral)
 make cov                     # el gate: 92 % contra un umbral de 85 %
 ```
 
@@ -774,6 +773,6 @@ justamente donde todavía no hay nadie mirando: el socket que se va tarde, el re
 que se muere callado y lo que nadie cierra al apagar. Ya están corregidos, con sus
 tests y sabotajes.
 
-Lo que sigue, en orden: los P3 sueltos (H-16 a H-23), el `README.md` y el **arcade
-por WS + ranking**. La barra de calidad ya no es una promesa: `make lint`,
-`make cov` y el CI la hacen cumplir.
+Lo que sigue, en orden: los **P2 de seguridad/escala** (H-09, H-10, H-13, H-14,
+H-15), el `README.md` y el **arcade por WS + ranking**. La barra de calidad ya no es
+una promesa: `make lint`, `make cov` y el CI la hacen cumplir.

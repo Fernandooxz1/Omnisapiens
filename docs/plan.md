@@ -13,11 +13,11 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas**, **el WebSocket de sala** y **el barrendero** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **428 tests en ~10 s** contra Postgres y Redis reales.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas**, **el WebSocket de sala** y **el barrendero** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **436 tests en ~10 s** contra Postgres y Redis reales.
 
 El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`) y el barrendero cierra al arrancar lo que quedó abierto. Las opciones se barajan al servir (H-25), el token no se escribe en los logs (H-08) y el desempate tiene tope (H-24). Falta el resto del tiempo real: **el arcade por WS**.
 
-**Pausa acá:** **H-01..H-06, H-08, H-11, H-12, H-24, H-25 y `players` cerrados** (testeados y sabotajeados). Siguen los P3 sueltos (H-16..H-23), el `README.md` y el **arcade por WS + ranking**.
+**Pausa acá:** cerrados los P0/P1, H-11, H-12/H-08, H-24, H-25, `players`, el barrendero y los P3 (H-16..H-23). Quedan los **P2 de seguridad/escala**: H-09 (rate limiting), H-10 (sala vencida en la vista previa), H-13 (outbox sin tope y candidatas completas por ronda), H-14 (`loc` del 422) y H-15 (límites de tamaño). Después el `README.md`, el barrendero periódico y el **arcade por WS + ranking**.
 
 Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
@@ -41,17 +41,17 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - [x] **H-12 + H-08**: logging configurado en el lifespan (`LOG_LEVEL`, formato con hora y logger) y un filtro que descarta del log los renglones de WS con `?token=` (`logging_config.py`) + test
 - [x] **H-25**: `shuffle_options` baraja los índices al servir y remapea `correct_index`; la pregunta guardada no se toca. Adiós al sesgo de posición (B en 48 %) + 4 tests
 - [x] **H-24**: tope de `MAX_TIEBREAK_ROUNDS = 3`: si siguen empatados, la partida termina en empate (`FINISHED`, `winner=None`, `MatchEnd.winner="tie"`) en vez de servir rondas para siempre + tests de motor y de sala
+- [x] **P3 (H-16..H-21, H-23)**: `orjson`/`python-multipart`/`admin_token` fuera; `services/rooms.get_by_code` único (HTTP y WS); `GET /` devuelve `{name, version}`; `/health` responde 503 si falta DB o Redis; handlers de salas en inglés; `JWT_SECRET` de dev ≥ 32 bytes y validado si `env != "local"`; `GET /me` refresca `last_seen_at` como mucho una vez por minuto + tests
 
 ### Próximos pasos
 
 > Auditoría completa en `docs/observaciones.md` (2026-10-17): ≈60 % del backend.
-> Los P0 (H-01/H-02), los P1 H-03..H-06, H-12/H-08, H-25, H-11, el barrendero y la
-> presencia están cerrados; sigue la cola de abajo.
+> Los P0 y P1 de la auditoría, el barrendero, la calidad y los P3 están cerrados;
+> sigue la cola de abajo.
 
-- [ ] Los P3 sin resolver: H-16 (deps/config muertas), H-17 (lookup de sala ×3), H-18 (`GET /`), H-19 (`/health` 503), H-20 (handlers en español), H-23 (`GET /me` escribe por lectura)
+- [ ] **P2 de seguridad/escala**: H-09 rate limiting en `/auth/guest` y en el fallo de `ROOM_NOT_FOUND` (Redis); H-10 no revivir salas `expired` desde el WS y decidir auth de la vista previa; H-13 `outbox` con tope y filtro de dificultad en la consulta; H-14 sumar `loc` al 422; H-15 `max_length` del nick, límite de cuerpo y lotes del importador
 - [ ] Arcade sobre WS (`ws/arcade_ws.py`) + ranking + corte semanal en `America/Argentina/Buenos_Aires`
 - [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
-- [ ] Validar `JWT_SECRET` (≥ 32 bytes) cuando `env != "local"` y subir el de dev en `.env.example` (H-21)
 - [ ] Barrendero periódico (no solo al arrancar): el mismo `sweep` en una task con intervalo, para que una sala `waiting` venza sin esperar un reinicio. Coordinar con H-03 y con `expires_at` (H-04 ya lo refresca)
 - [ ] `README.md` con los cinco comandos de la sección 23 (pendiente de Fase 0)
 - [ ] Página mínima para probar dos pestañas (la API sola ya se prueba con el smoke test de `/tmp`, fuera del repo)
@@ -91,7 +91,7 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - `rename_user` NO hace un SELECT previo: el único parcial de `users` es el árbitro, y entre chequear y escribir hay una carrera. Atrapa `IntegrityError` y hace `rollback` (mismo patrón que `create_guest`); el costo es que en los tests eso descarta lo escrito en la transacción del test, así que un PATCH rechazado se verifica por status, no por fila.
 - `PATCH /me` reemite el token: el pase lleva el `nick` adentro y dejarlo viejo sería entregarle al cliente un pase que miente (aunque hoy la identidad se resuelva por `sub` contra la base).
 - `DELETE /me` es baja lógica (`deleted_at`) y responde 204: el mismo dep que lee el token rechaza al usuario borrado (401) y el único parcial libera el nick sin borrar la fila.
-- `GET /me` pisa `last_seen_at`: hasta este paso la columna se escribía una sola vez al crear el usuario y nunca más.
+- `GET /me` refresca `last_seen_at` **como mucho una vez por minuto**: escribir en cada lectura era gratis en un test y caro con el frontend consultando seguido (H-23).
 - El perfil y el pase viven en `schemas/users.py` (`UserOut`, `AuthOut`, `NickUpdate`); `auth.py` los reimporta para que `/me` no dependa de un módulo de alta.
 - El código de sala se genera con `secrets` (no `random`): es la llave de la sala, tiene que ser impredecible. La colisión la arbitra el único de `code` con reintento, mismo patrón que el nick.
 - La config de `POST /rooms` se valida en el schema con `field_validator` contra `ONLINE_ROUNDS_OPTIONS`/`ONLINE_SECONDS_OPTIONS`: el valor malo sale 422 `VALIDATION_ERROR` (mismo formato que el resto) y no un `IntegrityError` del `CHECK`.
@@ -451,14 +451,16 @@ volumes:
 
 ```
 ENV=local
+LOG_LEVEL=INFO
 DATABASE_URL=postgresql+asyncpg://trivia:trivia@localhost:5432/trivia
 REDIS_URL=redis://localhost:6379/0
-JWT_SECRET=dev-secret-cambiar
+JWT_SECRET=dev-secret-de-32-bytes-o-mas-cambiar
 JWT_TTL_DAYS=30
-ADMIN_TOKEN=dev-admin-token
 CORS_ORIGINS=http://localhost:5173
 RECONNECT_GRACE_SECONDS=20
 ROOM_IDLE_TIMEOUT_SECONDS=600
+STALE_MATCH_MINUTES=15
+WS_IDLE_TIMEOUT_SECONDS=45
 ```
 
 ### Comandos
@@ -860,7 +862,7 @@ Todas las respuestas en JSON. Los errores siguen el formato `{"error": {"code": 
 - **Invitado primero.** `POST /auth/guest` crea un `users` con `is_guest = true` y un nick generado si no se manda uno (por ejemplo `Jugador4821`). Con un token válido en el header **no** da de alta a nadie: devuelve el mismo usuario con un token fresco, e ignora el nick que venga en el body (la identidad la manda el token).
 - **Códigos de error** que devuelve hoy: `AUTH_REQUIRED` (401), `NICK_TAKEN` (409), `NICK_FORBIDDEN` y `NICK_LENGTH` (400), `ROOM_NOT_FOUND` (404), `VALIDATION_ERROR` (422, forma del body). El formato es el de §11: `{"error": {"code", "message"}}`.
 - **El nick se limpia y se valida** en `security/nicks.py` (espacios de sobra, 1–16 caracteres, lista corta de palabras prohibidas que no ve leet ni homoglifos). El mismo módulo sirve para el `PATCH /me`.
-- **`/me`**: `GET` devuelve el perfil y pisa `last_seen_at`; `PATCH` cambia el nick (mismos códigos `NICK_*`) y devuelve un token fresco (el viejo lleva el nick viejo); `DELETE` es baja lógica (204) y a partir de ahí el token da 401 y el nick queda libre.
+- **`/me`**: `GET` devuelve el perfil y refresca `last_seen_at` como mucho una vez por minuto; `PATCH` cambia el nick (mismos códigos `NICK_*`) y devuelve un token fresco (el viejo lleva el nick viejo); `DELETE` es baja lógica (204) y a partir de ahí el token da 401 y el nick queda libre.
 - **CORS:** los orígenes salen de `CORS_ORIGINS` y el frontend corre en otro puerto (`5173`), así que el navegador exige el middleware para poder llamar a la API.
 - El token es un **JWT HS256** con `sub` (id del usuario), `nick`, `guest: true`, `iat` y `exp` a 30 días. Se firma con `JWT_SECRET`.
 - El cliente lo guarda en `localStorage` y lo manda en el header `Authorization: Bearer ...`, o como query param `?token=` en los WebSocket (el navegador no permite headers en `new WebSocket`).

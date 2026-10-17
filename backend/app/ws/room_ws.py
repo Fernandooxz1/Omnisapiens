@@ -23,7 +23,6 @@ import logging
 from typing import Annotated, Any, TypeGuard
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.websockets import WebSocketDisconnected
 
@@ -34,6 +33,7 @@ from app.game import protocols
 from app.game.match_engine import MatchConfig
 from app.models import Room, User
 from app.runtime.room_manager import Outbox, RoomStore, room_store
+from app.services.rooms import get_by_code
 
 logger = logging.getLogger(__name__)
 
@@ -126,8 +126,7 @@ async def _identify(websocket: WebSocket, session: AsyncSession) -> User:
 
 
 async def _load_room(session: AsyncSession, code: str) -> Room:
-    codigo = code.strip().upper()
-    sala = await session.scalar(select(Room).where(Room.code == codigo))
+    sala = await get_by_code(session, code)
     if sala is None:
         raise ApiError(404, "ROOM_NOT_FOUND", "No hay una sala con ese código.")
     return sala

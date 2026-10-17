@@ -35,7 +35,6 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://trivia:trivia@localhost:5432/trivia
       REDIS_URL: redis://localhost:6379/0
       JWT_SECRET: ci-secret-con-32-bytes-o-mas-para-no-avisar
-      ADMIN_TOKEN: ci-admin-token
       CORS_ORIGINS: http://localhost:5173
     steps:
       - uses: actions/checkout@v4
