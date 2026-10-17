@@ -9,10 +9,10 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Match, Room
+from app.models import ArcadeRun, Match, Room
 from app.services.reaper import sweep
 
-from .factories import match, room, user
+from .factories import arcade_run, match, room, user
 
 NOW = datetime(2026, 10, 17, 12, 0, tzinfo=UTC)
 
@@ -69,15 +69,48 @@ async def test_the_sweeper_voids_matches_a_dead_process_left_playing(
     assert winner is None
 
 
+async def test_the_sweeper_invalidates_arcade_runs_a_dead_process_left_playing(
+    session: AsyncSession,
+) -> None:
+    ana = user(nick="ana")
+    session.add(ana)
+    await session.flush()
+
+    vieja = arcade_run(ana.id, started_at=NOW - timedelta(minutes=30))
+    fresca = arcade_run(ana.id, started_at=NOW - timedelta(minutes=5))
+    session.add_all([vieja, fresca])
+    await session.flush()
+
+    resultado = await sweep(session, now=NOW, stale_after=timedelta(minutes=15))
+
+    assert resultado.invalidated_runs == 1
+    assert await _status(session, ArcadeRun, vieja.id) == "invalid"
+    assert await _status(session, ArcadeRun, fresca.id) == "playing"
+
+    ended = await session.scalar(
+        select(ArcadeRun.ended_at).where(ArcadeRun.id == vieja.id)
+    )
+    assert ended == NOW
+
+
 async def test_the_sweep_is_idempotent(session: AsyncSession) -> None:
     ana = user(nick="ana")
     session.add(ana)
     await session.flush()
     session.add(room(ana.id, expires_at=NOW - timedelta(minutes=1)))
+    session.add(arcade_run(ana.id, started_at=NOW - timedelta(minutes=30)))
     await session.flush()
 
     primera = await sweep(session, now=NOW)
     segunda = await sweep(session, now=NOW)
 
-    assert (primera.expired_rooms, primera.voided_matches) == (1, 0)
-    assert (segunda.expired_rooms, segunda.voided_matches) == (0, 0)
+    assert (
+        primera.expired_rooms,
+        primera.voided_matches,
+        primera.invalidated_runs,
+    ) == (1, 0, 1)
+    assert (
+        segunda.expired_rooms,
+        segunda.voided_matches,
+        segunda.invalidated_runs,
+    ) == (0, 0, 0)

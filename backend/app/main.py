@@ -32,9 +32,11 @@ async def _sweep_on_startup() -> None:
         logger.exception("el barrido inicial falló")
     else:
         logger.info(
-            "barrido inicial: %d salas expiradas, %d partidas anuladas",
+            "barrido inicial: %d salas expiradas, %d partidas anuladas, "
+            "%d corridas invalidadas",
             resultado.expired_rooms,
             resultado.voided_matches,
+            resultado.invalidated_runs,
         )
 
 

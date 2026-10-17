@@ -13,8 +13,8 @@ Tres cosas que sorprenden a primera vista:
   `outbox`. Hasta el `pong` y los errores pasan por la cola, con su `id` de
   correlación; el lector nunca toca el socket y no hace falta lock de escritura.
 - La corrida es de una conexión, no de una sala: no hay store global. Si el
-  socket se cae, la corrida se pierde; la persistencia del corte 3 decide cómo
-  cerrar la fila.
+  socket se cae, la corrida se pierde y la fila queda `playing` para que el
+  barrendero la invalide: media corrida no compite en el ranking.
 """
 
 import asyncio
@@ -38,13 +38,14 @@ from app.api.errors import ApiError
 from app.api.rate_limit import arcade_limit
 from app.config import settings
 from app.game import protocols
-from app.game.arcade_engine import difficulty_for
+from app.game.arcade_engine import RoundRecord, difficulty_for
 from app.game.constants import CATEGORIES, DIFFICULTY_MAX, DIFFICULTY_MIN
 from app.models import User
 from app.redis import redis_client
 from app.runtime import arcade_session
 from app.runtime.arcade_session import ArcadeState
 from app.runtime.room_manager import OUTBOX_MAX
+from app.services import arcade_runs
 from app.services.question_bank import (
     LoadedQuestion,
     candidates,
@@ -164,6 +165,9 @@ class _Run:
         self._user_id = user_id
         self._outbox = outbox
         self.state: ArcadeState | None = None
+        # El motor devuelve una `RoundRecord` por ronda y no la guarda: acá se
+        # acumulan hasta el cierre, que es cuando se escriben todas juntas.
+        self._records: list[RoundRecord] = []
         self._lock = asyncio.Lock()
         # Despierta al reloj cuando cambió la ronda: contesta una pregunta o se
         # sirve la siguiente. Evita polling y recalcula el plazo con el estado quieto.
@@ -178,7 +182,24 @@ class _Run:
             if self.state is not None:
                 self._error("ALREADY_STARTED", "La corrida ya arrancó.")
                 return
-            step = arcade_session.start(str(uuid.uuid4()))
+            run_id = uuid.uuid4()
+            try:
+                # La fila se escribe antes de servir la primera pregunta: si el
+                # proceso muere después, queda `playing` y el barrendero la cierra.
+                await arcade_runs.start_run(
+                    self._db, run_id=run_id, user_id=self._user_id
+                )
+            except Exception:
+                # No se juega sin fila: el cierre no tendría dónde escribir y la
+                # corrida desaparecería sin que el jugador se entere.
+                logger.exception("la corrida de %s no se pudo registrar", self._user_id)
+                await self._db.rollback()
+                self._error(
+                    "RUN_NOT_STARTED",
+                    "No se pudo registrar la corrida. Probá de nuevo.",
+                )
+                return
+            step = arcade_session.start(str(run_id))
             self.state = step.state
             self._deliver(step.effects)
             await self._serve_next()
@@ -195,8 +216,7 @@ class _Run:
                 choice=choice,
                 now_ms=self._runtime.now_ms(),
             )
-            self.state = step.state
-            self._deliver(step.effects)
+            await self._apply(step)
             if step.state.needs_next_question:
                 await self._serve_next()
             self._wakeup.set()
@@ -222,11 +242,40 @@ class _Run:
                 if self._runtime.now_ms() < deadline:
                     continue
                 step = arcade_session.expire(state, now_ms=self._runtime.now_ms())
-                self.state = step.state
-                self._deliver(step.effects)
+                await self._apply(step)
                 if step.state.needs_next_question:
                     await self._serve_next()
                 self._wakeup.set()
+
+    async def _apply(self, step: arcade_session.Transition) -> None:
+        """Aplica la transición, acumula su ronda y entrega lo que produjo.
+
+        El cierre va **antes** de entregar el `arcade_end`: el ranking (corte 4)
+        se calcula sobre la fila ya cerrada y el cliente ve su posición real.
+        """
+        self.state = step.state
+        if step.record is not None:
+            self._records.append(step.record)
+            if step.state.finished:
+                await self._finish()
+        self._deliver(step.effects)
+
+    async def _finish(self) -> None:
+        """Cierra la fila y sus rondas. Si falla, el jugador igual ve su final."""
+        state = self.state
+        assert state is not None
+        try:
+            await arcade_runs.finish_run(
+                self._db,
+                run_id=uuid.UUID(state.run_id),
+                run=state.run,
+                records=tuple(self._records),
+            )
+        except Exception:
+            # La fila queda `playing` y el barrendero la invalida. El jugador no
+            # se queda sin resultado por un problema de persistencia.
+            logger.exception("la corrida %s no se pudo cerrar", state.run_id)
+            await self._db.rollback()
 
     async def _serve_next(self) -> None:
         state = self.state

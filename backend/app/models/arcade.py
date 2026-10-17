@@ -27,7 +27,8 @@ from app.models.checks import number_list, quoted_list
 
 # `invalid` no existe en el motor: es el estado que usa la base para sacar de
 # circulación una corrida sospechosa. El ranking solo mira las `finished`.
-RUN_STATUSES = (*RunStatus, "invalid")
+INVALID_STATUS = "invalid"
+RUN_STATUSES = (*RunStatus, INVALID_STATUS)
 
 _FINISHED_ONLY = text("status = 'finished'")
 
