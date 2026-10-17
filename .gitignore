@@ -1,0 +1,40 @@
+# ============================================================
+#  Omnisapiens — archivos que NO se versionan
+#  Regla: entra la fuente, no lo que se regenera ni lo que es secreto.
+# ============================================================
+
+# --- Artefactos generados por Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- Artefactos generados por herramientas de Python ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Artefactos generados por Node / el frontend ---
+node_modules/
+.svelte-kit/
+build/
+dist/
+.vite/
+
+# --- Secretos y configuración local ---
+.env
+.env.*
+!.env.example
+
+# --- Ruido de editor y sistema operativo ---
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# --- Logs ---
+*.log
+npm-debug.log*
