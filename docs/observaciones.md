@@ -82,7 +82,7 @@ objetiva. El "%" es contra el backend terminado (el frontend no cuenta acá).
 | Barrendero (salas vencidas, matches colgados) | completo (al arrancar) | **100** | barrido periódico (opcional) |
 | Redis (ranking, rate limit, Pub/Sub) | historial de vistas + rate limit | **35** | sorted sets del ranking, Pub/Sub |
 | Concurrencia / ciclo de vida de sala | camino feliz, P0 y fugas corregidos | **90** | H-07 (multi-instancia) |
-| Infra local (compose, Makefile, env) | completa, con CI | **90** | `README.md` |
+| Infra local (compose, Makefile, env, README) | completa, con CI | **100** | nada |
 | Tests | 448 verdes, 92 % de cobertura, con tests de carrera | **95** | nada |
 | Frontend | **fuera de alcance de este repo** | — | lo hace otra persona |
 
@@ -105,7 +105,7 @@ terminado" (§20 del plan) es de cara al usuario.
 | 5 | ≥ 60 preguntas de las 6 categorías | ✅ 60/60, 10 por categoría |
 | 6 | CI verde incluidas las e2e | ❌ no hay CI |
 | 7 | UI sin gradientes/emojis, SVG propios | frontend |
-| 8 | Levantar el proyecto en ≤ 5 comandos documentados | ❌ no hay `README.md` |
+| 8 | Levantar el proyecto en ≤ 5 comandos documentados | ✅ `README.md` |
 
 Cumplidos a nivel backend: **3,5 de 6** (el 1 y el 3 esperan al frontend/arcade).
 
@@ -124,7 +124,7 @@ Cumplidos a nivel backend: **3,5 de 6** (el 1 y el 3 esperan al frontend/arcade)
 | Dependencias | 10 runtime + 6 dev | sin código muerto (H-16) |
 | Semilla | 60 preguntas, 10 por categoría | sesgo de posición (H-25) |
 | Plan | `docs/plan.md`, 1.357 líneas | documento único, como se acordó |
-| CI / README / cobertura | ✅ / ❌ / 92 % | queda el `README.md` |
+| CI / README / cobertura | ✅ / ✅ / 92 % | nada |
 | Warnings | 93 (100 % idénticos, PyJWT key length) | ver H-21 |
 
 Lectura rápida: **la base es sólida y la verificación también; lo que falta es
@@ -801,6 +801,7 @@ justamente donde todavía no hay nadie mirando: el socket que se va tarde, el re
 que se muere callado y lo que nadie cierra al apagar. Ya están corregidos, con sus
 tests y sabotajes.
 
-La auditoría está **cerrada de punta a punta**. Lo que sigue es el `README.md` y
-el **arcade por WS + ranking**. La barra de calidad ya no es una promesa: `make lint`,
-`make cov` y el CI la hacen cumplir.
+La auditoría está **cerrada de punta a punta** y el proyecto se levanta con los
+cinco comandos del `README.md`. Lo que sigue es el **arcade por WS + ranking**. La
+barra de calidad ya no es una promesa: `make lint`, `make cov` y el CI la hacen
+cumplir.

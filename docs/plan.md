@@ -17,7 +17,7 @@ Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redi
 
 El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`) y el barrendero cierra al arrancar lo que quedó abierto. Las opciones se barajan al servir (H-25), el token no se escribe en los logs (H-08) y el desempate tiene tope (H-24). Falta el resto del tiempo real: **el arcade por WS**.
 
-**Pausa acá:** **la auditoría completa está cerrada** (H-01..H-25) más `players`, barrendero y calidad. Quedan el `README.md`, el barrendero periódico y el **arcade por WS + ranking**.
+**Pausa acá:** **auditoría cerrada (H-01..H-25), `README.md` escrito** y calidad con CI. Quedan el barrendero periódico y el **arcade por WS + ranking** (el bloque grande que sigue).
 
 Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
@@ -43,6 +43,7 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - [x] **H-24**: tope de `MAX_TIEBREAK_ROUNDS = 3`: si siguen empatados, la partida termina en empate (`FINISHED`, `winner=None`, `MatchEnd.winner="tie"`) en vez de servir rondas para siempre + tests de motor y de sala
 - [x] **P3 (H-16..H-21, H-23)**: `orjson`/`python-multipart`/`admin_token` fuera; `services/rooms.get_by_code` único (HTTP y WS); `GET /` devuelve `{name, version}`; `/health` responde 503 si falta DB o Redis; handlers de salas en inglés; `JWT_SECRET` de dev ≥ 32 bytes y validado si `env != "local"`; `GET /me` refresca `last_seen_at` como mucho una vez por minuto + tests
 - [x] **P2 (H-09, H-10, H-13, H-14, H-15)**: rate limiting por IP en Redis (degrada si Redis no está) en alta, vista previa y WS; las salas `expired` o `waiting` vencidas no se reviven desde HTTP ni WS; `outbox` acotado a 64 y candidatas filtradas por dificultad en SQL; el 422 lleva `loc`; tope de cuerpo de 1 MB, `max_length` del nick y import por lotes de 500
+- [x] **`README.md`**: qué es, los cinco comandos para levantarlo, tabla de `make`, endpoints y las decisiones que no hay que olvidar
 
 ### Próximos pasos
 
@@ -53,7 +54,6 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - [ ] Arcade sobre WS (`ws/arcade_ws.py`) + ranking + corte semanal en `America/Argentina/Buenos_Aires`
 - [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
 - [ ] Barrendero periódico (no solo al arrancar): el mismo `sweep` en una task con intervalo, para que una sala `waiting` venza sin esperar un reinicio. Coordinar con H-03 y con `expires_at` (H-04 ya lo refresca)
-- [ ] `README.md` con los cinco comandos de la sección 23 (pendiente de Fase 0)
 - [ ] Página mínima para probar dos pestañas (la API sola ya se prueba con el smoke test de `/tmp`, fuera del repo)
 
 ### Después
