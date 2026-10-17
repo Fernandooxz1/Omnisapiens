@@ -110,6 +110,65 @@ class RematchWaiting(Message):
 
 
 @dataclass(frozen=True)
+class ArcadeStart(Message):
+    type: ClassVar[str] = "arcade_start"
+    run_id: str
+    lives: int
+    seconds: int
+
+
+@dataclass(frozen=True)
+class ArcadeQuestion(Message):
+    """La pregunta del arcade. Sin `correct_index`: vive en `LoadedQuestion`."""
+
+    type: ClassVar[str] = "arcade_question"
+    round: int
+    prompt: str
+    options: list[str]
+    category: str
+    difficulty: int
+    seconds: int
+    ends_at: int
+    score: int
+    lives: int
+    streak: int
+    correct_count: int
+
+
+@dataclass(frozen=True)
+class ArcadeResult(Message):
+    type: ClassVar[str] = "arcade_result"
+    round: int
+    correct_index: int
+    explanation: str | None
+    you: RoundChoice
+    score: int
+    lives: int
+    streak: int
+    correct_count: int
+
+
+@dataclass(frozen=True)
+class ArcadeEnd(Message):
+    """Fin de corrida.
+
+    Las posiciones y la mejor marca las completa el ranking (corte 4). La
+    máquina pura no toca Redis: deja `None` y el borde las reemplaza.
+    """
+
+    type: ClassVar[str] = "arcade_end"
+    run_id: str
+    score: int
+    correct_count: int
+    max_difficulty: int
+    longest_streak: int
+    rank_global: int | None
+    rank_weekly: int | None
+    personal_best: int | None
+    is_new_best: bool
+
+
+@dataclass(frozen=True)
 class Error(Message):
     type: ClassVar[str] = "error"
     code: str

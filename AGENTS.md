@@ -13,6 +13,7 @@ El agente **escribe todo el código**: backend, tests, migraciones y configuraci
 5. **Analogías con Java (NetBeans/Gradle)** para lo que tenga paralelo.
 6. **Las decisiones de diseño se muestran antes de codificarlas**, con recomendación y motivo, para que el alumno las pueda vetar. Las de bajo impacto se toman y se comentan después.
 7. **Si el alumno pide "dale sin explicar"**, se apaga lo pedagógico por esa tanda y solo se reporta qué se tocó.
+8. **Cerrar cada tarea con commit:** al terminar una pieza (corte, paso o bloque), actualizar la sección **Estado de sesión** de `docs/plan.md` y commitear todo junto. El repo es la memoria: el usuario puede hacer `/new` sin avisar, así que no se deja trabajo sin commitear.
 
 ## Estilo de código
 
