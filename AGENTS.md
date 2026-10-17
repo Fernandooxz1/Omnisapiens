@@ -23,7 +23,7 @@ El agente **escribe todo el código**: backend, tests, migraciones y configuraci
 
 ## Contexto del proyecto
 
-- Proyecto: **Omnisapiens** (trivia online). Plan en `docs/mvp-plan.md`; diseño detallado de datos en `/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`.
+- Proyecto: **Omnisapiens** (trivia online). Plan en `docs/mvp-plan.md`; diseño detallado de datos en `docs/capa-de-datos.md`.
 - Stack: FastAPI + Python, SvelteKit + TypeScript, PostgreSQL + Redis, WebSocket. Proyecto `uv` (como Gradle, pero para Python) con CPython 3.12.
 - El alumno viene de Java: usá analogías con ese mundo.
 - El alumno **nunca hizo un proyecto web**: no conoce frontend/backend modernos ni cómo se publica una app web. Sí conoce Java y lógica de programación.

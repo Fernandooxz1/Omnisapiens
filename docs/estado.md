@@ -8,7 +8,9 @@ Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redi
 
 **Todavía no hay WebSocket.** Lo que sigue es `GET /me` + `PATCH /me` para que el token sirva de algo.
 
-Diseño acordado, leer antes de tocar datos o auth: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`**. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
+**Pausa acá:** el importador + CLI + 60 semilla quedaron cerrados y verificados (60 publicadas en la base, 326 tests, ruff/mypy/`check-schema` en verde). Los archivos nuevos están sin commitear: `app/services/importer.py`, `app/cli.py`, `seeds/questions.csv`, `tests/test_importer.py`, más el `Makefile`.
+
+Diseño acordado, leer antes de tocar datos o auth: **`docs/capa-de-datos.md`**. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
 ## Hecho
 

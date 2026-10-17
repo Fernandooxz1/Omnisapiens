@@ -372,7 +372,7 @@ make lint          # ruff + mypy + svelte-check
 
 PostgreSQL. Todo `snake_case`. UUID como clave primaria. Timestamps `timestamptz` en UTC.
 
-La letra chica —constraints con nombre propio, índices parciales, `CHECK` que replican las reglas del motor— está en **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`**. Acá queda el mapa de las tablas; cuando los dos documentos difieran, manda aquel.
+La letra chica —constraints con nombre propio, índices parciales, `CHECK` que replican las reglas del motor— está en **`docs/capa-de-datos.md`**. Acá queda el mapa de las tablas; cuando los dos documentos difieran, manda aquel.
 
 ### `users`
 
