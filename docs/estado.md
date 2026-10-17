@@ -3,22 +3,21 @@
 > Memoria de sesión. Corto a propósito: se poda. El agente lo lee al empezar y lo actualiza al avanzar.
 
 ## Dónde estamos
-Fase 0 (esqueleto). Repo e infra listos; el backend todavía no tiene código.
+Fase 0 (esqueleto). Repo, infra y proyecto Python con uv listos; todavía no hay código de app en `backend/`.
 
 ## Hecho
-- [x] Repo git + `.gitignore` + `.editorconfig`
-- [x] `AGENTS.md` con reglas de trabajo
+- [x] Repo + config base (`.gitignore`, `.editorconfig`, `AGENTS.md`)
 - [x] `docker-compose.yml` (Postgres 16 + Redis 7) levantando
-- [x] Plan copiado y actualizado a `backend/` y `frontend/`
+- [x] `backend/.env.example` (plantilla de configuración)
+- [x] Proyecto Python con uv (`pyproject.toml` + `.venv`, CPython 3.12)
 
 ## Próximos pasos (en orden)
-- [ ] `backend/.env.example` con las variables de la sección 7 del plan
-- [ ] Proyecto Python en `backend/` con uv (`pyproject.toml`, Python 3.12)
 - [ ] `backend/app/main.py`: app FastAPI mínima
-- [ ] `backend/app/config.py`: leer variables de entorno
-- [ ] `backend/app/db.py`: conexión a Postgres
+- [ ] `backend/app/config.py`: leer variables de entorno (pydantic-settings)
+- [ ] `backend/app/db.py`: conexión a Postgres (engine async)
 - [ ] `backend/app/redis.py`: conexión a Redis
 - [ ] `GET /health` que chequea Postgres y Redis
+- [ ] Crear el `backend/.env` real (copiar de `.env.example`)
 - [ ] Alembic configurado (migración inicial vacía)
 - [ ] Test de humo de `/health`
 - [ ] `Makefile` con `up/down/api/migrate/test`
@@ -34,3 +33,4 @@ Fase 0 (esqueleto). Repo e infra listos; el backend todavía no tiene código.
 ## Notas
 - El frontend lo hará otra persona: acá solo se toca `backend/`.
 - Cada paso se prueba (curl o navegador) antes de seguir.
+- Comentarios con criterio senior (regla 13) y no leer `mvp-plan.md` entero.

@@ -18,6 +18,7 @@ Sos **maestro y corrector**, no ejecutor. El alumno escribe todo el código a ma
 10. **Explicar el contexto de cada paso antes de pedirlo.** Nunca mencionar algo que hay que hacer (un archivo, un comando, una herramienta) sin haber explicado antes qué es, para qué sirve y por qué aparece ahora.
 11. **Equilibrar.** No caer en el extremo de solo preguntas ni en el de solo órdenes: teoría breve con ejemplos, y después práctica del alumno.
 12. **Puede escribir archivos simples.** Cuando el alumno ya demostró entender el concepto, el agente puede crear directamente archivos de configuración o estáticos (ej: `.gitignore`, `.editorconfig`, `Makefile`, `docker-compose.yml`, README). **Nunca** escribir lógica de código (Python, TypeScript, Svelte): eso lo escribe y lo lee el alumno siempre. Ante la duda, preguntar antes de escribir.
+13. **Comentarios con criterio senior.** Nada de encabezados explicativos ni comentarios que repitan lo que el archivo ya dice (estilo tutorial de IA). Comentar solo lo no obvio: el porqué o una decisión que sorprende. Pocos y cortos. Aplica a los archivos que escribe el agente y también a lo que se le corrige al alumno.
 
 ## Contexto del proyecto
 
@@ -35,4 +36,4 @@ Sos **maestro y corrector**, no ejecutor. El alumno escribe todo el código a ma
 - Mientras se avanza, marcar lo hecho con `[x]` y agregar tareas nuevas `[ ]` al final de la cola.
 - Al cerrar un paso (o cada 2–3 tareas), actualizar `docs/estado.md`: reflejar lo completado, **podar** lo viejo y rellenar la cola hasta ~10 próximos pasos.
 - Mantenerlo **corto (una pantalla)**. Si crece, resumir lo hecho y borrar lo completado antiguo.
-- El plan detallado es `docs/mvp-plan.md`; no duplicarlo acá.
+- El plan detallado es `docs/mvp-plan.md`; no duplicarlo acá. **No leerlo entero**: es referencia, se consulta por fragmento (grep, o `read` con `offset`/`limit`) solo cuando el paso en curso lo requiera.

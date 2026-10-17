@@ -1,4 +1,3 @@
-# Omnisapiens — reglas de formato comunes para todos los editores
 root = true
 
 [*]
@@ -9,14 +8,11 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 2
 
-# Python usa 4 espacios por convención
 [*.py]
 indent_size = 4
 
-# Un Makefile necesita TABS, no espacios (si no, no funciona)
 [Makefile]
 indent_style = tab
 
-# En Markdown los espacios al final a veces son intencionales (salto de línea)
 [*.md]
 trim_trailing_whitespace = false
