@@ -1,4 +1,4 @@
-.PHONY: up down api migrate test lint fmt
+.PHONY: up down api migrate check-schema test lint fmt
 
 up:
 	docker compose up -d --wait
@@ -11,6 +11,10 @@ api:
 
 migrate:
 	cd backend && uv run alembic upgrade head
+
+# Guardarraíl: falla si los modelos y las migraciones se desincronizaron.
+check-schema:
+	cd backend && uv run alembic check
 
 test:
 	cd backend && uv run pytest

@@ -25,3 +25,8 @@ dev = [
     "ruff",
     "mypy",
 ]
+
+[tool.ruff.lint.isort]
+# Sin esto ruff ve la carpeta alembic/ y trata al paquete `alembic` como
+# código propio, mezclándolo con app.* en el bloque de imports locales.
+known-third-party = ["alembic"]

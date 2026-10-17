@@ -4,9 +4,9 @@
 
 ## Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). El motor de juego (`app/game/`) y el selector de preguntas están hechos y testeados (117 tests), y **los 7 modelos de la base están escritos y verificados**.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). El motor de juego (`app/game/`) y el selector de preguntas están hechos y testeados (117 tests), **los 7 modelos de la base están escritos y verificados** y **la migración inicial ya aplica** (`alembic upgrade head` + `alembic check` limpio).
 
-**Todavía no hay migración de Alembic ni tests**: las tablas solo existen en un schema de prueba. La red de seguridad se construye en el paso que sigue.
+El schema ya no vive en un schema de prueba: existe por migración. Todavía **no hay tests contra la base**: la red de seguridad se construye en el paso que sigue.
 
 Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`**. Los 3 puntos ⚠️ están **confirmados**: fila de `matches` al arrancar (3.2), desempate del ranking por quién alcanzó antes el puntaje (decisión 7) y `UNIQUE` parcial de `nick` (decisión 6).
 
@@ -17,12 +17,13 @@ Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.openc
 - [x] `models/base.py` (convención de nombres) y `models/checks.py` (listas para los `CHECK`)
 - [x] `models/`: `user.py`, `question.py`, `match.py` (`rooms`, `matches`, `match_rounds`), `arcade.py` (`arcade_runs`, `arcade_answers`)
 - [x] 108 sondas de constraints contra el Postgres real, 0 fallas; commits `96f3b2e`, `a33e08c`, `b03e1f3` pusheados
+- [x] `alembic.ini` + `env.py` async (URL desde `.env`, `compare_type` y `compare_server_default`) y migración `0001`
+- [x] Verificación de la migración: `upgrade`/`downgrade`/`upgrade` sobre base limpia, `alembic check` limpio, y DDL migrado idéntico al de los modelos (79 columnas, 65 constraints, 23 índices); `make check-schema`
 
 ## Próximos pasos (orden del plan de capa de datos, §6)
 
-- [ ] Alembic async + migración inicial revisada a mano; `alembic check` limpio
-- [ ] Probar si `alembic check` **detecta un `CHECK` cambiado** (Alembic es flojo comparando checks)
-- [ ] Fixtures con Postgres real (`trivia_test`): migraciones una vez por sesión, rollback por test
+- [ ] Probar si `alembic check` **detecta un `CHECK` cambiado** (es la única comparación que no está probada)
+^- [ ] Fixtures con Postgres real (`trivia_test`): migraciones una vez por sesión, rollback por test
 - [ ] Las 108 sondas se convierten en tests de pytest, uno por constraint
 - [ ] `api/deps.py` (`get_session`) + `POST /auth/guest` con JWT y filtro de nicks
 - [ ] Repositorio de preguntas (`RoundQuestion`, sin la respuesta correcta) + vistos en Redis
@@ -45,4 +46,7 @@ Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.openc
 - Arcade: `ms` es obligatorio (mide la ventana agotada) y el estado `invalid` es el que saca una corrida del ranking.
 - Los riesgos al escalar están anotados en el chat, no en el código: purgar salas y corridas viejas, GIN para `tags`, único en `email`, `TABLESAMPLE` para elegir preguntas. Nada urgente.
 - Todo lo de frontend es de otra persona: acá solo se toca `backend/`.
+- Alembic 1.20 **sí** autogenera `CHECK` (trae el plugin `autogenerate.compare.constraints`): la migración inicial salió completa, incluidos los parciales `WHERE` de los índices. Lo único no probado aún es si detecta un `CHECK` *modificado*.
+- La verificación de la migración no es "mirar el archivo": se comparan inventarios del `pg_constraint`/`pg_indexes` del schema migrado contra el DDL de los modelos. Es el control que va a repetirse cuando haya cambios de schema.
+- La URL de la base **no** está en `alembic.ini`: sale de `.env` por `app.config.settings`. Un solo lugar donde se configura.
 - `docs/mvp-plan.md` es referencia: no leerlo entero, consultarlo por fragmento.
