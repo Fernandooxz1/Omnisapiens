@@ -1,6 +1,7 @@
+import asyncio
 import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +13,7 @@ from app.config import settings
 from app.db import engine, session_factory
 from app.logging_config import configure_logging
 from app.redis import redis_client
+from app.runtime.live import Live, live_arcade_runs
 from app.runtime.room_manager import room_store
 from app.services.reaper import sweep
 from app.ws import arcade_ws, room_ws
@@ -19,32 +21,68 @@ from app.ws import arcade_ws, room_ws
 logger = logging.getLogger(__name__)
 
 
-async def _sweep_on_startup() -> None:
-    """Cierra lo que quedó abierto de una corrida anterior.
+async def _sweep_once(*, startup: bool = False) -> None:
+    """Un barrido con lo que este proceso tiene vivo en este instante.
 
-    Best-effort: si la base no contesta, la API arranca igual y el barrido se
-    reintenta en el próximo arranque.
+    Al arrancar no hay salas ni corridas en memoria, así que `live` queda vacío y
+    toda fila abierta es de un proceso anterior; en régimen, `live` protege lo
+    que está jugándose.
     """
-    try:
-        async with session_factory() as session:
-            resultado = await sweep(session)
-    except Exception:
-        logger.exception("el barrido inicial falló")
-    else:
+    live = Live(rooms=room_store.live(), arcade_runs=live_arcade_runs.ids())
+    async with session_factory() as session:
+        resultado = await sweep(session, live=live)
+
+    if startup or (
+        resultado.expired_rooms
+        or resultado.voided_matches
+        or resultado.invalidated_runs
+    ):
         logger.info(
-            "barrido inicial: %d salas expiradas, %d partidas anuladas, "
-            "%d corridas invalidadas",
+            "%s: %d salas expiradas, %d partidas anuladas, %d corridas invalidadas",
+            "barrido inicial" if startup else "barrido periódico",
             resultado.expired_rooms,
             resultado.voided_matches,
             resultado.invalidated_runs,
         )
 
 
+async def _sweep_on_startup() -> None:
+    """Cierra lo que quedó abierto de una corrida anterior.
+
+    Best-effort: si la base no contesta, la API arranca igual y el barrido
+    periódico lo reintenta.
+    """
+    try:
+        await _sweep_once(startup=True)
+    except Exception:
+        logger.exception("el barrido inicial falló")
+
+
+async def _reap_forever(interval_s: float) -> None:
+    """Repite el barrido hasta que el lifespan cancele la task.
+
+    `asyncio.CancelledError` no es `Exception`: la cancelación del shutdown
+    atraviesa el `except` y la task termina limpia.
+    """
+    while True:
+        await asyncio.sleep(interval_s)
+        try:
+            await _sweep_once()
+        except Exception:
+            logger.exception("el barrido periódico falló")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     await _sweep_on_startup()
+    reaper = asyncio.create_task(
+        _reap_forever(settings.reaper_interval_seconds), name="reaper"
+    )
     yield
+    reaper.cancel()
+    with suppress(asyncio.CancelledError):
+        await reaper
     # El estado de las salas vive en memoria: al apagar hay que cortar sus tareas
     # de vencimiento o quedan colgadas.
     await room_store.close()

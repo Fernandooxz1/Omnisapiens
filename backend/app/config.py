@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # el barrendero la anula al arrancar. El techo de una partida normal (7 rondas
     # de 30 s con gracia por ronda) ronda los 7 minutos.
     stale_match_minutes: int = 15
+    # Segundos entre barridos. Con 60 s, una fila huérfana espera a lo sumo un
+    # minuto más de lo que ya esperó para el umbral de arriba.
+    reaper_interval_seconds: int = 60
     # Tres heartbeats del cliente (ping cada 15 s, §10.3). Sin esto, un socket
     # que muere sin `close` deja la silla "conectada" y la gracia nunca arranca.
     ws_idle_timeout_seconds: int = 45

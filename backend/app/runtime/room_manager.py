@@ -47,6 +47,7 @@ from app.game.match_engine import (
 )
 from app.models import Match, MatchRound, Room
 from app.runtime import room
+from app.runtime.live import LiveRooms
 from app.runtime.room import Effects, RoomState, Transition
 from app.services.question_bank import LoadedQuestion, candidates, load, shuffle_options
 from app.services.questions import select
@@ -120,6 +121,15 @@ class RoomStore(Protocol):
 
         Lo consulta el handler después de `join`: un tercero ya recibió su
         `ROOM_FULL` en el `outbox` y hay que cortarle la conexión.
+        """
+        ...
+
+    def live(self) -> LiveRooms:
+        """Lo que el barrendero periódico no puede tocar (ver `runtime/live.py`).
+
+        Es sincrónico y del proceso: se lee en el mismo event loop que los
+        handlers, sin lock; el peor caso es un id que entra o sale un instante
+        antes del `UPDATE`, y el barrido siguiente lo corrige.
         """
         ...
 
@@ -308,6 +318,21 @@ class InMemoryRoomStore:
     def seated(self, *, code: str, user_id: str) -> bool:
         entry = self._rooms.get(code)
         return entry is not None and entry.state.player_of(user_id) is not None
+
+    def live(self) -> LiveRooms:
+        salas = {
+            uuid.UUID(entry.room_id) for entry in self._rooms.values() if entry.outboxes
+        }
+        # Una partida terminada sigue en `state.match`, pero ya no es `playing`:
+        # el barrido no la necesita y el filtro de estado la deja pasar.
+        partidas = {
+            uuid.UUID(entry.state.match_id)
+            for entry in self._rooms.values()
+            if entry.state.match_id is not None
+            and entry.state.match is not None
+            and entry.state.match.status is MatchStatus.PLAYING
+        }
+        return LiveRooms(room_ids=frozenset(salas), match_ids=frozenset(partidas))
 
     async def close(self) -> None:
         tasks = [entry.task for entry in self._rooms.values() if entry.task]

@@ -694,3 +694,32 @@ async def test_an_unknown_room_is_ignored(
     assert h.store.player_count("ZZZZZZ") == 0
     assert drain(ajeno) == []
     assert (await session.scalars(select(Match))).all() == []
+
+
+async def test_live_reports_rooms_with_players_and_matches_playing(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    h, ana, beto, fila = await sala_armada(session, abrir)
+    a_out, b_out = await sentar(h, fila, ana, beto)
+
+    # Con gente sentada pero sin partida, la sala está viva y no hay match.
+    assert h.store.live().room_ids == frozenset({fila.id})
+    assert h.store.live().match_ids == frozenset()
+
+    await h.store.start(code=fila.code, user_id=str(ana.id))
+    partida = await session.scalar(select(Match))
+    assert partida is not None
+    assert h.store.live().match_ids == frozenset({partida.id})
+
+    for ronda in range(3):
+        await jugar_ronda(h, fila, ana, beto, ronda)
+
+    # Terminada la partida, la sala sigue con los dos conectados pero ya no
+    # hay nada `playing` que proteger.
+    assert h.store.live().match_ids == frozenset()
+    assert h.store.live().room_ids == frozenset({fila.id})
+
+    await h.store.disconnect(code=fila.code, user_id=str(ana.id), outbox=a_out)
+    await h.store.disconnect(code=fila.code, user_id=str(beto.id), outbox=b_out)
+
+    assert h.store.live().room_ids == frozenset()

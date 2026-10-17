@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ArcadeRun, Match, Room
+from app.runtime.live import Live, LiveRooms
 from app.services.reaper import sweep
 
 from .factories import arcade_run, match, room, user
@@ -114,3 +115,48 @@ async def test_the_sweep_is_idempotent(session: AsyncSession) -> None:
         segunda.voided_matches,
         segunda.invalidated_runs,
     ) == (0, 0, 0)
+
+
+async def test_the_sweeper_leaves_what_the_process_reports_live(
+    session: AsyncSession,
+) -> None:
+    """En régimen, una fila vieja puede tener un socket del otro lado.
+
+    El barrido periódico recibe lo vivo en memoria y lo excluye; el siguiente
+    barrido, sin nada vivo (proceso muerto), sí las cierra.
+    """
+    ana, beto = user(nick="ana"), user(nick="beto")
+    session.add_all([ana, beto])
+    await session.flush()
+
+    sala_viva = room(ana.id, expires_at=NOW - timedelta(minutes=1))
+    partida_viva = match(ana.id, beto.id, started_at=NOW - timedelta(minutes=30))
+    corrida_viva = arcade_run(ana.id, started_at=NOW - timedelta(minutes=30))
+    session.add_all([sala_viva, partida_viva, corrida_viva])
+    await session.flush()
+
+    live = Live(
+        rooms=LiveRooms(
+            room_ids=frozenset({sala_viva.id}),
+            match_ids=frozenset({partida_viva.id}),
+        ),
+        arcade_runs=frozenset({corrida_viva.id}),
+    )
+    primero = await sweep(session, now=NOW, live=live)
+
+    assert (
+        primero.expired_rooms,
+        primero.voided_matches,
+        primero.invalidated_runs,
+    ) == (0, 0, 0)
+    assert await _status(session, Room, sala_viva.id) == "waiting"
+    assert await _status(session, Match, partida_viva.id) == "playing"
+    assert await _status(session, ArcadeRun, corrida_viva.id) == "playing"
+
+    segundo = await sweep(session, now=NOW)
+
+    assert (
+        segundo.expired_rooms,
+        segundo.voided_matches,
+        segundo.invalidated_runs,
+    ) == (1, 1, 1)

@@ -22,6 +22,7 @@ from app.api.deps import get_session
 from app.config import settings
 from app.main import app
 from app.models import ArcadeAnswer, ArcadeRun, Question, User
+from app.runtime.live import live_arcade_runs
 from app.security.tokens import create_guest_token
 from app.services import arcade_runs, leaderboard
 from app.ws.arcade_ws import (
@@ -631,3 +632,41 @@ async def test_a_ranking_failure_does_not_break_the_end(
     assert fin["d"]["is_new_best"] is False
     # La corrida sí se guardó: lo único que faltó fue la posición del mensaje.
     assert (await _run_row(api, inicio["d"]["run_id"])).status == "finished"
+
+
+async def test_a_live_run_is_registered_until_it_ends(
+    api: Api, connect: Callable[[User], WebSocketClient]
+) -> None:
+    await sembrar(api.session)
+
+    async with connect(api.user) as socket:
+        await socket.send({"t": "start"})
+        inicio = await socket.until("arcade_start")
+        run_id = uuid.UUID(inicio["d"]["run_id"])
+
+        # Mientras se juega, el barrendero no puede invalidarla por vieja.
+        assert run_id in live_arcade_runs.ids()
+
+        for _ in range(3):
+            ronda = await socket.until("arcade_question")
+            api.clock.advance(ronda["d"]["ends_at"] - api.clock.now_ms())
+            await socket.until("arcade_result")
+        await socket.until("arcade_end")
+
+        assert run_id not in live_arcade_runs.ids()
+
+
+async def test_a_socket_cut_mid_run_releases_it_but_leaves_the_row_playing(
+    api: Api, connect: Callable[[User], WebSocketClient]
+) -> None:
+    await sembrar(api.session)
+
+    async with connect(api.user) as socket:
+        await socket.send({"t": "start"})
+        inicio = await socket.until("arcade_start")
+        run_id = uuid.UUID(inicio["d"]["run_id"])
+        assert run_id in live_arcade_runs.ids()
+
+    assert run_id not in live_arcade_runs.ids()
+    # La fila queda abierta a propósito: el barrido la invalida tras el umbral.
+    assert (await _run_row(api, str(run_id))).status == "playing"

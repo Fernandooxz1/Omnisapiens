@@ -44,6 +44,7 @@ from app.models import User
 from app.redis import redis_client
 from app.runtime import arcade_session
 from app.runtime.arcade_session import ArcadeState
+from app.runtime.live import live_arcade_runs
 from app.runtime.room_manager import OUTBOX_MAX
 from app.services import arcade_runs, leaderboard
 from app.services.question_bank import (
@@ -144,6 +145,9 @@ async def arcade_socket(
         for task in (reader, writer, timer):
             task.cancel()
         await asyncio.gather(reader, writer, timer, return_exceptions=True)
+        # Si el socket se fue a mitad de la corrida, la fila queda `playing` para
+        # el barrendero; pero ya no está viva y no puede quedar en el registro.
+        run.release()
         await _close(websocket)
 
 
@@ -177,6 +181,11 @@ class _Run:
     def user_id(self) -> uuid.UUID:
         return self._user_id
 
+    def release(self) -> None:
+        """El socket se fue: la corrida ya no está viva, aunque su fila siga abierta."""
+        if self.state is not None:
+            live_arcade_runs.discard(uuid.UUID(self.state.run_id))
+
     async def start(self) -> None:
         async with self._lock:
             if self.state is not None:
@@ -201,6 +210,9 @@ class _Run:
                 return
             step = arcade_session.start(str(run_id))
             self.state = step.state
+            # El barrido periódico no debe invalidar una corrida con socket vivo:
+            # una corrida legítima puede durar más que `stale_match_minutes`.
+            live_arcade_runs.add(run_id)
             self._deliver(step.effects)
             await self._serve_next()
             self._wakeup.set()
@@ -266,6 +278,9 @@ class _Run:
         state = self.state
         assert state is not None
         run_id = uuid.UUID(state.run_id)
+        # La corrida terminó: deja de estar viva aunque la fila se cierre un
+        # instante después. El `finally` del socket vuelve a soltarla sin drama.
+        live_arcade_runs.discard(run_id)
         try:
             await arcade_runs.finish_run(
                 self._db,

@@ -12,14 +12,15 @@ Tres barridos, los tres idempotentes y en bloque:
   Una corrida cortada a la mitad no compite en el ranking, y `invalid` es el
   estado que el esquema declara justamente para sacarla de circulación.
 
-Corre al arrancar la API y es best-effort: una base que no contesta no impide
-levantar el servidor, y el barrido se reintenta en el próximo arranque. Al
-arrancar no puede haber una corrida viva, así que cualquier `playing` es de un
-proceso que ya no está.
+Corre al arrancar la API y después cada `reaper_interval_seconds`. Al arrancar
+no puede haber nada vivo en este proceso, así que cualquier fila abierta es de un
+proceso que ya no está. En régimen, en cambio, hay salas con gente y corridas
+jugándose: por eso el barrido recibe `live`, lo que este proceso tiene en memoria
+(`runtime/live.py`), y lo excluye. Sin eso, una sala `waiting` con dos personas
+conectadas se expiraría y una corrida de arcade larga se invalidaría a mitad.
 
-Ojo el día que el barrido pase a ser periódico: una corrida de arcade legítima
-puede durar más que una partida 1v1, y hay que coordinarlo con las conexiones
-vivas (igual que la sala `waiting` con jugadores).
+El barrido es best-effort: una base que no contesta no impide levantar el
+servidor, y el siguiente intervalo lo reintenta.
 """
 
 import logging
@@ -34,9 +35,13 @@ from app.game.arcade_engine import RunStatus
 from app.game.match_engine import MatchStatus
 from app.models import ArcadeRun, Match, Room
 from app.models.arcade import INVALID_STATUS
+from app.runtime.live import Live
 from app.runtime.room import RoomStatus
 
 logger = logging.getLogger(__name__)
+
+# Al arrancar no hay nada vivo en el proceso: el barrido inicial usa este valor.
+NOTHING_LIVE = Live()
 
 
 @dataclass(frozen=True)
@@ -51,16 +56,42 @@ async def sweep(
     *,
     now: datetime | None = None,
     stale_after: timedelta | None = None,
+    live: Live = NOTHING_LIVE,
 ) -> SweepResult:
-    """Marca lo vencido. Commitea: no corre dentro de un pedido (como el manager)."""
+    """Marca lo vencido. Commitea: no corre dentro de un pedido (como el manager).
+
+    `live` viene del proceso, no de la base: es lo único que distingue una fila
+    `playing` abandonada de una que tiene un socket abierto del otro lado.
+    """
     now = now or datetime.now(UTC)
     stale_after = stale_after or timedelta(minutes=settings.stale_match_minutes)
+
+    salas_vencidas = [
+        Room.status == RoomStatus.WAITING.value,
+        Room.expires_at < now,
+    ]
+    if live.rooms.room_ids:
+        salas_vencidas.append(Room.id.not_in(live.rooms.room_ids))
+
+    partidas_viejas = [
+        Match.status == MatchStatus.PLAYING.value,
+        Match.started_at < now - stale_after,
+    ]
+    if live.rooms.match_ids:
+        partidas_viejas.append(Match.id.not_in(live.rooms.match_ids))
+
+    corridas_viejas = [
+        ArcadeRun.status == RunStatus.PLAYING.value,
+        ArcadeRun.started_at < now - stale_after,
+    ]
+    if live.arcade_runs:
+        corridas_viejas.append(ArcadeRun.id.not_in(live.arcade_runs))
 
     expired = (
         (
             await session.execute(
                 update(Room)
-                .where(Room.status == RoomStatus.WAITING.value, Room.expires_at < now)
+                .where(*salas_vencidas)
                 .values(status=RoomStatus.EXPIRED.value)
                 .returning(Room.id)
             )
@@ -72,10 +103,7 @@ async def sweep(
         (
             await session.execute(
                 update(Match)
-                .where(
-                    Match.status == MatchStatus.PLAYING.value,
-                    Match.started_at < now - stale_after,
-                )
+                .where(*partidas_viejas)
                 .values(status=MatchStatus.VOID.value, ended_at=now)
                 .returning(Match.id)
             )
@@ -87,10 +115,7 @@ async def sweep(
         (
             await session.execute(
                 update(ArcadeRun)
-                .where(
-                    ArcadeRun.status == RunStatus.PLAYING.value,
-                    ArcadeRun.started_at < now - stale_after,
-                )
+                .where(*corridas_viejas)
                 .values(status=INVALID_STATUS, ended_at=now)
                 .returning(ArcadeRun.id)
             )

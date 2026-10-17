@@ -14,7 +14,7 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). **Sala 1v1 y arcade completos**: HTTP, banco de preguntas e importador, motores puros, sala viva con WS, barrendero al arrancar, arcade con WS, persistencia y **ranking en Postgres**. 7 tablas, migraciones `0001`–`0003`, **505 tests en ~15 s**, cobertura **93 %**.
+Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). **Sala 1v1 y arcade completos**: HTTP, banco de preguntas e importador, motores puros, sala viva con WS, barrendero periódico, arcade con WS, persistencia y **ranking en Postgres**. 7 tablas, migraciones `0001`–`0003`, **511 tests en ~17 s**, cobertura **93 %**.
 
 El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en Redis. El plan del MVP está abajo en este archivo y el diseño de datos en el **Anexo A**: se consultan por fragmento (`grep` o `read` con `offset`/`limit`), no hace falta leerlos enteros. Verificación estándar antes de commitear: `make up` una vez y `make lint` + `make cov`.
 
@@ -26,14 +26,13 @@ El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en R
 - [x] Sala 1v1: `runtime/room.py`, `room_manager` y `ws/room_ws.py` con presencia, gracia y revancha.
 - [x] Arcade: `arcade_session`, `ws/arcade_ws`, persistencia (`arcade_runs`/`arcade_answers`) y ranking.
 - [x] `GET /me` con marcas (`all_time`/`week`) e historial de arcade y 1v1 (`services/profile.py`), tope 10 y solo `finished`.
-- [x] Barrendero al arrancar (salas, partidas y corridas), auditoría H-01..H-25, README y calidad (ruff/mypy/cobertura/CI).
+- [x] Barrendero periódico (`REAPER_INTERVAL_SECONDS=60`) con lo vivo en memoria excluido (`runtime/live.py` y `RoomStore.live()`), cancelado limpio en el shutdown.
+- [x] Auditoría H-01..H-25, README y calidad (ruff/mypy/cobertura/CI).
 
 ### Próximos pasos
 
-**Ahora: barrendero periódico (task con intervalo).** Hoy el barrido corre una vez al arrancar. Hay que repetirlo cada N minutos sin pisar salas vivas: **coordinar con `RoomStore`** (una sala `waiting` con jugadores vivos no se expira) y con el arcade (una corrida viva puede superar `stale_match_minutes`). Puntos de arranque: `services/reaper.py`, `main.py` (lifespan), `tests/test_reaper.py` y Anexo B (reloj y arranque).
+**Ahora: página mínima de dos pestañas.** El smoke test de `/tmp` cubre la API sola, pero falta probar a ojo sala + revancha + arcade con dos navegadores. Es frontend de prueba, no producto: una sola pantalla que pida nick, cree/entre a una sala y muestre las preguntas. No invertir en estilos.
 
-- [ ] Barrendero periódico con intervalo, cancelado limpio en el shutdown.
-- [ ] Tests del barrido repetido (no expira salas vivas, sí vencidas).
 - [ ] Página mínima para probar dos pestañas (el smoke test de `/tmp` ya cubre la API sola).
 - [ ] Fase 1: `GET /admin/questions` paginado con `X-Admin-Token`.
 - [ ] Fase 1: `POST /admin/questions/import` y devolver `X-Admin-Token` a `config.py`.
@@ -232,7 +231,7 @@ trivia/
 │   │   │   ├── users.py          # alta del invitado
 │   │   │   ├── leaderboard.py
 │   │   │   ├── rooms.py
-│   │   │   ├── reaper.py         # barrendero: vencidos al arrancar
+│   │   │   ├── reaper.py         # barrendero: vencidos en cada intervalo
 │   │   │   └── importer.py       # CSV/JSON
 │   │   ├── api/
 │   │   │   ├── deps.py           # dependencias: sesión, usuario, admin
@@ -483,7 +482,7 @@ El host es el único que elige la config y manda `start`, así que su identidad 
 | `score_a`, `score_b` | integer | copia derivada del historial de rondas; las escribe solo el motor |
 | `started_at`, `ended_at` | timestamptz | |
 
-La fila se crea **al arrancar** la partida con `status = playing` y sin `ended_at`. Un barrendero al arrancar la API marca como `void` toda partida que siga en `playing` más vieja que N minutos.
+La fila se crea **al arrancar** la partida con `status = playing` y sin `ended_at`. Un barrendero (al arrancar y en cada intervalo) marca como `void` toda partida que siga en `playing` más vieja que N minutos.
 
 ### `match_rounds`
 
@@ -1221,7 +1220,7 @@ La capa de WebSocket solo puede construir `round_start` con la primera. Filtrar 
 - Al arrancar: `INSERT` de la fila de `matches` con `status = playing`.
 - Al terminar: `UPDATE` del match + `INSERT` en bloque de `match_rounds`.
 
-Motivo: el estado `void` del plan necesita una fila que exista. Si solo se escribe al final, un proceso que muere en medio no deja rastro y `void` es inalcanzable. Sigue habiendo cero escrituras por ronda. Un barrendero al arrancar marca como `void` toda partida `playing` más vieja que N minutos.
+Motivo: el estado `void` del plan necesita una fila que exista. Si solo se escribe al final, un proceso que muere en medio no deja rastro y `void` es inalcanzable. Sigue habiendo cero escrituras por ronda. Un barrendero (al arrancar y en cada intervalo) marca como `void` toda partida `playing` más vieja que N minutos, salvo la que el proceso tiene viva.
 
 **A3.3 `score_a` / `score_b` son una copia derivada.** Se guardan para listados rápidos, y el único que los escribe es el motor, que los deriva del historial de rondas. Una sola verdad, una sola copia.
 
@@ -1368,7 +1367,9 @@ El **§9 del plan** sigue mandando en el producto, las reglas del juego y el pro
 - La entrega es un `outbox` (cola) por jugador y no un callback: el vencimiento tiene que entregar sin que haya nadie esperando del otro lado, y el timer no conoce sockets. `disconnect` suelta esa cola: mensajes para un socket que ya no está no le sirven a nadie y se acumularían.
 - `disconnect` recibe el `outbox` de **su** conexión y no toca la silla si esa cola ya no es la vigente (H-01): un corte silencioso deja al socket viejo vivo hasta el timeout, y cuando por fin cierra no puede desmontar al jugador que ya reconectó. El `outbox` es único por conexión (`asyncio.Queue` nueva por handler), así que la comparación por identidad alcanza: no hace falta un contador de generación.
 - En los tests, `drain()` vacía la cola: dos `drain` seguidos para pedir dos tipos distintos descartan el que no se miró (un `uno(...)` que devuelve vacío). Un solo `drain` por tanda.
-- El **barrendero** (`services/reaper.py`) corre al arrancar y cierra lo que nadie más cierra: una sala `playing` sin preguntas o un proceso que muere a mitad de partida dejan la fila abierta a propósito (§5.4). Son dos `UPDATE` con `returning` y un solo commit: salas `waiting` vencidas → `expired` y partidas `playing` más viejas que `STALE_MATCH_MINUTES` (15) → `void` con `ended_at`. Es idempotente y best-effort: si la base no contesta, la API arranca y el barrido se reintenta en el próximo arranque.
+- El **barrendero** (`services/reaper.py`) corre al arrancar y cada `REAPER_INTERVAL_SECONDS` (60) desde una task del lifespan, cancelada limpia en el shutdown. Cierra lo que nadie más cierra: una sala `playing` sin preguntas o un proceso que muere a mitad de partida dejan la fila abierta a propósito (§5.4). Son tres `UPDATE` con `returning` y un solo commit: salas `waiting` vencidas → `expired`, partidas `playing` más viejas que `STALE_MATCH_MINUTES` (15) → `void` con `ended_at`, y corridas de arcade `playing` igual de viejas → `invalid`.
+- **El barrido periódico no adivina qué está vivo**: recibe `Live` (`runtime/live.py`) con lo que el proceso sabe por memoria. `RoomStore.live()` devuelve los `room_id` con `outbox` y los `match_id` de partidas `playing`; `live_arcade_runs` es un set que el handler del arcade anota al arrancar la corrida y suelta al cerrarla o al caerse el socket. El `UPDATE` excluye esos ids con `NOT IN`. Es correcto con un solo proceso y sin migración; con varias instancias cada una barrería solo lo que ve, y el registro se muda a Redis con el resto del estado vivo. El trade-off es una ventana de milisegundos entre leer el registro y el `UPDATE`, que el barrido siguiente corrige.
+- Es **idempotente y best-effort**: si la base no contesta, se loguea el error, la API arranca igual y el intervalo siguiente reintenta; el `except` de la task no atrapa `CancelledError`, así que el shutdown la corta de verdad.
 - **H-04 es un filtro, no un detalle**: el barrido de salas filtra `status='waiting'`; una sala `playing` puede tener `expires_at` viejo. Para que el filtro signifique algo, `rooms.status` se sincroniza con la sala viva: `playing` al arrancar/revancha, `finished` al cerrar, `waiting` cuando se va alguien de una sala terminada. Al arrancar la partida también se refresca `expires_at` con `rounds × (seconds + gracia) + 60 s`, así la vista previa no sigue mostrando el vencimiento del lobby.
 - **H-03 se desaloja en `open`, no con otra tarea**: antes de crear una sala, `RoomStore` descarta las que no tienen `outbox`, no están `playing` y llevan más de `ROOM_IDLE_TIMEOUT_SECONDS` sin actividad (`last_activity_ms` se actualiza en cada transición). Como el mapa crece con las altas, una barrida por alta alcanza para que no crezca sin techo. Una entrada `expired` que se reabre se reemplaza por una sala fresca.
 - `authenticate` (`api/deps.py`) es la **única puerta de auth**: la usan el header `Authorization` de HTTP y el `?token=` del WebSocket (el navegador no deja headers en `new WebSocket`). Dos transportes, una regla.
@@ -1388,7 +1389,7 @@ El **§9 del plan** sigue mandando en el producto, las reglas del juego y el pro
 - El `start` del arcade es **una vez por conexión**: para otra corrida se reconecta. No hay `restart` en §10.2.
 - La corrida se escribe en **dos momentos**: al arrancar (`playing`, con `status` explícito porque el `server_default` no puebla el atributo en Python) y al terminar (`UPDATE` + **todas** las `arcade_answers` en el mismo commit). No se guarda ronda a ronda: el historial de una corrida cortada no le sirve al ranking, y el precio es que una corrida abandonada no tiene auditoría.
 - Si la base falla al **arrancar** no se juega a ciegas: el jugador recibe `RUN_NOT_STARTED` y puede reintentar (el `rollback` deja la sesión limpia). Si falla al **cerrar**, juega igual y ve su `arcade_end`: la fila queda `playing` y el barrendero la marca `invalid`.
-- El barrendero también invalida corridas de arcade `playing` más viejas que `stale_match_minutes`: media corrida no compite. Hoy corre solo al arrancar, cuando no puede haber una corrida viva; el día que sea periódico hay que coordinarlo con las conexiones, porque una corrida legítima dura más que una partida 1v1.
+- El barrendero también invalida corridas de arcade `playing` más viejas que `stale_match_minutes`: media corrida no compite. La corrida legítima puede durar más que una partida 1v1, así que el barrido periódico la excluye mientras su socket está abierto (`live_arcade_runs`). Al terminar o al cortarse el socket se suelta: si la fila quedó `playing`, el barrido siguiente la invalida.
 - En los tests, un `rollback` de la corrida se lleva puesto todo lo que el test sembró en el SAVEPOINT: el test del reintento commitea el banco antes (en producción el usuario y las preguntas ya están commiteados). Es el mismo detalle de H-05 visto desde el fixture.
 - El ranking del arcade se hace en **Postgres** (A3.5), no con sorted sets: A7 los descarta y A3.7 exige que el ranking siga andando con Redis caído. La consulta es un `DISTINCT ON` por usuario ordenado por `score DESC, ended_at ASC` y la posición sale con `row_number()` sobre esa misma subquery. En SQLAlchemy 2.1 `.distinct(expr)` está deprecado: va `select(...).ext(distinct_on(...))`.
 - El desempate (§14, A7) usa el `ended_at` de la corrida que **alcanzó** el puntaje, no el último `ended_at` del jugador: `DISTINCT ON` se queda con su mejor corrida y de esa sale la fecha. Con puntaje y fecha idénticos desempata `user_id` para que la posición no baile entre pedidos.
