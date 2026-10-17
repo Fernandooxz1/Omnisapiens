@@ -4,7 +4,7 @@
 
 ## Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, capa de datos **y la primera capa HTTP** están hechos y testeados: 7 modelos, migraciones `0001`/`0002`/`0003`, **282 tests en ~3 s** contra Postgres real.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos **y la primera capa HTTP** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **295 tests en ~3 s** contra Postgres y Redis reales.
 
 **Todavía no hay WebSocket.** Lo que sigue es el repositorio de preguntas (paso 5 del plan de capa de datos) y, de Fase 1, `GET /me` + `PATCH /me` para que el token sirva de algo.
 
@@ -21,18 +21,19 @@ Diseño acordado, leer antes de tocar datos o auth: **`/home/fernando/.opencode/
 - [x] Host de la sala: es **quien la crea**, en `rooms.host_user_id` (FK a `users` + índice), migración `0002`
 - [x] Nick único **sin distinguir mayúsculas**: índice funcional sobre `lower(nick)`, parcial como antes, migración `0003`
 - [x] Capa HTTP de entrada: `security/tokens.py` (JWT HS256) + `security/nicks.py` (limpieza, 1–16, lista de prohibidas), `api/deps.py`, `api/errors.py`, `POST /auth/guest` y CORS
+- [x] Banco de preguntas (`services/question_bank.py`): candidatas publicadas de Postgres, `RoundQuestion` sin la respuesta correcta, y las vistas del arcade en Redis (tope 50, 24 h) con degradación si Redis no contesta
 - [x] `docs/mvp-plan.md` alineado: §5.4, §8 (tablas), §12 (auth y códigos de error), §14 (desempate), §6 (árbol) y §18 (tests)
 
 ## Próximos pasos
 
-- [ ] Repositorio de preguntas (`RoundQuestion`, sin la respuesta correcta) + vistos en Redis con degradación
-- [ ] Importador CSV/JSON + `cli.py` + 60 preguntas semilla
+- [ ] Importador CSV/JSON + `cli.py` + 60 preguntas semilla (sin preguntas cargadas no hay nada que jugar)
 - [ ] `GET /me` y `PATCH /me` (con `get_current_user`, la versión obligatoria de la dependencia) y `DELETE /me` (borrado lógico)
+- [ ] `POST /rooms` + `GET /rooms/{code}` (el host ya tiene dónde guardarse)
 - [ ] Pendiente de Fase 0: `README.md` con los cinco comandos de la sección 23
 - [ ] `game/protocols.py` y `RoomStore` en memoria con lock por sala
 - [ ] `ws/room_ws.py`: lobby, rondas, desempate, gracia de 20 s, revancha
 - [ ] Arcade sobre WS + ranking + corte semanal en `America/Argentina/Buenos_Aires`
-- [ ] `POST /rooms` + `GET /rooms/{code}` (el host ya tiene dónde guardarse)
+- [ ] Página mínima para probar dos pestañas (la API sola ya se prueba con el smoke test de `/tmp`, fuera del repo)
 
 ## Después
 
@@ -56,6 +57,9 @@ Diseño acordado, leer antes de tocar datos o auth: **`/home/fernando/.opencode/
 - Los tests de API usan la fixture `client` con `ASGITransport` y reemplazan `get_session` por la sesión del test: el pedido entra en la misma transacción y el rollback final lo deshace (sin eso, los tests de API ensuciarían la base y dependerían del orden).
 - El formato de error es `{"error": {"code", "message"}}` para todo lo que tenga código propio **y** para el 422 de validación. El 404 de ruta desconocida sigue siendo el de FastAPI: nadie le pega a una ruta que no existe.
 - El único de `nick` es funcional sobre `lower(nick)` y parcial: `Ana` y `ana` son el mismo nombre, y borrar una fila lógica lo libera. La guardia de schema compara texto de Postgres contra texto de Postgres (aplica el DDL de los modelos en un schema descartable y lo relee), así que un índice funcional no la rompe.
+- El Redis de los tests es el de desarrollo **en otra base** (`:6379/1` contra `/0`), igual que `trivia_test`: un `FLUSHDB` de los tests no toca el juego en curso. Por eso `pytest` ahora necesita Redis levantado, no solo Postgres.
+- `RoundQuestion` (lo que va al cliente) **no tiene** `correct_index` a propósito: la respuesta vive en `LoadedQuestion`, del lado del servidor. Un `hasattr` en el test lo vigila; si el campo vuelve al tipo, el test falla.
+- El historial de vistas del arcade degrada: si Redis no contesta se juega igual, sin historial, y la advertencia queda en el log. La sala no usa Redis para eso: el estado de la partida en memoria ya evita repetir, y duplicarlo sería una segunda verdad.
 - `JWT_SECRET` de dev tiene 18 bytes y PyJWT avisa (`InsecureKeyLengthWarning`): en prod tiene que tener 32 o más. Candidato a validación en `config.py` cuando exista `env != "local"`.
 - Todo lo de frontend es de otra persona: acá solo se toca `backend/`.
 - `docs/mvp-plan.md` se mantiene alineado con el código en el mismo paso: el plan es lo que lee la próxima sesión.

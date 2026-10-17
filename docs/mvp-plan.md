@@ -179,7 +179,9 @@ trivia/
 │   │   │   ├── arcade_session.py
 │   │   │   └── pubsub.py
 │   │   ├── services/
-│   │   │   ├── questions.py      # selección, sin repetición
+│   │   │   ├── questions.py      # selección, sin repetición (puro)
+│   │   │   ├── question_bank.py  # candidatas de Postgres y vistas en Redis
+│   │   │   ├── users.py          # alta del invitado
 │   │   │   ├── leaderboard.py
 │   │   │   ├── rooms.py
 │   │   │   └── importer.py       # CSV/JSON
@@ -598,7 +600,9 @@ Reglas comunes:
 
 - Solo se usan preguntas con `status = 'published'` y `language = 'es'`.
 - Nunca se repite una pregunta dentro de la misma partida o corrida.
-- En el arcade, además se evita repetir las últimas 50 preguntas que vio ese usuario, guardadas en un conjunto de Redis (`arcade:seen:{user_id}` con caducidad de 24 horas).
+- En el arcade, además se evita repetir las últimas 50 preguntas que vio ese usuario, en un conjunto ordenado de Redis (`arcade:seen:{user_id}`, ordenado por cuándo se vieron, con caducidad de 24 horas). La sala no necesita esa memoria: el estado de la partida ya sabe qué preguntas salieron.
+- **Si Redis no contesta, la partida sigue sin historial.** Se registra la advertencia y lo peor que pasa es repetir una pregunta: una caché caída no puede tumbar una partida que se podría jugar.
+- **La respuesta correcta no viaja con la pregunta.** `RoundQuestion` (lo que se manda al cliente) no tiene campo `correct_index`: el índice se carga aparte, en `LoadedQuestion`, y solo lo ve el servidor.
 - Estrategia de selección: se busca por categoría y dificultad en la base, se descartan las usadas en esta partida, y se elige al azar. Si el resultado queda vacío, se amplía el rango de dificultad en ±1 y, si sigue vacío, se ignora la categoría.
 - **Si no hay preguntas suficientes, la partida no debe romperse.** Se permite repetir como último recurso y se registra una advertencia en los logs.
 
@@ -952,6 +956,7 @@ El audio debe ser CC0 o de producción propia. Se inicializa después de la prim
 - `test_constraints_*.py`: **un test por regla de la base**, contra un Postgres real y exigiendo el constraint que corresponde. Nada de SQLite: no tiene `jsonb`, ni índices parciales, ni `CHECK` con regex.
 - `test_nicks.py` y `test_tokens.py`: la seguridad sin HTTP. La lista de palabras prohibidas se recorre entera, y del token se prueba lo que importa: que lo firmado se lee, y que lo tocado, lo vencido y lo firmado por otro no.
 - `test_auth_api.py`: `POST /auth/guest` con `httpx` contra la base real, incluida la reutilización del usuario cuando el token es válido y el rechazo cuando no lo es.
+- `test_question_bank.py`: candidatas contra Postgres real, el tipo que va al cliente sin la respuesta, las vistas contra Redis real (caducidad y tope de 50) y el camino de degradación con un Redis que no contesta.
 - `test_schema_matches_models.py`: guardia contra el drift entre los modelos y la migración. Hace falta porque `alembic check` **no compara los `CHECK`** (los deja pasar agregados, cambiados, renombrados o borrados).
 - `test_rooms_api.py` y `test_arcade_ws.py`: con `httpx` y el cliente de test de FastAPI, incluyendo WebSocket.
 - `test_room_ws.py`: partida completa entre dos clientes simulados, con desconexión y reconexión dentro de la ventana de gracia.

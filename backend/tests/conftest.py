@@ -15,12 +15,14 @@ verdad (ningún test lo hace).
 import asyncio
 from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
     AsyncEngine,
@@ -35,11 +37,18 @@ from app.main import app
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 TEST_DATABASE_NAME = "trivia_test"
+TEST_REDIS_DB = 1
 
 # La base de test es la de desarrollo con otro nombre: una sola URL que
 # mantener (.env). Si cambia el host o el usuario, cambia para las dos.
 TEST_URL = sa.make_url(settings.database_url).set(database=TEST_DATABASE_NAME)
 TEST_URL_STR = TEST_URL.render_as_string(hide_password=False)
+
+# Con Redis, lo mismo: el de desarrollo en otra base. Así un FLUSHDB de los tests
+# no se lleva puesto el estado de una partida que esté corriendo en :6379/0.
+TEST_REDIS_URL = urlunsplit(
+    urlsplit(settings.redis_url)._replace(path=f"/{TEST_REDIS_DB}")
+)
 
 
 async def _recreate_database() -> None:
@@ -99,6 +108,25 @@ async def session(connection: AsyncConnection) -> AsyncIterator[AsyncSession]:
         expire_on_commit=False,
     ) as session:
         yield session
+
+
+@pytest.fixture(scope="session")
+async def redis_test() -> AsyncIterator[Redis]:
+    """Redis real, en una base aparte de la de desarrollo."""
+    cliente = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
+    await cliente.flushdb()
+    yield cliente
+    await cliente.aclose()
+
+
+@pytest.fixture
+async def redis(redis_test: Redis) -> AsyncIterator[Redis]:
+    """Redis no tiene rollback: lo que un test escribió, lo limpia el mismo test.
+
+    Se limpia después y no antes para que un test que falle deje ver qué dejó.
+    """
+    yield redis_test
+    await redis_test.flushdb()
 
 
 def _sesion_del_test(
