@@ -152,8 +152,8 @@ class ArcadeResult(Message):
 class ArcadeEnd(Message):
     """Fin de corrida.
 
-    Las posiciones y la mejor marca las completa el ranking (corte 4). La
-    máquina pura no toca Redis: deja `None` y el borde las reemplaza.
+    La máquina pura no consulta el ranking: deja `None` y el borde lo completa
+    con la fila ya cerrada. Si el ranking falla, estos campos salen en `None`.
     """
 
     type: ClassVar[str] = "arcade_end"

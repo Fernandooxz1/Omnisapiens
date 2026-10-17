@@ -207,8 +207,8 @@ def _result_message(
 
 
 def _end_message(state: ArcadeState) -> protocols.ArcadeEnd:
-    # El ranking todavía no existe (corte 4): la máquina pura no inventa
-    # posiciones, las deja nulas para que el borde las complete.
+    # El ranking es I/O: la máquina pura deja las posiciones nulas y el borde las
+    # completa después de cerrar la fila.
     return protocols.ArcadeEnd(
         run_id=state.run_id,
         score=state.run.score,

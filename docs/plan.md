@@ -13,11 +13,11 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas**, **el WebSocket de sala**, **el barrendero** y los **tres cortes del arcade** (máquina pura, canal en vivo y persistencia) están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **487 tests en ~13 s** contra Postgres y Redis reales.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas**, **el WebSocket de sala**, **el barrendero** y **el arcade completo** (máquina pura, canal en vivo, persistencia y ranking) están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **501 tests en ~14 s** contra Postgres y Redis reales.
 
-El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`) y el barrendero cierra al arrancar lo que quedó abierto. Las opciones se barajan al servir (H-25), el token no se escribe en los logs (H-08) y el desempate tiene tope (H-24). El **arcade** tiene sus cortes 1–3: `WS /ws/arcade` con `start`/`answer`/`ping`, reloj de vencimiento, selección con historial de Redis, un solo escritor y la corrida persistida (`arcade_runs` + `arcade_answers`). Sigue el **ranking** (corte 4).
+El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`) y el barrendero cierra al arrancar lo que quedó abierto. Las opciones se barajan al servir (H-25), el token no se escribe en los logs (H-08) y el desempate tiene tope (H-24). El **arcade** tiene sus cuatro cortes: `WS /ws/arcade` con `start`/`answer`/`ping`, reloj de vencimiento, selección con historial de Redis, un solo escritor, la corrida persistida (`arcade_runs` + `arcade_answers`) y el **ranking en Postgres** (`/leaderboard/arcade` y `/leaderboard/arcade/me`).
 
-**Pausa acá:** **auditoría cerrada (H-01..H-25), `README.md` escrito** y calidad con CI. Queda el **ranking del arcade** (corte 4).
+**Pausa acá:** **auditoría cerrada (H-01..H-25), `README.md` escrito**, calidad con CI y **arcade completo**. Lo que sigue: `GET /me` con mejor marca y últimas partidas, barrendero periódico y una página mínima para probar dos pestañas.
 
 Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
@@ -30,10 +30,11 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - [x] `runtime/arcade_session.py`: máquina pura de la corrida (start/serve/answer/expire) con protocolo §10.2 y tests
 - [x] `ws/arcade_ws.py`: `WS /ws/arcade` con reloj, selección, historial de Redis y un solo escritor; tests con `ws_client.py`
 - [x] Persistencia del arcade: `arcade_runs` al arrancar, `arcade_answers` + cierre al terminar y barrido de corridas muertas
+- [x] Ranking del arcade en Postgres (`DISTINCT ON`), endpoints `/leaderboard/arcade` y `/leaderboard/arcade/me`, y `arcade_end` con posición y mejor marca
 - [x] `runtime/room_manager.py` + `ws/room_ws.py`: salas vivas, outbox, reloj, gracia, revancha y WS
 - [x] Barrendero (`services/reaper.py`) y desalojo de salas muertas (H-03/H-04)
 - [x] Auditoría P0/P1: H-01, H-02, H-05 y H-06 cerrados con tests y sabotajes
-- [x] Calidad: `ruff select`, `mypy strict`, cobertura 92 % en `make cov` y CI (H-11)
+- [x] Calidad: `ruff select`, `mypy strict`, cobertura 93 % en `make cov` y CI (H-11)
 - [x] Seguridad/observabilidad: logging y token fuera de logs (H-08/H-12), rate limit (H-09), salas vencidas (H-10), outbox y límites (H-13/H-15), 422 con campo (H-14), secretos largos (H-21)
 - [x] Juego: opciones barajadas al servir (H-25) y tope del desempate (H-24)
 - [x] P3 varios (H-16..H-20, H-23) y `README.md`
@@ -41,20 +42,24 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 ### Próximos pasos
 
 > Auditoría **cerrada** al 2026-10-17 (`docs/observaciones.md`, H-01..H-25), con
-> `README.md` y CI. Solo queda el arcade. Flujo: §9.3 · Protocolo: §10.2 ·
-> API: §11 · Ranking y desempate: §14 + Anexo A (`arcade_runs`/`arcade_answers`).
+> `README.md` y CI. El arcade quedó **cerrado** (cortes 1–4). Sigue lo de abajo.
+> Referencias: §9.3 · §10.2 · §11 · §14 + Anexo A (`arcade_runs`/`arcade_answers`).
 
 **Arcade en 4 cortes** — cada uno con tests, no arrancar el siguiente sin cerrar el anterior:
 
 - [x] **1. `runtime/arcade_session.py`**: máquina de estados **pura** por conexión sobre `game/arcade_engine`, con `now_ms`/`rng` inyectados y los mensajes de §10.2. Espejo de `runtime/room.py`: sin sockets, sin DB.
 - [x] **2. `ws/arcade_ws.py`**: `WS /ws/arcade?token=...` (`start`/`answer`/`ping`, y `arcade_end` al terminar). Un solo escritor + `outbox` acotado + idle timeout, reusando `authenticate` y el patrón de `room_ws.py`; tests con `tests/ws_client.py`.
 - [x] **3. Persistencia**: fila `arcade_runs` al **arrancar** (`playing`, así `void` es alcanzable si el proceso muere) y `arcade_answers` + cierre al terminar. La base es de afuera: si falla, no matar la corrida en silencio (mismo criterio que el reloj de la sala).
-- [ ] **4. Ranking**: sorted sets en Redis (global y semanal), desempate por **quién alcanzó antes ese puntaje** (§14, decisión A7), corte semanal en `America/Argentina/Buenos_Aires`; `GET /leaderboard/arcade?period=all|week` y `/leaderboard/arcade/me`; si Redis no contesta, el arcade juega igual sin ranking.
+- [x] **4. Ranking**: desempate por **quién alcanzó antes ese puntaje** (§14, decisión A7), corte semanal en `America/Argentina/Buenos_Aires`; `GET /leaderboard/arcade?period=all|week` y `/leaderboard/arcade/me`; el `arcade_end` sale con posición y mejor marca.
+
+> El corte 4 se hizo **en Postgres**, como manda el Anexo A (A3.5 y A7): el ranking
+> tiene que seguir funcionando con Redis caído (A3.7) y el esquema ya trae sus tres
+> índices parciales. El borrador hablaba de sorted sets: quedan descartados para el MVP.
 
 **Después del arcade:**
 
 - [ ] `GET /me`: mejor marca y últimas partidas (depende del ranking).
-- [ ] Barrendero periódico (no solo al arrancar): el mismo `sweep` en una task con intervalo. **Coordinar con el `RoomStore`**: una sala `waiting` con jugadores conectados no se puede marcar `expired` en la base.
+- [ ] Barrendero periódico (no solo al arrancar): el mismo `sweep` en una task con intervalo. **Coordinar con el `RoomStore`**: una sala `waiting` con jugadores conectados no se puede marcar `expired` en la base. Y con el arcade: una corrida viva puede durar más que `stale_match_minutes`, así que el barrido periódico no puede invalidarla sin preguntar por las conexiones.
 - [ ] Página mínima para probar dos pestañas (la API sola ya se prueba con el smoke test de `/tmp`, fuera del repo).
 
 ### Después
@@ -146,6 +151,11 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - Si la base falla al **arrancar** no se juega a ciegas: el jugador recibe `RUN_NOT_STARTED` y puede reintentar (el `rollback` deja la sesión limpia). Si falla al **cerrar**, juega igual y ve su `arcade_end`: la fila queda `playing` y el barrendero la marca `invalid`.
 - El barrendero también invalida corridas de arcade `playing` más viejas que `stale_match_minutes`: media corrida no compite. Hoy corre solo al arrancar, cuando no puede haber una corrida viva; el día que sea periódico hay que coordinarlo con las conexiones, porque una corrida legítima dura más que una partida 1v1.
 - En los tests, un `rollback` de la corrida se lleva puesto todo lo que el test sembró en el SAVEPOINT: el test del reintento commitea el banco antes (en producción el usuario y las preguntas ya están commiteados). Es el mismo detalle de H-05 visto desde el fixture.
+- El ranking del arcade se hace en **Postgres** (A3.5), no con sorted sets: A7 los descarta y A3.7 exige que el ranking siga andando con Redis caído. La consulta es un `DISTINCT ON` por usuario ordenado por `score DESC, ended_at ASC` y la posición sale con `row_number()` sobre esa misma subquery. En SQLAlchemy 2.1 `.distinct(expr)` está deprecado: va `select(...).ext(distinct_on(...))`.
+- El desempate (§14, A7) usa el `ended_at` de la corrida que **alcanzó** el puntaje, no el último `ended_at` del jugador: `DISTINCT ON` se queda con su mejor corrida y de esa sale la fecha. Con puntaje y fecha idénticos desempata `user_id` para que la posición no baile entre pedidos.
+- La semana corta los lunes 00:00 en `America/Argentina/Buenos_Aires` con `zoneinfo` y se compara como `timestamptz`: un run del domingo 23:59:59 local sigue en la semana anterior aunque en UTC ya sea lunes.
+- `personal_best`/`is_new_best` miran la mejor corrida **anterior** de ese usuario (sin la actual): empatar el récord no es un récord nuevo, y `personal_best` igual incluye la corrida actual porque es el máximo. Si el ranking falla, `arcade_end` sale con esos campos en `None` pero la corrida ya quedó guardada.
+- El `arcade_end` lo completa el borde con `dataclasses.replace` después de cerrar la fila; la máquina pura sigue sin saber de base. Y el JSON de `/leaderboard/arcade/me` usa `global` por `serialization_alias`: `global` no puede ser nombre de campo en Python.
 
 ---
 

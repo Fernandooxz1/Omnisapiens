@@ -24,7 +24,7 @@ import logging
 import time
 import uuid
 from collections.abc import Callable, Coroutine
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from random import Random
 from typing import Annotated, Any, TypeGuard
 
@@ -45,7 +45,7 @@ from app.redis import redis_client
 from app.runtime import arcade_session
 from app.runtime.arcade_session import ArcadeState
 from app.runtime.room_manager import OUTBOX_MAX
-from app.services import arcade_runs
+from app.services import arcade_runs, leaderboard
 from app.services.question_bank import (
     LoadedQuestion,
     candidates,
@@ -250,24 +250,26 @@ class _Run:
     async def _apply(self, step: arcade_session.Transition) -> None:
         """Aplica la transición, acumula su ronda y entrega lo que produjo.
 
-        El cierre va **antes** de entregar el `arcade_end`: el ranking (corte 4)
-        se calcula sobre la fila ya cerrada y el cliente ve su posición real.
+        El cierre va **antes** de entregar el `arcade_end`: el ranking se calcula
+        sobre la fila ya cerrada y el cliente ve su posición real.
         """
         self.state = step.state
+        resumen: leaderboard.RunSummary | None = None
         if step.record is not None:
             self._records.append(step.record)
             if step.state.finished:
-                await self._finish()
-        self._deliver(step.effects)
+                resumen = await self._finish()
+        self._deliver(_ranked(step.effects, resumen))
 
-    async def _finish(self) -> None:
+    async def _finish(self) -> leaderboard.RunSummary | None:
         """Cierra la fila y sus rondas. Si falla, el jugador igual ve su final."""
         state = self.state
         assert state is not None
+        run_id = uuid.UUID(state.run_id)
         try:
             await arcade_runs.finish_run(
                 self._db,
-                run_id=uuid.UUID(state.run_id),
+                run_id=run_id,
                 run=state.run,
                 records=tuple(self._records),
             )
@@ -276,6 +278,20 @@ class _Run:
             # se queda sin resultado por un problema de persistencia.
             logger.exception("la corrida %s no se pudo cerrar", state.run_id)
             await self._db.rollback()
+            return None
+        try:
+            return await leaderboard.run_summary(
+                self._db,
+                user_id=self._user_id,
+                run_id=run_id,
+                score=state.run.score,
+            )
+        except Exception:
+            # La corrida ya está guardada: lo único que se pierde es la posición
+            # en este mensaje. El ranking la va a mostrar en la próxima consulta.
+            logger.exception("el ranking de la corrida %s falló", state.run_id)
+            await self._db.rollback()
+            return None
 
     async def _serve_next(self) -> None:
         state = self.state
@@ -477,6 +493,30 @@ def _deadline(state: ArcadeState | None) -> int | None:
     if state is None or state.round is None:
         return None
     return state.round.served.ends_at_ms
+
+
+def _ranked(
+    effects: tuple[protocols.Message, ...], resumen: leaderboard.RunSummary | None
+) -> tuple[protocols.Message, ...]:
+    """Completa el `arcade_end` con la posición y la mejor marca.
+
+    Sin resumen (la base no contestó), el final sale con los campos en `None`:
+    el jugador ve su puntaje igual, que es lo que vino a buscar.
+    """
+    if resumen is None:
+        return effects
+    return tuple(
+        replace(
+            message,
+            rank_global=resumen.rank_global,
+            rank_weekly=resumen.rank_weekly,
+            personal_best=resumen.personal_best,
+            is_new_best=resumen.is_new_best,
+        )
+        if isinstance(message, protocols.ArcadeEnd)
+        else message
+        for message in effects
+    )
 
 
 def _push(outbox: Outbox, envelope: Envelope) -> None:

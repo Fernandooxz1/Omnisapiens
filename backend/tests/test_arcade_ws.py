@@ -9,6 +9,7 @@ import asyncio
 import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from random import Random
 from typing import Any
 
@@ -22,7 +23,7 @@ from app.config import settings
 from app.main import app
 from app.models import ArcadeAnswer, ArcadeRun, Question, User
 from app.security.tokens import create_guest_token
-from app.services import arcade_runs
+from app.services import arcade_runs, leaderboard
 from app.ws.arcade_ws import (
     ArcadeRuntime,
     get_arcade_redis,
@@ -30,7 +31,7 @@ from app.ws.arcade_ws import (
 )
 
 from .clock import FakeClock
-from .factories import question, user
+from .factories import arcade_run, question, user
 from .ws_client import WebSocketClient, WebSocketClosed
 
 
@@ -320,10 +321,10 @@ async def test_three_misses_end_the_run_and_close_the_circuit(
             "correct_count": 0,
             "max_difficulty": 1,
             "longest_streak": 0,
-            "rank_global": None,
-            "rank_weekly": None,
-            "personal_best": None,
-            "is_new_best": False,
+            "rank_global": 1,
+            "rank_weekly": 1,
+            "personal_best": 0,
+            "is_new_best": True,
         }
 
         await socket.send({"t": "answer", "d": {"round": 3, "choice": 0}})
@@ -531,5 +532,102 @@ async def test_a_run_that_cannot_be_closed_still_ends_for_the_player(
         fin = await socket.until("arcade_end")
 
     assert fin["d"]["score"] == 0
-    # Quedó `playing`: el barrendero la invalida en el próximo arranque.
+    # La fila quedó `playing`: el barrendero la invalida en el próximo arranque.
     assert (await _run_row(api, inicio["d"]["run_id"])).status == "playing"
+    # Y sin cierre no hay ranking que mostrar.
+    assert fin["d"]["rank_global"] is None
+    assert fin["d"]["personal_best"] is None
+
+
+# --------------------------------------------------------------------- ranking
+
+
+def _finished(usuario: User, *, score: int, ended_at: datetime) -> ArcadeRun:
+    return arcade_run(
+        usuario.id,
+        score=score,
+        status="finished",
+        started_at=ended_at - timedelta(minutes=1),
+        ended_at=ended_at,
+    )
+
+
+async def test_the_end_message_includes_the_position_in_both_rankings(
+    api: Api, connect: Callable[[User], WebSocketClient]
+) -> None:
+    await sembrar(api.session)
+    rival = user(nick="rival")
+    api.session.add(rival)
+    await api.session.flush()
+    api.session.add(
+        _finished(rival, score=500, ended_at=datetime.now(UTC) - timedelta(minutes=5))
+    )
+    await api.session.flush()
+
+    async with connect(api.user) as socket:
+        await socket.send({"t": "start"})
+        await socket.until("arcade_start")
+        for _ in range(3):
+            ronda = await socket.until("arcade_question")
+            api.clock.advance(ronda["d"]["ends_at"] - api.clock.now_ms())
+            await socket.until("arcade_result")
+        fin = await socket.until("arcade_end")
+
+    assert fin["d"]["rank_global"] == 2
+    assert fin["d"]["rank_weekly"] == 2
+    assert fin["d"]["personal_best"] == 0
+    assert fin["d"]["is_new_best"] is True
+
+
+async def test_a_worse_run_keeps_the_previous_personal_best(
+    api: Api, connect: Callable[[User], WebSocketClient]
+) -> None:
+    await sembrar(api.session)
+    api.session.add(
+        _finished(
+            api.user, score=250, ended_at=datetime.now(UTC) - timedelta(minutes=5)
+        )
+    )
+    await api.session.flush()
+
+    async with connect(api.user) as socket:
+        await socket.send({"t": "start"})
+        await socket.until("arcade_start")
+        for _ in range(3):
+            ronda = await socket.until("arcade_question")
+            api.clock.advance(ronda["d"]["ends_at"] - api.clock.now_ms())
+            await socket.until("arcade_result")
+        fin = await socket.until("arcade_end")
+
+    assert fin["d"]["personal_best"] == 250
+    assert fin["d"]["is_new_best"] is False
+    # Su mejor corrida sigue siendo la de 250, así que es el primero de la tabla.
+    assert fin["d"]["rank_global"] == 1
+
+
+async def test_a_ranking_failure_does_not_break_the_end(
+    api: Api,
+    connect: Callable[[User], WebSocketClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await sembrar(api.session)
+
+    async def _rompe(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("la base no contesta")
+
+    monkeypatch.setattr(leaderboard, "run_summary", _rompe)
+
+    async with connect(api.user) as socket:
+        await socket.send({"t": "start"})
+        inicio = await socket.until("arcade_start")
+        for _ in range(3):
+            ronda = await socket.until("arcade_question")
+            api.clock.advance(ronda["d"]["ends_at"] - api.clock.now_ms())
+            await socket.until("arcade_result")
+        fin = await socket.until("arcade_end")
+
+    assert fin["d"]["score"] == 0
+    assert fin["d"]["rank_global"] is None
+    assert fin["d"]["is_new_best"] is False
+    # La corrida sí se guardó: lo único que faltó fue la posición del mensaje.
+    assert (await _run_row(api, inicio["d"]["run_id"])).status == "finished"
