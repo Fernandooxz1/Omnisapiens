@@ -164,7 +164,10 @@ def start(state: RoomState, *, user_id: str, match_id: str) -> Transition:
         return state, {
             user_id: (_error("NOT_HOST", "Solo el host arranca la partida"),)
         }
-    if state.status is RoomStatus.PLAYING:
+    if state.status is not RoomStatus.WAITING:
+        # Con la sala en `playing` ya arrancó; en `finished`, el único camino a otra
+        # partida es la revancha (los dos de acuerdo). Dejar `start` acá abría un
+        # atajo que salteaba ese acuerdo.
         return state, {user_id: (_error("ALREADY_PLAYING", "La partida ya arrancó"),)}
     if not _full(state) or not _both_connected(state):
         return state, {user_id: (_error("NOT_READY", "Hacen falta dos jugadores"),)}

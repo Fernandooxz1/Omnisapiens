@@ -160,6 +160,17 @@ def test_start_sends_match_start_to_both() -> None:
     assert isinstance(only(effects, GUEST), MatchStart)
 
 
+def test_start_is_rejected_after_the_match_finished() -> None:
+    # La otra partida se pide por revancha (los dos de acuerdo), no por `start`.
+    state = finished()
+
+    same, effects = R.start(state, user_id=HOST, match_id="m2")
+
+    assert same is state
+    assert isinstance(only(effects, HOST), Error)
+    assert state.status is R.RoomStatus.FINISHED
+
+
 def test_round_start_hides_the_correct_index() -> None:
     state = playing()
 

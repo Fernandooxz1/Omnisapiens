@@ -60,6 +60,13 @@ Sleeper = Callable[[float], Coroutine[object, object, None]]
 # ya abierta (es lo que hacen los tests para no salirse de su transacción).
 SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
+# El reloj de una sala no puede morir con el primer error transitorio de la base
+# (conexión del pool caída, deadlock): reintenta con backoff. Si la base está
+# caída de verdad, se rinde y corta: una sala sin reloj tiene que avisar, no
+# quedarse muda. El barrendero que cerraría la fila todavía no existe.
+MAX_EXPIRY_FAILURES = 5
+EXPIRY_BACKOFF_S = 1.0
+
 
 class RoomStore(Protocol):
     """Lo que el WebSocket de una sala necesita del estado vivo (A3.6).
@@ -90,7 +97,13 @@ class RoomStore(Protocol):
         self, *, code: str, user_id: str, round_index: int, choice: int
     ) -> None: ...
 
-    async def disconnect(self, *, code: str, user_id: str) -> None: ...
+    async def disconnect(self, *, code: str, user_id: str, outbox: Outbox) -> None:
+        """Suelta la silla si la conexión que se va sigue siendo la vigente.
+
+        El `outbox` identifica la conexión: un socket viejo que cierra tarde no
+        puede desmontar al jugador que ya reconectó.
+        """
+        ...
 
     async def rematch(self, *, code: str, user_id: str) -> None: ...
 
@@ -122,6 +135,10 @@ class _Room:
     # Despierta a la tarea de vencimientos cuando cambió el estado: así no hay
     # polling y el plazo se recalcula con la sala ya quieta.
     wakeup: asyncio.Event = field(default_factory=asyncio.Event)
+    # La sala quedó debiendo la ronda siguiente (su consulta falló): el reloj la
+    # reintenta. No se usa `needs_next_round` a secas porque el caso `NO_QUESTIONS`
+    # también lo deja en `True` y ahí hay que esperar, no girar en vacío.
+    retry_serve: bool = False
     task: asyncio.Task[None] | None = None
 
 
@@ -141,12 +158,16 @@ class InMemoryRoomStore:
         now_ms: Clock | None = None,
         sleep: Sleeper | None = None,
         rng: Random | None = None,
+        max_failures: int = MAX_EXPIRY_FAILURES,
+        backoff_s: float = EXPIRY_BACKOFF_S,
     ) -> None:
         self._sessions = session_factory
         self._grace_seconds = grace_seconds
         self._now_ms = now_ms or _system_now_ms
         self._sleep = sleep or asyncio.sleep
         self._rng = rng or Random()
+        self._max_failures = max_failures
+        self._backoff_s = backoff_s
         self._rooms: dict[str, _Room] = {}
 
     async def open(
@@ -205,11 +226,15 @@ class InMemoryRoomStore:
             ),
         )
 
-    async def disconnect(self, *, code: str, user_id: str) -> None:
+    async def disconnect(self, *, code: str, user_id: str, outbox: Outbox) -> None:
         entry = self._entry(code)
         if entry is None:
             return
         async with entry.lock:
+            # Si otra conexión más nueva ya se sentó, este cierre es de un socket
+            # viejo: la silla no es suya y no puede desmontarla.
+            if entry.outboxes.get(user_id) is not outbox:
+                return
             # Se suelta el `outbox` antes de la transición: mensajes para un
             # socket que ya se fue no le sirven a nadie y se acumularían.
             entry.outboxes.pop(user_id, None)
@@ -282,6 +307,12 @@ class InMemoryRoomStore:
         try:
             await _deliver(entry, effects)
             await self._serve_next(entry)
+            entry.retry_serve = False
+        except Exception:
+            # Si quedó debiendo la ronda siguiente, el reloj la reintenta: el estado
+            # ya es consistente (la ronda anterior está resuelta y entregada).
+            entry.retry_serve = after.needs_next_round
+            raise
         finally:
             # Cambió el estado (o falló a mitad): el reloj tiene que recalcular.
             entry.wakeup.set()
@@ -406,31 +437,69 @@ class InMemoryRoomStore:
         `clear` va antes de leer el estado: un cambio que llegue después deja el
         evento puesto y la espera vuelve enseguida.
 
-        Un error acá no se reintenta: la sala se quedaría girando en vacío contra
-        la base. Se corta la tarea, el rastro queda en el log y la fila abierta la
-        cierra el barrendero.
+        Un error no mata la sala: `_step` ya dejó el estado en memoria coherente
+        con Postgres, así que reintentar es seguro. Con backoff y hasta
+        `max_failures`; agotados, avisa a los clientes y se rinde: una sala sin
+        reloj tiene que cortar, no quedarse muda.
         """
-        try:
-            while True:
-                entry.wakeup.clear()
-                deadline = _next_deadline(entry.state)
-                if deadline is None:
-                    await entry.wakeup.wait()
-                    continue
-                if not await self._wait(entry, (deadline - self._now_ms()) / 1000):
-                    continue
-                async with entry.lock:
-                    # Bajo el lock el estado puede haberse movido: otra acción pudo
-                    # resolver la ronda, o recién servirse una nueva.
-                    if _next_deadline(entry.state) != deadline:
-                        continue
-                    if self._now_ms() < deadline:
-                        continue
-                    await self._step(
-                        entry, lambda state: room.expire(state, now_ms=self._now_ms())
-                    )
-        except Exception:
-            logger.exception("la sala %s quedó sin vencimientos", entry.state.code)
+        fallos = 0
+        while True:
+            try:
+                await self._tick(entry)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                fallos += 1
+                logger.exception(
+                    "la sala %s falló al vencer (intento %d)",
+                    entry.state.code,
+                    fallos,
+                )
+                if fallos >= self._max_failures:
+                    await self._surrender(entry)
+                    return
+                await self._sleep(self._backoff_s)
+            else:
+                fallos = 0
+
+    async def _tick(self, entry: _Room) -> None:
+        """Una vuelta del reloj: espera el próximo plazo y lo vence."""
+        entry.wakeup.clear()
+        if entry.retry_serve:
+            # Una transición anterior quedó debiendo la ronda siguiente: se reintenta
+            # el servir antes de volver a esperar (no hay plazo que aguardar).
+            async with entry.lock:
+                await self._serve_next(entry)
+                entry.retry_serve = False
+            return
+        deadline = _next_deadline(entry.state)
+        if deadline is None:
+            await entry.wakeup.wait()
+            return
+        if not await self._wait(entry, (deadline - self._now_ms()) / 1000):
+            return
+        async with entry.lock:
+            # Bajo el lock el estado puede haberse movido: otra acción pudo
+            # resolver la ronda, o recién servirse una nueva.
+            if _next_deadline(entry.state) != deadline:
+                return
+            if self._now_ms() < deadline:
+                return
+            await self._step(
+                entry, lambda state: room.expire(state, now_ms=self._now_ms())
+            )
+
+    async def _surrender(self, entry: _Room) -> None:
+        """La sala perdió el reloj: se avisa a los sentados antes de rendirse."""
+        async with entry.lock:
+            await _deliver(
+                entry,
+                _error_to_seats(
+                    entry.state,
+                    "ROOM_CLOCK_DOWN",
+                    "La sala perdió el reloj. Se corta la partida.",
+                ),
+            )
 
     async def _wait(self, entry: _Room, timeout_s: float) -> bool:
         """`True` si venció el plazo; `False` si la sala se despertó antes."""

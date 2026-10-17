@@ -30,6 +30,8 @@ async def guest(
             raise ApiError(400, rechazo.code, rechazo.message) from None
         except NickTaken:
             raise ApiError(409, "NICK_TAKEN", "Ese nick ya está en uso.") from None
+        # Alta de verdad: se commitea antes de responder (ver `get_session`).
+        await session.commit()
 
     return AuthOut(
         user=UserOut.model_validate(usuario),

@@ -9,7 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.game.constants import ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH
+from app.game.match_engine import MatchConfig
 from app.models import Room
+from app.runtime.room_manager import Outbox, room_store
 
 CODIGO_RE = re.compile(f"^[{ROOM_CODE_ALPHABET}]{{{ROOM_CODE_LENGTH}}}$")
 
@@ -111,6 +113,38 @@ async def test_preview_returns_the_room_and_its_host(
     assert cuerpo["status"] == "waiting"
     assert cuerpo["config"] == creada["config"]
     assert cuerpo["host_nick"] == "ana"
+    assert cuerpo["players"] == 0
+
+
+async def test_preview_reports_the_connected_players(
+    client: httpx.AsyncClient, session: AsyncSession
+) -> None:
+    """`players` sale del estado vivo del proceso, no de la base."""
+    alta = await _guest(client, "ana")
+    creada = (await client.post("/rooms", json={}, headers=_auth(alta["token"]))).json()
+    sala = await session.scalar(select(Room).where(Room.code == creada["code"]))
+    assert sala is not None
+
+    await room_store.open(
+        code=sala.code,
+        room_id=str(sala.id),
+        config=MatchConfig(**sala.config),
+        host_id=str(sala.host_user_id),
+    )
+    try:
+        await room_store.join(
+            code=sala.code,
+            user_id=str(sala.host_user_id),
+            nick="ana",
+            outbox=Outbox(),
+        )
+
+        respuesta = await client.get(f"/rooms/{sala.code}")
+
+        assert respuesta.status_code == 200
+        assert respuesta.json()["players"] == 1
+    finally:
+        await room_store.close()
 
 
 async def test_preview_does_not_require_a_token(client: httpx.AsyncClient) -> None:

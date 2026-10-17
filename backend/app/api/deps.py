@@ -17,9 +17,13 @@ from app.security.tokens import InvalidToken, read_guest_token
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """Una sesión por pedido, y el commit acá: el borde del pedido es el borde de
-    la transacción. Un endpoint que escribe y se olvida del commit no pierde nada;
-    uno que revienta a mitad no deja la mitad escrita."""
+    """Una sesión por pedido. Rollback si el pedido revienta; commit al final.
+
+    Ojo con el orden: FastAPI cierra el `yield` **después** de emitir la respuesta
+    (comprobado con 0.143), así que este commit no protege al cliente. Los
+    endpoints que escriben commitean ellos, antes de responder; esto queda como
+    red de seguridad para lo que se escriba sin commit explícito.
+    """
     async with session_factory() as session:
         try:
             yield session

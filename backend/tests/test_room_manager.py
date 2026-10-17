@@ -8,7 +8,7 @@ esperar los 10 s reales de cada ronda.
 import asyncio
 import uuid
 from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from random import Random
 
@@ -85,10 +85,17 @@ async def _compartida(session: AsyncSession) -> AsyncIterator[AsyncSession]:
 async def abrir(session: AsyncSession) -> AsyncIterator[Callable[..., Harness]]:
     abiertos: list[InMemoryRoomStore] = []
 
-    def _abrir(*, grace: int = 20, seed: int = 7) -> Harness:
+    def _abrir(
+        *,
+        grace: int = 20,
+        seed: int = 7,
+        session_factory: (
+            Callable[[], AbstractAsyncContextManager[AsyncSession]] | None
+        ) = None,
+    ) -> Harness:
         clock = FakeClock()
         store = InMemoryRoomStore(
-            session_factory=lambda: _compartida(session),
+            session_factory=session_factory or (lambda: _compartida(session)),
             grace_seconds=grace,
             now_ms=clock.now_ms,
             sleep=clock.sleep,
@@ -110,9 +117,12 @@ async def sala_armada(
     rounds: int = 3,
     seconds: int = 10,
     dificultades: tuple[int, ...] = (1, 2, 3, 4, 5),
+    session_factory: (
+        Callable[[], AbstractAsyncContextManager[AsyncSession]] | None
+    ) = None,
 ) -> tuple[Harness, User, User, Room]:
     """Dos jugadores, la fila de la sala y el banco que se le pida."""
-    h = abrir(grace=grace)
+    h = abrir(grace=grace, session_factory=session_factory)
     ana, beto = user(nick="ana"), user(nick="beto")
     # Dos flushes: sin `relationship()` el ORM no deduce que `rooms` va después
     # de `users` (el mismo problema que ya está anotado en el plan).
@@ -310,6 +320,109 @@ async def test_the_clock_expires_a_round_and_serves_the_next_one(
     assert uno(drain(b_out), RoundResult).you.correct is False
 
 
+async def test_the_clock_retries_and_survives_a_transient_database_error(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    """H-02: un error de base al vencer no puede dejar la sala sin reloj."""
+    caer = {"armado": False}
+
+    @asynccontextmanager
+    async def fabrica() -> AsyncIterator[AsyncSession]:
+        if caer["armado"]:
+            caer["armado"] = False
+            raise RuntimeError("la base se cayó")
+        yield session
+
+    h, ana, beto, fila = await sala_armada(session, abrir, session_factory=fabrica)
+    a_out, b_out = await sentar(h, fila, ana, beto)
+    await h.store.start(code=fila.code, user_id=str(ana.id))
+    drain(a_out)
+    drain(b_out)
+
+    # Ana contesta y el reloj cierra cada ronda. La última ronda cierra la partida:
+    # ahí falla la sesión, una sola vez.
+    for ronda in range(3):
+        await h.store.answer(
+            code=fila.code, user_id=str(ana.id), round_index=ronda, choice=1
+        )
+        caer["armado"] = ronda == 2
+        await correr(h, 10_000)
+    await correr(h, 1_000)  # el reintento duerme el backoff, en el reloj falso
+
+    fin = uno(drain(a_out), MatchEnd)
+    assert fin.reason == "completed" and fin.winner == "you"
+    partida = await session.scalar(select(Match))
+    assert partida is not None and partida.status == "finished"
+
+
+async def test_the_clock_gives_up_and_warns_after_repeated_database_errors(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    """Si la base no vuelve, la sala corta con aviso en vez de quedar muda."""
+    caidos = {"restantes": 0}
+
+    @asynccontextmanager
+    async def fabrica() -> AsyncIterator[AsyncSession]:
+        if caidos["restantes"] > 0:
+            caidos["restantes"] -= 1
+            raise RuntimeError("la base se cayó")
+        yield session
+
+    h, ana, beto, fila = await sala_armada(session, abrir, session_factory=fabrica)
+    a_out, b_out = await sentar(h, fila, ana, beto)
+    await h.store.start(code=fila.code, user_id=str(ana.id))
+    drain(a_out)
+    drain(b_out)
+
+    for ronda in range(3):
+        await h.store.answer(
+            code=fila.code, user_id=str(ana.id), round_index=ronda, choice=1
+        )
+        caidos["restantes"] = 5 if ronda == 2 else 0
+        await correr(h, 10_000)
+    for _ in range(4):  # cada reintento espera el backoff
+        await correr(h, 1_000)
+
+    assert uno(drain(a_out), Error).code == "ROOM_CLOCK_DOWN"
+    assert uno(drain(b_out), Error).code == "ROOM_CLOCK_DOWN"
+    # La fila quedó abierta a propósito: la cierra el barrendero, no el reloj.
+    partida = await session.scalar(select(Match))
+    assert partida is not None and partida.status == "playing"
+
+
+async def test_the_clock_retries_a_next_round_that_failed_to_load(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    """El error puede caer al elegir la próxima pregunta, no al cerrar la partida."""
+    caer = {"armado": False}
+
+    @asynccontextmanager
+    async def fabrica() -> AsyncIterator[AsyncSession]:
+        if caer["armado"]:
+            caer["armado"] = False
+            raise RuntimeError("la base se cayó")
+        yield session
+
+    h, ana, beto, fila = await sala_armada(session, abrir, session_factory=fabrica)
+    a_out, b_out = await sentar(h, fila, ana, beto)
+    await h.store.start(code=fila.code, user_id=str(ana.id))
+    drain(a_out)
+    drain(b_out)
+
+    # Ana contesta la ronda 0; el reloj la resuelve pero falla al cargar la 1.
+    await h.store.answer(code=fila.code, user_id=str(ana.id), round_index=0, choice=1)
+    caer["armado"] = True
+    await correr(h, 10_000)
+    await correr(h, 1_000)  # el reintento del reloj sirve la ronda pendiente
+
+    a_msgs = drain(a_out)
+    resultado = uno(a_msgs, RoundResult)
+    assert resultado.round == 0 and resultado.you.correct
+    assert uno(a_msgs, RoundStart).round == 1
+    partida = await session.scalar(select(Match))
+    assert partida is not None and partida.status == "playing"
+
+
 async def test_a_disconnect_opens_the_grace_and_the_clock_abandons(
     session: AsyncSession, abrir: Callable[..., Harness]
 ) -> None:
@@ -319,7 +432,7 @@ async def test_a_disconnect_opens_the_grace_and_the_clock_abandons(
     drain(a_out)
     drain(b_out)
 
-    await h.store.disconnect(code=fila.code, user_id=str(beto.id))
+    await h.store.disconnect(code=fila.code, user_id=str(beto.id), outbox=b_out)
 
     assert uno(drain(a_out), ReconnectPending).seconds_left == 20
     assert h.store.player_count(fila.code) == 1
@@ -346,7 +459,7 @@ async def test_reconnecting_within_the_grace_resumes_the_round(
     original = uno(drain(a_out), RoundStart)
     drain(b_out)
 
-    await h.store.disconnect(code=fila.code, user_id=str(beto.id))
+    await h.store.disconnect(code=fila.code, user_id=str(beto.id), outbox=b_out)
     uno(drain(a_out), ReconnectPending)
 
     # Vuelve con un socket nuevo, dentro de la ventana: la ronda corre la pausa.
@@ -365,6 +478,44 @@ async def test_reconnecting_within_the_grace_resumes_the_round(
     # Y la partida sigue: la ronda se puede cerrar con las dos respuestas.
     await jugar_ronda(h, fila, ana, beto, 0)
     assert uno(drain(a_out), RoundResult).round == 0
+
+
+async def test_the_old_socket_closing_late_does_not_abandon_the_reconnected_player(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    """H-01: un corte silencioso deja al socket viejo vivo hasta el timeout.
+
+    El cliente reconecta antes de que el servidor note el corte. Cuando el socket
+    viejo por fin cierra (su `finally` corre con el `outbox` que usó), no puede
+    desmontar la silla nueva: la partida sigue en pie.
+    """
+    h, ana, beto, fila = await sala_armada(session, abrir)
+    a_out, b_viejo = await sentar(h, fila, ana, beto)
+    await h.store.start(code=fila.code, user_id=str(ana.id))
+    drain(a_out)
+    drain(b_viejo)
+
+    # Reconecta con socket nuevo: el server todavía no notó el corte del viejo.
+    b_nuevo = Outbox()
+    await h.store.join(
+        code=fila.code, user_id=str(beto.id), nick="beto", outbox=b_nuevo
+    )
+    assert h.store.player_count(fila.code) == 2
+    drain(a_out)
+    drain(b_nuevo)
+
+    # Recién ahora el socket viejo pasa por su `finally`.
+    await h.store.disconnect(code=fila.code, user_id=str(beto.id), outbox=b_viejo)
+
+    # La silla nueva sigue en pie y la gracia no se abrió.
+    assert h.store.player_count(fila.code) == 2
+    assert [m for m in drain(a_out) if isinstance(m, ReconnectPending)] == []
+
+    await correr(h, 20_000)
+
+    assert [m for m in drain(a_out) if isinstance(m, MatchEnd)] == []
+    partida = await session.scalar(select(Match))
+    assert partida is not None and partida.status == "playing"
 
 
 async def test_the_rematch_starts_and_writes_a_new_match(
@@ -443,7 +594,7 @@ async def test_an_unknown_room_is_ignored(
     )
     await h.store.start(code="ZZZZZZ", user_id="x")
     await h.store.answer(code="ZZZZZZ", user_id="x", round_index=0, choice=1)
-    await h.store.disconnect(code="ZZZZZZ", user_id="x")
+    await h.store.disconnect(code="ZZZZZZ", user_id="x", outbox=ajeno)
     await h.store.rematch(code="ZZZZZZ", user_id="x")
     await h.store.sync(code="ZZZZZZ", user_id="x")
 

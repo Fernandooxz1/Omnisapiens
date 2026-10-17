@@ -35,3 +35,5 @@ class RoomPreview(RoomOut):
     status: str
     host_nick: str | None
     expires_at: datetime
+    # Presencia viva: sale del `RoomStore` (proceso), no de la base.
+    players: int

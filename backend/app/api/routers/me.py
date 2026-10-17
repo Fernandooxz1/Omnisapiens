@@ -32,6 +32,7 @@ async def update_me(
     except NickTaken:
         raise ApiError(409, "NICK_TAKEN", "Ese nick ya está en uso.") from None
 
+    await session.commit()
     # El pase viejo lleva el nick viejo adentro: se emite uno fresco para que no mienta.
     return AuthOut(
         user=UserOut.model_validate(usuario),
@@ -42,4 +43,5 @@ async def update_me(
 @router.delete("", status_code=204)
 async def delete_me(usuario: CurrentUserDep, session: SessionDep) -> Response:
     await soft_delete_user(session, usuario)
+    await session.commit()
     return Response(status_code=204)

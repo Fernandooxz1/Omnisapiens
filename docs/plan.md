@@ -13,11 +13,11 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas** y **el WebSocket de sala** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **408 tests en ~25 s** contra Postgres y Redis reales.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas** y **el WebSocket de sala** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **414 tests en ~11 s** contra Postgres y Redis reales.
 
-El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). Falta el resto del tiempo real: **el arcade por WS** y **el barrendero**. La vista previa de `/rooms/{code}` sigue sin mostrar `players`: el dato ya existe (`RoomStore.player_count`), solo falta el cable.
+El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). Falta el resto del tiempo real: **el arcade por WS** y **el barrendero**. La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`).
 
-**Pausa acá:** `ws/room_ws.py` quedó cerrado y verificado (ruff/format/mypy en verde; `tests/test_room_ws.py`, validado con sabotajes). Sigue el cable de `players` en `GET /rooms/{code}` (una línea) y después el barrendero.
+**Pausa acá:** **H-01, H-02, H-05, H-06 y `players` cerrados** (testeados y sabotajeados). Sigue el **barrendero** —hecho a consciencia de H-04 (no matar partidas vivas) y H-03 (desalojar salas muertas)—.
 
 Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
@@ -31,10 +31,23 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - [x] Revancha: el segundo pedido arranca la partida nueva (hasta ahora `ready_for_rematch` era código muerto) + `tests/test_room.py` al día
 - [x] `ws/room_ws.py`: WebSocket de sala sobre el `RoomStore` (token por query, accepts antes de autenticar, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio) + `authenticate` único en `deps.py` + `RoomStore.seated` + `tests/test_room_ws.py` y el cliente WS de test (`tests/ws_client.py`)
 - [x] Plan alineado con el código: §5.4, §8 (tablas), §12 (auth y códigos de error), §14 (desempate), §6 (árbol), §13 (import/semilla) y §18 (tests)
+- [x] **H-01 (P0)**: `disconnect` recibe el `outbox` de la conexión y no toca la silla si esa cola ya no es la vigente: un socket viejo que cierra tarde no desmonta al jugador reconectado + test de carrera (`tests/test_room_manager.py`)
+- [x] **H-02 (P0)**: el reloj de la sala ya no muere con el primer error de base: reintenta con backoff (`MAX_EXPIRY_FAILURES`/`EXPIRY_BACKOFF_S`), avisa `ROOM_CLOCK_DOWN` y se rinde acotado; el servir la ronda siguiente también se reintenta (`retry_serve`) + 3 tests
+- [x] `GET /rooms/{code}`: la vista previa muestra `players` (presencia viva del `RoomStore`) + test con una sala viva
+- [x] **H-05 (P1)**: los 4 endpoints de escritura (`/auth/guest`, `POST /rooms`, `PATCH`/`DELETE /me`) commitean ellos antes de responder; `get_session` queda como red de seguridad (el `yield` de FastAPI se cierra *después* de la respuesta)
+- [x] **H-06 (P1)**: `room.start` sólo acepta `WAITING`: con la sala `finished` ya no se arranca una partida salteando el acuerdo de revancha + test
 
 ### Próximos pasos
 
-- [ ] `GET /rooms/{code}`: sumar `players` con `room_store.player_count` (el dato ya está; falta el cable)
+> Auditoría completa en `docs/observaciones.md` (2026-10-17): ≈60 % del backend.
+> Los dos P0 (H-01 y H-02), la presencia `players` y los P1 H-05/H-06 están
+> cerrados; sigue la cola de abajo.
+
+- [ ] **H-04 (P1)**: el barrendero filtra `status='waiting'` y `expires_at` se refresca al arrancar la partida
+- [ ] **H-03 (P1)**: desalojar salas muertas: `_rooms` crece para toda la vida del proceso
+- [ ] **H-11**: `mypy strict`, `ruff select` (B, ASYNC, SIM...), `pytest-cov` con umbral y CI
+- [ ] **H-12 + H-08**: configurar logging y sacar el `?token=` de los access logs
+- [ ] **H-25**: barajar las opciones al servir (la correcta es B en 48 % de la semilla)
 - [ ] Barrendero al arrancar: salas con `expires_at` vencido → `expired`, y matches `playing` más viejos que N minutos → `void`
 - [ ] Arcade sobre WS (`ws/arcade_ws.py`) + ranking + corte semanal en `America/Argentina/Buenos_Aires`
 - [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
@@ -58,7 +71,7 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - Ojo con los tests que rompen dos reglas a la vez: el error que llega puede ser el de la otra. Aislar la fila inválida en vez de aflojar el `motivo`.
 - El host de la sala es **el creador** (`rooms.host_user_id`), no "el primero que entra": la fila vive más que las conexiones. En los tests, `room()` pide el id de un host ya insertado (como `match()` pide sus dos jugadores).
 - Una migración que agrega una columna `NOT NULL` sin default sobre una tabla con filas falla a propósito: en `0002` no hay host que inventarle a una sala vieja.
-- `get_session` commitea al final del pedido y hace rollback si algo revienta: los endpoints **no** commitean. El borde del pedido es el borde de la transacción.
+- **H-05**: `get_session` commitea al final del pedido, pero FastAPI cierra el `yield` **después** de emitir la respuesta: no protege al cliente. Los 4 endpoints de escritura (`/auth/guest`, `POST /rooms`, `PATCH`/`DELETE /me`) commitean ellos antes de responder; lo de `get_session` queda como red de seguridad para lo que se escriba sin commit explícito. El principio viejo ("el borde del pedido es el borde de la transacción") era falso.
 - El token se lee con `algorithms=[ALGORITHM]` explícito (sin eso, el `alg: none` clásico pasaría) y se atrapa `jwt.PyJWTError` entero: `InvalidTokenError` no cubre las fallas de clave o de algoritmo, que saldrían como 500.
 - Sin `Authorization` el usuario es `None`, pero con un token **roto** es 401 y no un usuario nuevo: ignorarlo le entregaría al cliente una identidad distinta sin avisarle. La identidad la manda el token, no el body.
 - Los tests de API usan la fixture `client` con `ASGITransport` y reemplazan `get_session` por la sesión del test: el pedido entra en la misma transacción y el rollback final lo deshace (sin eso, los tests de API ensuciarían la base y dependerían del orden).
@@ -93,9 +106,13 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - La revancha la arranca el **segundo** pedido, y `_persist` escribe la fila nueva porque mira "la partida pasó a `playing`" en vez de "arrancó de cero": el rematch reusa el mismo bloque que `start`.
 - El pool de preguntas se recorta al tramo de dificultad de la ronda **antes** de elegir: `next_round` revienta si la pregunta no entra en el tramo y `select` puede devolver una fuera de rango por sus fallbacks. Sin pregunta en el tramo, los dos reciben `NO_QUESTIONS` y la sala queda en `playing`: la fila abierta la cierra el barrendero, no el vacío.
 - Los vencimientos son una task por sala que duerme hasta el próximo plazo (ronda o gracia) y se despierta con un `Event` cuando el estado cambia. Bajo el lock vuelve a chequear el plazo: entre despertar y tomar el lock, otra acción pudo resolver la ronda o servir la siguiente.
+- El reloj **no muere con el primer error de base**: reintenta con backoff y, agotados `MAX_EXPIRY_FAILURES`, avisa `ROOM_CLOCK_DOWN` a los sentados y se rinde (una sala sin reloj tiene que cortar, no quedarse muda). `_tick` aísla *una* vuelta del reloj para que el `except` del loop envuelva exactamente una y el `else` resetee el contador. Reintentar es seguro porque `_step` ya dejó el estado en memoria coherente con Postgres. Si una transición queda **debiendo** la ronda siguiente (la consulta de `_pick` falló), `retry_serve` la hace servir en la vuelta siguiente: no alcanza con mirar `needs_next_round`, porque `NO_QUESTIONS` también lo deja en `True` y ahí hay que esperar, no girar en vacío.
+- `room.start` sólo se acepta desde `WAITING` (H-06): con la sala `finished`, el único camino a otra partida es la revancha acordada; un `start` ahí la arrancaba salteando el acuerdo. Como `disconnect` devuelve la sala a `WAITING`, el flujo "se fue uno, entra otro, arrancamos" sigue andando.
+- `GET /rooms/{code}` informa `players` desde el `RoomStore` (presencia viva), no desde la base: la fila de `rooms` no sabe de conexiones. Por eso el store global es el mismo objeto que usa el WebSocket.
 - El reloj y el `sleep` se inyectan: el `FakeClock` de los tests no duerme, espera a que el test mueva la hora. Así una partida entera por vencimientos corre en milisegundos, sin esperar los 10–20 s reales de cada ronda.
 - Los tests del `room_manager` pasan la **sesión del test** como factory (su `commit` se vuelve SAVEPOINT): igual que la fixture `client`, sin ensuciar `trivia_test`.
 - La entrega es un `outbox` (cola) por jugador y no un callback: el vencimiento tiene que entregar sin que haya nadie esperando del otro lado, y el timer no conoce sockets. `disconnect` suelta esa cola: mensajes para un socket que ya no está no le sirven a nadie y se acumularían.
+- `disconnect` recibe el `outbox` de **su** conexión y no toca la silla si esa cola ya no es la vigente (H-01): un corte silencioso deja al socket viejo vivo hasta el timeout, y cuando por fin cierra no puede desmontar al jugador que ya reconectó. El `outbox` es único por conexión (`asyncio.Queue` nueva por handler), así que la comparación por identidad alcanza: no hace falta un contador de generación.
 - En los tests, `drain()` vacía la cola: dos `drain` seguidos para pedir dos tipos distintos descartan el que no se miró (un `uno(...)` que devuelve vacío). Un solo `drain` por tanda.
 - El barrendero queda pendiente y es el que cierra lo que nadie más cierra: una sala `playing` sin preguntas o un proceso que muere a mitad de partida dejan la fila abierta a propósito (§5.4).
 - `authenticate` (`api/deps.py`) es la **única puerta de auth**: la usan el header `Authorization` de HTTP y el `?token=` del WebSocket (el navegador no deja headers en `new WebSocket`). Dos transportes, una regla.

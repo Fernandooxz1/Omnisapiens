@@ -114,7 +114,7 @@ async def room_socket(
             task.cancel()
         await asyncio.gather(reader, writer, return_exceptions=True)
         await _close(websocket)
-        await store.disconnect(code=codigo, user_id=user_id)
+        await store.disconnect(code=codigo, user_id=user_id, outbox=outbox)
 
 
 async def _identify(websocket: WebSocket, session: AsyncSession) -> User:
