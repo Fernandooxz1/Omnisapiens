@@ -1,53 +1,48 @@
 # Estado — Omnisapiens
 
-> Memoria de sesión. Corto a propósito: se poda. El agente lo lee al empezar y lo actualiza al avanzar.
+> Memoria de sesión: el agente la lee al empezar. Corta a propósito, se poda.
 
 ## Dónde estamos
-Motor de juego y selector de preguntas hechos y testeados (117 tests). Falta **toda la capa de datos**: modelos, Alembic y repositorios.
 
-Diseño acordado: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`**. Fija el esquema, las decisiones irreversibles y el orden de implementación. Los 3 puntos ⚠️ quedaron **confirmados**: fila de `matches` al arrancar (3.2), desempate del ranking por quién alcanzó antes el puntaje (decisión 7) y `UNIQUE` parcial de `nick` (decisión 6).
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). El motor de juego (`app/game/`) y el selector de preguntas están hechos y testeados (117 tests), y **los 7 modelos de la base están escritos y verificados**.
+
+**Todavía no hay migración de Alembic ni tests**: las tablas solo existen en un schema de prueba. La red de seguridad se construye en el paso que sigue.
+
+Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`**. Los 3 puntos ⚠️ están **confirmados**: fila de `matches` al arrancar (3.2), desempate del ranking por quién alcanzó antes el puntaje (decisión 7) y `UNIQUE` parcial de `nick` (decisión 6).
 
 ## Hecho
-- [x] Repo, `.gitignore`, `.editorconfig`, `AGENTS.md`, `docker-compose.yml` (Postgres 16 + Redis 7)
-- [x] Proyecto uv con CPython 3.12: `pyproject.toml`, `.venv`, `.env.example` + `.env` real
-- [x] `app/config.py`, `app/db.py`, `app/redis.py` y `/health` con lifespan y router (probado con Redis caído)
-- [x] `Makefile`: `up/down/api/migrate/test/lint/fmt`; ruff y mypy en verde
-- [x] `app/game/`: motor puro con invariantes (`answers`, `scoring`, `arcade_engine`, `match_engine`)
-- [x] `app/services/questions.py`: selector puro, `Random` inyectado, estrategia observable
-- [x] Commits `8eebea9` (motor y base) y `fe77e4c` (selector)
-- [x] `models/base.py` (`MetaData` con convención de nombres), `models/user.py`, `models/question.py`; commit `e6756cb`
-- [x] `users` y `questions` verificadas contra el Postgres real: 11 + 24 sondas de constraints, 0 fallas
-- [x] `models/match.py` (`rooms`, `matches`, `match_rounds`): 43 sondas más, 0 fallas
-- [x] `models/arcade.py` (`arcade_runs`, `arcade_answers`): 31 sondas más. Total: **108 sondas, 0 fallas**
-- [x] `models/checks.py`: los ayudantes de listas para los `CHECK`, con el DDL verificado byte a byte tras el refactor
-- [x] Commit `96f3b2e` (tabla `questions`)
 
-## Próximos pasos (en orden, según el plan de capa de datos)
-- [x] Confirmar los 3 puntos ⚠️ del plan
-- [x] Los 7 modelos con convención de nombres, enums por `CHECK` e invariantes del motor
-- [ ] Alembic async + migración inicial; `alembic check` limpio (y probar si detecta un `CHECK` cambiado)
-- [ ] Alembic async + migración inicial; `alembic check` limpio
-- [ ] Fixtures de test contra Postgres real, con rollback por test
+- [x] Repo, `.gitignore`, `.editorconfig`, `AGENTS.md`, `docker-compose.yml`, `Makefile`, `/health` con lifespan
+- [x] `app/game/` (motor puro: `answers`, `scoring`, `arcade_engine`, `match_engine`) + `app/services/questions.py`
+- [x] `models/base.py` (convención de nombres) y `models/checks.py` (listas para los `CHECK`)
+- [x] `models/`: `user.py`, `question.py`, `match.py` (`rooms`, `matches`, `match_rounds`), `arcade.py` (`arcade_runs`, `arcade_answers`)
+- [x] 108 sondas de constraints contra el Postgres real, 0 fallas; commits `96f3b2e`, `a33e08c`, `b03e1f3` pusheados
+
+## Próximos pasos (orden del plan de capa de datos, §6)
+
+- [ ] Alembic async + migración inicial revisada a mano; `alembic check` limpio
+- [ ] Probar si `alembic check` **detecta un `CHECK` cambiado** (Alembic es flojo comparando checks)
+- [ ] Fixtures con Postgres real (`trivia_test`): migraciones una vez por sesión, rollback por test
+- [ ] Las 108 sondas se convierten en tests de pytest, uno por constraint
 - [ ] `api/deps.py` (`get_session`) + `POST /auth/guest` con JWT y filtro de nicks
 - [ ] Repositorio de preguntas (`RoundQuestion`, sin la respuesta correcta) + vistos en Redis
 - [ ] Importador CSV/JSON + `cli.py` + 60 preguntas semilla
-- [ ] `game/protocols.py` + `RoomStore` en memoria con lock por sala
+- [ ] `game/protocols.py` y `RoomStore` en memoria con lock por sala
 - [ ] `ws/room_ws.py`: lobby, rondas, desempate, gracia de 20 s, revancha
 - [ ] Arcade sobre WS + ranking + corte semanal en `America/Argentina/Buenos_Aires`
 
-## Después (fases del plan)
-- Fase 1: admin de preguntas y CI
-- Fases 2-4: salas, partida 1v1 completa, arcade y ranking
-- Fase 6: PWA, e2e y documentación
+## Después
 
-## Notas
-- El frontend lo hará otra persona: acá solo se toca `backend/`.
-- Cada paso se prueba (test, curl o navegador) antes de seguir.
-- Comentarios con criterio senior (regla 13). No leer `docs/mvp-plan.md` entero: consultarlo por fragmento.
-- El motor (`app/game/`) no depende de FastAPI, Postgres ni Redis, y no pregunta la hora: el tiempo y el azar se inyectan.
-- Molde de modelo fijado en `models/user.py`: `Mapped[X]` decide el NOT NULL, `uuid4` en Python, `DateTime(timezone=True)` + `server_default=now()`, checks con nombre propio y único parcial para el borrado lógico.
-- Un `CHECK` que evalúa a `NULL` no viola nada (SQL trata "desconocido" como válido): para claves ausentes de un `jsonb` hay que usar `IS NOT DISTINCT FROM`, no `=`.
-- El `uuid` de PK lo genera Python (`default=uuid.uuid4`), así que un `INSERT` crudo por `psql` tiene que mandar el `id` a mano; el ORM lo hace solo.
-- Los valores permitidos de cada `CHECK` salen de `game/constants.py` y de los enums de `game/*_engine.py`: motor y base no pueden divergir sin que `alembic check` lo delate.
-- Las sondas de constraints viven en `/tmp/opencode/check_*.sh` (Postgres real, schema descartable). Son descartables a propósito: en el paso 3 se convierten en tests de pytest.
-- ruff 0.17 trae un preset estricto (814 reglas); el lock fija la versión, así que CI se comporta igual.
+- Fase 1: admin de preguntas y CI. Fases 2-4: partida completa y ranking. Fase 6: PWA, e2e, documentación.
+
+## Decisiones tomadas y trampas (no re-descubrir)
+
+- Molde de modelo: `Mapped[X]` decide el NOT NULL; `uuid4` en Python; `DateTime(timezone=True)` + `server_default=now()`; todo constraint con nombre propio; único parcial para el borrado lógico.
+- Los valores permitidos de cada `CHECK` salen de `game/constants.py` y de los enums de `game/*_engine.py`: motor y base no pueden divergir sin que la migración lo delate.
+- Un `CHECK` que evalúa a `NULL` **no viola nada** (SQL trata "desconocido" como válido): para claves ausentes de un `jsonb`, `IS NOT DISTINCT FROM`, nunca `=`.
+- El `uuid` de PK lo genera Python, así que un `INSERT` crudo por `psql` tiene que mandar el `id` a mano; el ORM lo hace solo.
+- Las columnas de las rondas espejan `RoundRecord` de cada motor: los nombres no se traducen.
+- Arcade: `ms` es obligatorio (mide la ventana agotada) y el estado `invalid` es el que saca una corrida del ranking.
+- Los riesgos al escalar están anotados en el chat, no en el código: purgar salas y corridas viejas, GIN para `tags`, único en `email`, `TABLESAMPLE` para elegir preguntas. Nada urgente.
+- Todo lo de frontend es de otra persona: acá solo se toca `backend/`.
+- `docs/mvp-plan.md` es referencia: no leerlo entero, consultarlo por fragmento.
