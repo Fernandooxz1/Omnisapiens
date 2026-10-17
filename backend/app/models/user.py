@@ -34,10 +34,13 @@ class User(Base):
         CheckConstraint(
             "nick = btrim(nick) AND char_length(nick) >= 1", name="nick_normalized"
         ),
-        # Único entre vivos: un usuario borrado lógico libera su nick.
+        # Único por nick **sin distinguir mayúsculas**: para cualquiera que los lea,
+        # "Ana" y "ana" son el mismo nombre y en una sala el nick es lo único que
+        # dice con quién estás jugando. Parcial, porque un usuario borrado lógico
+        # libera su nick.
         Index(
             "uq_users_nick",
-            "nick",
+            func.lower(nick),
             unique=True,
             postgresql_where=text("deleted_at IS NULL"),
         ),

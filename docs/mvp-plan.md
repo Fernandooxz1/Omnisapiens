@@ -377,7 +377,7 @@ La letra chica —constraints con nombre propio, índices parciales, `CHECK` que
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | uuid PK | |
-| `nick` | varchar(16) | único **entre vivos**: el índice es parcial (`WHERE deleted_at IS NULL`), así un usuario borrado lógico no bloquea su nick para siempre |
+| `nick` | varchar(16) | único **entre vivos y sin distinguir mayúsculas**: el índice es funcional sobre `lower(nick)` y parcial (`WHERE deleted_at IS NULL`). Con mayúsculas, `Ana` y `ana` convivían como dos usuarios y en una sala el nick es la única identificación; parcial, un usuario borrado lógico libera su nick |
 | `is_guest` | boolean | default `true` |
 | `email` | varchar(255) | nulo en MVP |
 | `provider` | varchar(32) | nulo en MVP |

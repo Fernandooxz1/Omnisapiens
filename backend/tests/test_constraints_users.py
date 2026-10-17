@@ -63,6 +63,30 @@ async def test_a_deleted_user_does_not_free_a_live_nick(session: AsyncSession) -
     await rechaza(session, user(nick="juan"), motivo="uq_users_nick")
 
 
+async def test_a_nick_that_differs_only_in_case_is_rejected(
+    session: AsyncSession,
+) -> None:
+    # El índice es sobre `lower(nick)`: "Ana" y "ana" son el mismo nombre para
+    # cualquiera que los lea, y en una sala el nick es la única identificación.
+    await acepta(session, user(nick="Ana"))
+
+    await rechaza(session, user(nick="ana"), motivo="uq_users_nick")
+
+
+async def test_a_nick_that_differs_only_in_case_frees_itself_when_deleted(
+    session: AsyncSession,
+) -> None:
+    # Lo de arriba sin distinguir mayúsculas sigue siendo parcial: borrar "Ana"
+    # habilita "ana".
+    ana = user(nick="Ana")
+    await acepta(session, ana)
+
+    ana.deleted_at = datetime.now(UTC)
+    await session.commit()
+
+    await acepta(session, user(nick="ana"))
+
+
 async def test_defaults_of_a_new_user(session: AsyncSession) -> None:
     juan = user(nick="juan")
 

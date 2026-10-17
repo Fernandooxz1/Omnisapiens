@@ -63,6 +63,17 @@ async def test_a_taken_nick_is_rejected(client: httpx.AsyncClient) -> None:
     assert respuesta.json()["error"]["code"] == "NICK_TAKEN"
 
 
+async def test_a_nick_that_differs_only_in_case_is_taken_too(
+    client: httpx.AsyncClient,
+) -> None:
+    await client.post("/auth/guest", json={"nick": "Ana"})
+
+    respuesta = await client.post("/auth/guest", json={"nick": "ANA"})
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["error"]["code"] == "NICK_TAKEN"
+
+
 async def test_a_forbidden_nick_is_rejected(client: httpx.AsyncClient) -> None:
     respuesta = await client.post("/auth/guest", json={"nick": "puto"})
 
