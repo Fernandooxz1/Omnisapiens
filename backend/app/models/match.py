@@ -64,7 +64,7 @@ class Room(Base):
     # El host es quien crea la sala, y no "el primero que entra": la fila vive más
     # que las conexiones, así que una reconexión no cambia de dueño la sala.
     host_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
-    # varchar y no char: char(n) rellena con espacios y las comparaciones se vuelven sutiles.
+    # varchar y no char: char(n) rellena con espacios y compara raro.
     code: Mapped[str] = mapped_column(String(ROOM_CODE_LENGTH))
     config: Mapped[dict[str, int]] = mapped_column(JSONB)
     status: Mapped[str] = mapped_column(String(16), server_default="waiting")
@@ -134,7 +134,7 @@ class Match(Base):
 
 
 class MatchRound(Base):
-    """Una ronda resuelta, con todo lo necesario para recalcular su puntaje años después.
+    """Una ronda resuelta, con todo lo necesario para recalcularla años después.
 
     Las columnas espejan `RoundRecord` del motor: mismo nombre, mismo significado.
     """
@@ -187,12 +187,13 @@ class MatchRound(Base):
         # Sin respuesta no hay tiempo que medir, y al revés. El tope es la ventana:
         # `settle` no deja medir más que el tiempo que se mostró la pregunta.
         CheckConstraint(
-            "(a_choice IS NULL) = (a_ms IS NULL) AND (b_choice IS NULL) = (b_ms IS NULL)"
+            "(a_choice IS NULL) = (a_ms IS NULL)"
+            " AND (b_choice IS NULL) = (b_ms IS NULL)"
             " AND (a_ms IS NULL OR (a_ms >= 0 AND a_ms <= seconds * 1000))"
             " AND (b_ms IS NULL OR (b_ms >= 0 AND b_ms <= seconds * 1000))",
             name="times_consistent",
         ),
-        # Las mismas invariantes que ya garantiza `settle`: acá quedan escritas en piedra.
+        # Las mismas invariantes que ya garantiza `settle`, escritas en piedra.
         CheckConstraint(
             "a_correct = (a_choice IS NOT NULL AND a_choice = correct_index)"
             " AND b_correct = (b_choice IS NOT NULL AND b_choice = correct_index)",

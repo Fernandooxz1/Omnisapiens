@@ -246,9 +246,11 @@ async def test_the_host_starts_and_the_match_row_is_written(
     assert partida is not None
     assert str(partida.id) == arranque.match_id
     assert partida.room_id == fila.id
-    assert partida.player_a_id == ana.id and partida.player_b_id == beto.id
+    assert partida.player_a_id == ana.id
+    assert partida.player_b_id == beto.id
     assert partida.config == {"rounds": 3, "seconds": 10}
-    assert partida.status == "playing" and partida.ended_at is None
+    assert partida.status == "playing"
+    assert partida.ended_at is None
 
 
 async def test_only_the_host_starts(
@@ -278,14 +280,17 @@ async def test_the_match_ends_and_the_rounds_are_written(
 
     fin = uno(drain(a_out), MatchEnd)
     assert fin.reason == "completed"
-    assert fin.winner == "you" and fin.scores.you > 0 and fin.scores.opponent == 0
+    assert fin.winner == "you"
+    assert fin.scores.you > 0
+    assert fin.scores.opponent == 0
     assert uno(drain(b_out), MatchEnd).winner == "opponent"
 
     partida = await session.scalar(select(Match))
     assert partida is not None
     assert partida.status == "finished"
     assert partida.winner_id == ana.id
-    assert partida.score_a == fin.scores.you and partida.score_b == 0
+    assert partida.score_a == fin.scores.you
+    assert partida.score_b == 0
     assert partida.ended_at is not None
 
     rondas = (await session.scalars(select(MatchRound))).all()
@@ -313,7 +318,8 @@ async def test_the_clock_expires_a_round_and_serves_the_next_one(
 
     a_msgs = drain(a_out)
     resultado = uno(a_msgs, RoundResult)
-    assert resultado.round == 0 and resultado.you.correct
+    assert resultado.round == 0
+    assert resultado.you.correct
     assert not resultado.opponent.correct
     assert resultado.scores.you > 0
     assert uno(a_msgs, RoundStart).round == 1
@@ -350,9 +356,11 @@ async def test_the_clock_retries_and_survives_a_transient_database_error(
     await correr(h, 1_000)  # el reintento duerme el backoff, en el reloj falso
 
     fin = uno(drain(a_out), MatchEnd)
-    assert fin.reason == "completed" and fin.winner == "you"
+    assert fin.reason == "completed"
+    assert fin.winner == "you"
     partida = await session.scalar(select(Match))
-    assert partida is not None and partida.status == "finished"
+    assert partida is not None
+    assert partida.status == "finished"
 
 
 async def test_the_clock_gives_up_and_warns_after_repeated_database_errors(
@@ -387,7 +395,8 @@ async def test_the_clock_gives_up_and_warns_after_repeated_database_errors(
     assert uno(drain(b_out), Error).code == "ROOM_CLOCK_DOWN"
     # La fila quedó abierta a propósito: la cierra el barrendero, no el reloj.
     partida = await session.scalar(select(Match))
-    assert partida is not None and partida.status == "playing"
+    assert partida is not None
+    assert partida.status == "playing"
 
 
 async def test_the_clock_retries_a_next_round_that_failed_to_load(
@@ -417,10 +426,12 @@ async def test_the_clock_retries_a_next_round_that_failed_to_load(
 
     a_msgs = drain(a_out)
     resultado = uno(a_msgs, RoundResult)
-    assert resultado.round == 0 and resultado.you.correct
+    assert resultado.round == 0
+    assert resultado.you.correct
     assert uno(a_msgs, RoundStart).round == 1
     partida = await session.scalar(select(Match))
-    assert partida is not None and partida.status == "playing"
+    assert partida is not None
+    assert partida.status == "playing"
 
 
 async def test_a_disconnect_opens_the_grace_and_the_clock_abandons(
@@ -440,13 +451,15 @@ async def test_a_disconnect_opens_the_grace_and_the_clock_abandons(
     await correr(h, 20_000)
 
     fin = uno(drain(a_out), MatchEnd)
-    assert fin.reason == "abandoned" and fin.winner == "you"
+    assert fin.reason == "abandoned"
+    assert fin.winner == "you"
     assert fin.rounds == []  # no se resolvió ninguna ronda
     # Al que se fue se le soltó la cola: no acumula mensajes que nadie va a leer.
     assert drain(b_out) == []
     partida = await session.scalar(select(Match))
     assert partida is not None
-    assert partida.status == "abandoned" and partida.winner_id == ana.id
+    assert partida.status == "abandoned"
+    assert partida.winner_id == ana.id
     assert (await session.scalars(select(MatchRound))).all() == []
 
 
@@ -515,7 +528,8 @@ async def test_the_old_socket_closing_late_does_not_abandon_the_reconnected_play
 
     assert [m for m in drain(a_out) if isinstance(m, MatchEnd)] == []
     partida = await session.scalar(select(Match))
-    assert partida is not None and partida.status == "playing"
+    assert partida is not None
+    assert partida.status == "playing"
 
 
 async def test_the_rematch_starts_and_writes_a_new_match(
@@ -547,7 +561,8 @@ async def test_the_rematch_starts_and_writes_a_new_match(
     assert len(partidas) == 2
     nueva = next(partida for partida in partidas if partida.id != primera.id)
     assert str(nueva.id) == arranque.match_id
-    assert nueva.status == "playing" and nueva.ended_at is None
+    assert nueva.status == "playing"
+    assert nueva.ended_at is None
     assert primera.status == "finished"
 
 

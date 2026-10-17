@@ -78,7 +78,7 @@ def database() -> Iterator[None]:
     config = Config(str(BACKEND_DIR / "alembic.ini"))
     config.set_main_option("sqlalchemy.url", TEST_URL_STR)
     command.upgrade(config, "head")
-    yield
+    return
 
 
 @pytest.fixture(scope="session")

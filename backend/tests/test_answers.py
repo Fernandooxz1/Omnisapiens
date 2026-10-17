@@ -22,7 +22,7 @@ def test_served_question_derives_its_window() -> None:
 
 @pytest.mark.parametrize("seconds", [0, -5])
 def test_served_question_rejects_non_positive_seconds(seconds: int) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="seconds debe ser positivo"):
         ServedQuestion(
             round_index=0,
             question_id="q",
@@ -34,7 +34,7 @@ def test_served_question_rejects_non_positive_seconds(seconds: int) -> None:
 
 @pytest.mark.parametrize("difficulty", [0, 6])
 def test_served_question_rejects_difficulty_out_of_range(difficulty: int) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="dificultad fuera de rango"):
         ServedQuestion(
             round_index=0,
             question_id="q",
@@ -46,7 +46,7 @@ def test_served_question_rejects_difficulty_out_of_range(difficulty: int) -> Non
 
 @pytest.mark.parametrize("choice", [-1, 4, 99])
 def test_answer_rejects_choice_out_of_range(choice: int) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="choice fuera de rango"):
         Answer(round_index=0, choice=choice, answered_at_ms=0)
 
 

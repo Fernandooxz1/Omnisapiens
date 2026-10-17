@@ -1,4 +1,5 @@
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -36,7 +37,7 @@ async def _sweep_on_startup() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await _sweep_on_startup()
     yield
     # El estado de las salas vive en memoria: al apagar hay que cortar sus tareas
@@ -68,9 +69,9 @@ app.include_router(room_ws.router)
 
 
 @app.get("/")
-def init():
+def init() -> dict[str, str]:
     return {
         "name": "OMNIAPI",
         "version": "0.1",
-        "description": "Prueba que de que el metodo GET para localhost:8000/ si funciona",
+        "description": "Prueba del metodo GET en localhost:8000/",
     }

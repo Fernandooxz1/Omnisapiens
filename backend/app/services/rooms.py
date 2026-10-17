@@ -18,7 +18,7 @@ class RoomCodeCollision(Exception):
 
 
 def generate_room_code() -> str:
-    # `secrets` y no `random`: el código es la llave de la sala, tiene que ser impredecible.
+    # `secrets` y no `random`: el código es la llave de la sala.
     return "".join(secrets.choice(ROOM_CODE_ALPHABET) for _ in range(ROOM_CODE_LENGTH))
 
 

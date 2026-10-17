@@ -67,7 +67,8 @@ class Question(Base):
         ),
         CheckConstraint("language IN ('es')", name="language_known"),
         CheckConstraint(
-            f"prompt = btrim(prompt) AND char_length(prompt) BETWEEN 1 AND {PROMPT_MAX_LENGTH}",
+            "prompt = btrim(prompt) AND char_length(prompt) BETWEEN 1 AND "
+            f"{PROMPT_MAX_LENGTH}",
             name="prompt_clean",
         ),
         CheckConstraint(

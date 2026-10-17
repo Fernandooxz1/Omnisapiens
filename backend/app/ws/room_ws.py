@@ -17,6 +17,7 @@ Tres cosas que sorprenden a primera vista:
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 from typing import Annotated, Any, TypeGuard
@@ -95,7 +96,7 @@ async def room_socket(
             store,
             code=codigo,
             user_id=user_id,
-            timeout=settings.ws_idle_timeout_seconds,
+            idle_s=settings.ws_idle_timeout_seconds,
         )
     )
     writer = asyncio.create_task(_writer(websocket, send_lock, outbox))
@@ -139,12 +140,12 @@ async def _reader(
     *,
     code: str,
     user_id: str,
-    timeout: float,
+    idle_s: float,
 ) -> None:
     """Lee el socket y traduce. Vuelve cuando el cliente se va o se queda mudo."""
     while True:
         try:
-            raw = await asyncio.wait_for(websocket.receive_text(), timeout)
+            raw = await asyncio.wait_for(websocket.receive_text(), idle_s)
         except WebSocketDisconnect:
             return
         except TimeoutError:
@@ -244,7 +245,7 @@ def _parse(raw: str) -> tuple[str, dict[str, Any], str | None] | None:
 
 
 def _answer(datos: dict[str, Any]) -> tuple[int, int] | None:
-    """`(ronda, opción)` si los dos son enteros. `bool` es subclase de `int`: se descarta."""
+    """`(ronda, opción)` si los dos son enteros. `bool` es `int`: se descarta."""
     ronda = datos.get("round")
     eleccion = datos.get("choice")
     if not _is_int(ronda) or not _is_int(eleccion):
@@ -282,8 +283,6 @@ def _is_gone(error: BaseException) -> bool:
 
 
 async def _close(websocket: WebSocket) -> None:
-    """Cierra el socket si todavía está abierto; si el cliente ya se fue, no hay nada que hacer."""
-    try:
+    """Cierra el socket si sigue abierto; si el cliente se fue, no hay más que hacer."""
+    with contextlib.suppress(WebSocketDisconnect, WebSocketDisconnected):
         await websocket.close()
-    except (WebSocketDisconnect, WebSocketDisconnected):
-        pass

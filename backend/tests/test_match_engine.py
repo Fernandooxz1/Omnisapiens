@@ -63,9 +63,9 @@ def play(
 
 
 def test_config_only_accepts_planned_values() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="rounds no permitido"):
         MatchConfig(rounds=4, seconds=20)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="seconds no permitido"):
         MatchConfig(rounds=3, seconds=15)
 
 
@@ -116,7 +116,7 @@ def test_served_round_uses_configured_seconds() -> None:
 
 
 def test_difficulty_outside_the_round_tier_is_rejected() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="fuera del tramo"):
         served(state(), difficulty=4)
 
 
@@ -264,10 +264,10 @@ def test_round_indices_must_be_consecutive() -> None:
         b_rejected=None,
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="consecutivas"):
         MatchState(config=config(), rounds=(record,))
 
 
 def test_finished_match_needs_a_winner() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="necesita ganador"):
         MatchState(config=config(), status=MatchStatus.FINISHED)

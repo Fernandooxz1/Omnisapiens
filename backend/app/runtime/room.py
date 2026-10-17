@@ -233,12 +233,12 @@ def answer(
 
     idx = _index(slot)
     if round_.answers[idx] is not None:
-        # Repetir la respuesta no cambia nada: el cliente puede reenviarla al reconectar.
+        # Repetir la respuesta es idempotente: el cliente puede reenviarla.
         return state, {}
     if choice not in CHOICES:
         return state, {user_id: (_error("BAD_CHOICE", "Opción fuera de rango"),)}
 
-    # La ventana la juzga `settle` (en el motor), no acá: una sola definición de qué cuenta.
+    # La ventana la juzga `settle`: una sola definición de qué cuenta.
     answers = _with_answer(
         round_.answers,
         idx,
@@ -274,7 +274,7 @@ def disconnect(
         return room, _states(room)
 
     if room.status is RoomStatus.FINISHED:
-        # La revancha no prosperó: la sala queda disponible otra vez, con el mismo código.
+        # La revancha no prosperó: la sala vuelve a estar disponible.
         room = replace(
             room,
             status=RoomStatus.WAITING,

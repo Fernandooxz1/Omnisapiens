@@ -163,7 +163,8 @@ def resolve_round(
         )
     if served.round_index != state.round_index:
         raise InvalidTransition(
-            f"se resolvió la ronda {served.round_index} estando en la {state.round_index}"
+            f"se resolvió la ronda {served.round_index} estando en la "
+            f"{state.round_index}"
         )
     if correct_index not in CHOICES:
         raise ValueError(f"correct_index fuera de rango: {correct_index}")

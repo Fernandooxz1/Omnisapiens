@@ -17,7 +17,7 @@ Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redi
 
 El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`) y el barrendero cierra al arrancar lo que quedó abierto. Falta el resto del tiempo real: **el arcade por WS**.
 
-**Pausa acá:** **H-01, H-02, H-05, H-06, H-03, H-04 y `players` cerrados** (testeados y sabotajeados). Sigue **H-11**: `mypy strict`, `ruff select`, cobertura y CI.
+**Pausa acá:** **H-01, H-02, H-05, H-06, H-03, H-04, H-11 y `players` cerrados** (testeados y sabotajeados). Sigue **H-12 + H-08**: logging y sacar el token de los access logs.
 
 Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
@@ -37,14 +37,14 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - [x] **H-05 (P1)**: los 4 endpoints de escritura (`/auth/guest`, `POST /rooms`, `PATCH`/`DELETE /me`) commitean ellos antes de responder; `get_session` queda como red de seguridad (el `yield` de FastAPI se cierra *después* de la respuesta)
 - [x] **H-06 (P1)**: `room.start` sólo acepta `WAITING`: con la sala `finished` ya no se arranca una partida salteando el acuerdo de revancha + test
 - [x] **Barrendero (H-04 + H-03)**: `services/reaper.py` expira al arrancar las salas `waiting` vencidas y anula (`void`) las partidas `playing` más viejas que `STALE_MATCH_MINUTES`; `rooms.status` se sincroniza con la vida de la sala (`playing`/`finished`/`waiting`) y `expires_at` se refresca al arrancar; `RoomStore.open` desaloja las salas muertas + 5 tests
+- [x] **H-11 (calidad)**: `ruff select` (E/F/W/I/N/UP/B/SIM/ASYNC/RUF/PT), `mypy strict`, `pytest-cov` con umbral **85 %** en `make cov` (92 % real; `make test` queda rápido para corridas dirigidas) y CI de GitHub con Postgres 16 + Redis 7 (`.github/workflows/ci.yml`)
 
 ### Próximos pasos
 
 > Auditoría completa en `docs/observaciones.md` (2026-10-17): ≈60 % del backend.
-> Los dos P0 (H-01 y H-02), la presencia `players`, los P1 H-03/H-04/H-05/H-06 y el
-> barrendero están cerrados; sigue la cola de abajo.
+> Los dos P0 (H-01 y H-02), la presencia `players`, los P1 H-03/H-04/H-05/H-06, el
+> barrendero y H-11 están cerrados; sigue la cola de abajo.
 
-- [ ] **H-11**: `mypy strict`, `ruff select` (B, ASYNC, SIM...), `pytest-cov` con umbral y CI
 - [ ] **H-12 + H-08**: configurar logging y sacar el `?token=` de los access logs
 - [ ] **H-25**: barajar las opciones al servir (la correcta es B en 48 % de la semilla)
 - [ ] Barrendero periódico (no solo al arrancar): el mismo `sweep` en una task con intervalo, para que una sala `waiting` venza sin esperar un reinicio. Coordinar con H-03 (el estado vivo ya no existe para entonces) y con `expires_at` refrescado (H-04 ya lo hace)
@@ -108,6 +108,7 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - El reloj **no muere con el primer error de base**: reintenta con backoff y, agotados `MAX_EXPIRY_FAILURES`, avisa `ROOM_CLOCK_DOWN` a los sentados y se rinde (una sala sin reloj tiene que cortar, no quedarse muda). `_tick` aísla *una* vuelta del reloj para que el `except` del loop envuelva exactamente una y el `else` resetee el contador. Reintentar es seguro porque `_step` ya dejó el estado en memoria coherente con Postgres. Si una transición queda **debiendo** la ronda siguiente (la consulta de `_pick` falló), `retry_serve` la hace servir en la vuelta siguiente: no alcanza con mirar `needs_next_round`, porque `NO_QUESTIONS` también lo deja en `True` y ahí hay que esperar, no girar en vacío.
 - `room.start` sólo se acepta desde `WAITING` (H-06): con la sala `finished`, el único camino a otra partida es la revancha acordada; un `start` ahí la arrancaba salteando el acuerdo. Como `disconnect` devuelve la sala a `WAITING`, el flujo "se fue uno, entra otro, arrancamos" sigue andando.
 - `GET /rooms/{code}` informa `players` desde el `RoomStore` (presencia viva), no desde la base: la fila de `rooms` no sabe de conexiones. Por eso el store global es el mismo objeto que usa el WebSocket.
+- **La barra de calidad es un gate, no un adorno**: `ruff` con `select` (incluye `ASYNC`, `B`, `SIM`, `PT`), `mypy strict` y **92 % de cobertura** contra un umbral de 85 %. La cobertura **no** va en `addopts` a propósito: si estuviera, `pytest tests/test_room.py` fallaría por la cobertura global; `make test` corre rápido y `make cov` es el gate que usa el CI. `N818` queda ignorado: `NickTaken`/`InvalidTransition` se leen mejor sin el sufijo `Error`.
 - El reloj y el `sleep` se inyectan: el `FakeClock` de los tests no duerme, espera a que el test mueva la hora. Así una partida entera por vencimientos corre en milisegundos, sin esperar los 10–20 s reales de cada ronda.
 - Los tests del `room_manager` pasan la **sesión del test** como factory (su `commit` se vuelve SAVEPOINT): igual que la fixture `client`, sin ensuciar `trivia_test`.
 - La entrega es un `outbox` (cola) por jugador y no un callback: el vencimiento tiene que entregar sin que haya nadie esperando del otro lado, y el timer no conoce sockets. `disconnect` suelta esa cola: mensajes para un socket que ya no está no le sirven a nadie y se acumularían.

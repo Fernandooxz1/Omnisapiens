@@ -8,7 +8,7 @@ letras, y el `content_hash` sale del enunciado normalizado para no cargar dos
 veces la misma pregunta.
 
 Reglas que el importador repite de la base a propósito: las del `CHECK` (categoría
-conocida, dificultad 1–5, enunciado 1–300) más las que la base **no** puede
+conocida, dificultad 1-5, enunciado 1-300) más las que la base **no** puede
 expresar (opciones no vacías y distintas). Se valida acá para poder informar la
 fila exacta en vez de dejar reventar un `IntegrityError`.
 """
@@ -143,7 +143,8 @@ def validate_row(values: dict[str, Any]) -> ParsedRow:
     difficulty = int(dificultad_texto)
     if not DIFFICULTY_MIN <= difficulty <= DIFFICULTY_MAX:
         raise RowError(
-            f"la dificultad {difficulty} está fuera de {DIFFICULTY_MIN}-{DIFFICULTY_MAX}"
+            f"la dificultad {difficulty} está fuera de "
+            f"{DIFFICULTY_MIN}-{DIFFICULTY_MAX}"
         )
 
     prompt = _text(values.get("prompt"))

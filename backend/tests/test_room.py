@@ -13,7 +13,7 @@ from app.game.protocols import (
     RoundStart,
 )
 from app.game.protocols import RoomState as RoomStateMessage
-from app.runtime import room as R
+from app.runtime import room as R  # noqa: N812 — alias de todo el archivo
 from app.services.question_bank import LoadedQuestion, RoundQuestion
 
 HOST = "host-user"
@@ -106,8 +106,10 @@ def finished() -> R.RoomState:
 def test_host_sits_in_a_and_guest_in_b() -> None:
     state = joined(room())
 
-    assert state.seats[0] is not None and state.seats[0].user_id == HOST
-    assert state.seats[1] is not None and state.seats[1].user_id == GUEST
+    assert state.seats[0] is not None
+    assert state.seats[0].user_id == HOST
+    assert state.seats[1] is not None
+    assert state.seats[1].user_id == GUEST
 
 
 def test_a_third_player_is_rejected() -> None:
@@ -205,7 +207,8 @@ def test_round_result_swaps_sides_per_player() -> None:
 
     for_user = only(effects, HOST)
     against = only(effects, GUEST)
-    assert isinstance(for_user, RoundResult) and isinstance(against, RoundResult)
+    assert isinstance(for_user, RoundResult)
+    assert isinstance(against, RoundResult)
     assert for_user.you.correct is True
     assert for_user.opponent.correct is False
     assert for_user.scores.you == 148
@@ -290,7 +293,8 @@ def test_a_tie_opens_a_tiebreak_with_half_the_time() -> None:
         )
 
     assert state.status is R.RoomStatus.PLAYING
-    assert state.match is not None and state.match.in_tiebreak
+    assert state.match is not None
+    assert state.match.in_tiebreak
     assert difficulty_range(state.match) == (4, 5)
     state, effects = R.serve(state, question=question(difficulty=4), now_ms=100_000)
     assert only(effects, HOST).total_seconds == 10  # type: ignore[union-attr]
@@ -313,7 +317,8 @@ def test_disconnect_pauses_the_round_and_warns_the_other() -> None:
     )
 
     assert isinstance(only(effects, HOST), ReconnectPending)
-    assert state.round is not None and state.round.paused_since_ms == 5_000
+    assert state.round is not None
+    assert state.round.paused_since_ms == 5_000
     assert state.grace_deadline_ms == 25_000
 
 
@@ -355,10 +360,12 @@ def test_missing_the_grace_hands_the_win_to_the_present_player() -> None:
     state, effects = R.expire(state, now_ms=25_000)
 
     assert state.status is R.RoomStatus.FINISHED
-    assert state.match is not None and state.match.status is MatchStatus.ABANDONED
+    assert state.match is not None
+    assert state.match.status is MatchStatus.ABANDONED
     assert state.match.winner is Player.A
     end = only(effects, HOST)
-    assert isinstance(end, MatchEnd) and end.reason == "abandoned"
+    assert isinstance(end, MatchEnd)
+    assert end.reason == "abandoned"
 
 
 def test_both_gone_is_a_void_match() -> None:
@@ -369,7 +376,8 @@ def test_both_gone_is_a_void_match() -> None:
 
     state, _ = R.expire(state, now_ms=23_000)
 
-    assert state.match is not None and state.match.status is MatchStatus.VOID
+    assert state.match is not None
+    assert state.match.status is MatchStatus.VOID
     assert state.match.winner is None
 
 
@@ -385,7 +393,8 @@ def test_rematch_needs_both_and_warns_the_other() -> None:
     assert not state.ready_for_rematch  # los pedidos se consumieron al arrancar
     assert state.status is R.RoomStatus.PLAYING
     assert state.match_id == "m2"
-    assert state.match is not None and state.match.round_index == 0
+    assert state.match is not None
+    assert state.match.round_index == 0
     assert state.round is None
     assert isinstance(only(effects, HOST), MatchStart)
     assert isinstance(only(effects, GUEST), MatchStart)
@@ -398,7 +407,8 @@ def test_rematch_after_finishing_starts_a_fresh_match() -> None:
     state, _ = R.rematch(state, user_id=HOST, match_id="m2")
     state, _ = R.rematch(state, user_id=GUEST, match_id="m2")
 
-    assert state.match_id == "m2" and state.match_id != first_match_id
+    assert state.match_id == "m2"
+    assert state.match_id != first_match_id
     assert state.match is not None
     assert state.match.rounds == ()  # historial en blanco, no el de la partida vieja
     assert state.needs_next_round
@@ -419,7 +429,8 @@ def test_leaving_a_finished_room_returns_it_to_waiting() -> None:
     state, _ = R.disconnect(state, user_id=GUEST, now_ms=200_000, grace_seconds=GRACE)
 
     assert state.status is R.RoomStatus.WAITING
-    assert state.match is None and state.match_id is None
+    assert state.match is None
+    assert state.match_id is None
 
 
 def test_sync_returns_the_state_and_the_round_in_course() -> None:

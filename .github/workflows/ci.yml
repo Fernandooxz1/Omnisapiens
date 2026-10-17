@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trivia
+          POSTGRES_PASSWORD: trivia
+          POSTGRES_DB: trivia
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ENV: ci
+      DATABASE_URL: postgresql+asyncpg://trivia:trivia@localhost:5432/trivia
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-secret-con-32-bytes-o-mas-para-no-avisar
+      ADMIN_TOKEN: ci-admin-token
+      CORS_ORIGINS: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen --project backend
+      - run: make lint
+      # La base de desarrollo tiene que estar migrada para que `check` compare.
+      - run: make migrate
+      - run: make check-schema
+      - run: make cov

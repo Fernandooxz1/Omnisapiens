@@ -108,7 +108,7 @@ class RoomStore(Protocol):
     async def rematch(self, *, code: str, user_id: str) -> None: ...
 
     def player_count(self, code: str) -> int:
-        """Cuántos jugadores hay conectados: la presencia que le falta a la vista previa."""
+        """Cuántos jugadores conectados: la presencia de la vista previa."""
         ...
 
     def seated(self, *, code: str, user_id: str) -> bool:
@@ -457,7 +457,8 @@ class InMemoryRoomStore:
             await session.commit()
 
     async def _close_match(self, entry: _Room, state: RoomState) -> None:
-        assert state.match is not None and state.match_id is not None
+        assert state.match is not None
+        assert state.match_id is not None
         match_id = uuid.UUID(state.match_id)
         async with self._sessions() as session:
             match = await session.get(Match, match_id)

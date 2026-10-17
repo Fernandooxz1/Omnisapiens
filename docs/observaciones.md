@@ -10,10 +10,10 @@
 > una línea del arcade.
 
 > **Estado (2026-10-17, tarde).** Resueltos y verificados: **H-01, H-02** (los dos
-> P0), **H-03, H-04, H-05, H-06** (P1), el `players` de `GET /rooms/{code}` y el
-> **barrendero**. Van marcados con ✅ en su título; el resto sigue vigente tal como
-> está escrito. El detalle de cada arreglo quedó en `docs/plan.md` (sección *Estado
-> de sesión*).
+> P0), **H-03, H-04, H-05, H-06, H-11** (P1/P2), el `players` de `GET /rooms/{code}`
+> y el **barrendero**. Van marcados con ✅ en su título; el resto sigue vigente tal
+> como está escrito. El detalle de cada arreglo quedó en `docs/plan.md` (sección
+> *Estado de sesión*).
 
 ---
 
@@ -42,14 +42,15 @@ Comandos y resultado exacto, para que sea verificable:
 | Verificación | Comando | Resultado |
 |---|---|---|
 | Lint | `uv run ruff check .` | `All checks passed!` |
-| Formato | `uv run ruff format --check .` | `78 files already formatted` |
-| Tipos | `uv run mypy app` | `Success: no issues found in 47 source files` |
+| Formato | `uv run ruff format --check .` | `80 files already formatted` |
+| Tipos | `uv run mypy app` | `Success: no issues found in 48 source files` |
 | Schema | `uv run alembic check` | `No new upgrade operations detected.` |
-| Tests | `uv run pytest -q` | **419 passed in ~10 s**, 95 warnings (la auditoría corrió con 408; los arreglos sumaron 11) |
+| Tests | `uv run pytest -q` | **419 passed in ~10 s**, sin warnings (la dev key se filtra en tests, H-21) |
 
-Los 93 warnings son todos el mismo: `InsecureKeyLengthWarning`, el `JWT_SECRET` de
-dev mide 18 bytes. Está anotado en el plan y es correcto anotarlo, pero mientras
-siga, cualquier warning nuevo se pierde en el ruido (ver **H-21**).
+Los warnings eran todos el mismo: `InsecureKeyLengthWarning`, el `JWT_SECRET` de
+dev mide 18 bytes. Ya no ensucian la salida de los tests (filtro en
+`[tool.pytest.ini_options]`), pero la deuda de fondo sigue en **H-21**: el secreto de
+dev tiene que medir 32 bytes o más.
 
 **Método.** Leí línea por línea `runtime/`, `ws/`, `api/`, `services/`, `models/`,
 `game/`, `security/`, `alembic/` y los tests. Para los hallazgos de concurrencia no
@@ -81,8 +82,8 @@ objetiva. El "%" es contra el backend terminado (el frontend no cuenta acá).
 | Barrendero (salas vencidas, matches colgados) | completo (al arrancar) | **100** | barrido periódico (opcional) |
 | Redis (ranking, rate limit, Pub/Sub) | solo historial de vistas | **15** | sorted sets, límites, multi-instancia |
 | Concurrencia / ciclo de vida de sala | camino feliz, P0 y fugas corregidos | **90** | H-07 (multi-instancia) |
-| Infra local (compose, Makefile, env) | completa | **70** | `README.md`, CI |
-| Tests | 419 verdes, sin cobertura medida; tests de carrera para H-01/H-02 y del barrendero | **80** | cobertura, CI |
+| Infra local (compose, Makefile, env) | completa, con CI | **90** | `README.md` |
+| Tests | 419 verdes, 92 % de cobertura, con tests de carrera | **95** | nada |
 | Frontend | **fuera de alcance de este repo** | — | lo hace otra persona |
 
 **Backend ponderado: ≈ 60 %** al cerrar la auditoría. Los arreglos de esta tarde
@@ -123,7 +124,7 @@ Cumplidos a nivel backend: **3,5 de 6** (el 1 y el 3 esperan al frontend/arcade)
 | Dependencias | 12 runtime + 5 dev | 2 son código muerto (H-16) |
 | Semilla | 60 preguntas, 10 por categoría | sesgo de posición (H-25) |
 | Plan | `docs/plan.md`, 1.357 líneas | documento único, como se acordó |
-| CI / README / cobertura | 0 / 0 / no se mide | los tres agujeros de calidad |
+| CI / README / cobertura | ✅ / ❌ / 92 % | queda el `README.md` |
 | Warnings | 93 (100 % idénticos, PyJWT key length) | ver H-21 |
 
 Lectura rápida: **la base es sólida y la verificación también; lo que falta es
@@ -455,7 +456,7 @@ Y ni acá ni en `room_ws._load_room` (`:127-132`) se mira `status`/`expires_at`:
 puede abrir el WS de una sala ya `expired` y el store la revive en memoria.
 Es parte del mismo agujero de H-04.
 
-### H-11. La barra de calidad está en el mínimo por defecto
+### H-11 — ✅ RESUELTO. La barra de calidad está en el mínimo por defecto
 
 - **mypy sin configuración**: no hay `[tool.mypy]` en `pyproject.toml` (sólo está
   listado como dependencia, línea 26). "Success: no issues" con mypy por defecto no
@@ -484,6 +485,14 @@ filterwarnings = ["ignore::jwt.warnings.InsecureKeyLengthWarning"]
 (y un workflow que corra `make lint && make test && make check-schema`, con Postgres
 y Redis como *services*). Empezar por `ASYNC` y `B`, que son los que hubieran
 encontrado cosas de esta clase.
+
+**✅ Implementado (2026-10-17).** `ruff` selecciona `E/F/W/I/N/UP/B/SIM/ASYNC/RUF/PT`
+(`N818` ignorado a propósito: los nombres de dominio se leen mejor sin `Error`);
+`mypy strict` en `pyproject.toml`; `pytest-cov` con **92 % real** y umbral 85 % en
+`make cov` (no en `addopts`, para que una corrida dirigida no falle por cobertura
+global); y `.github/workflows/ci.yml` con Postgres 16 y Redis 7 como servicios, que
+corre `make lint`, `make migrate`, `make check-schema` y `make cov`. Los 95 warnings
+quedaron filtrados en tests, con **0 warnings** en la salida.
 
 ### H-12. Sin configuración de logging, el tiempo real es ciego
 
@@ -542,7 +551,7 @@ detalle = "; ".join(f"{'.'.join(str(p) for p in e['loc'][1:])}: {e['msg']}" for 
 | H-18 | `GET /` devuelve un texto improvisado con typo ("Prueba que de que el metodo GET...") | `main.py:46-52` | borrar la ruta o devolver `{name, version}` en serio |
 | H-19 | `/health` responde **200 degradado** (db/redis en `error`) | `routers/health.py:28` | 503 si algo está mal; si no, ningún balanceador va a reaccionar |
 | H-20 | Mezcla de idiomas: handlers `crear_sala`/`vista_previa` en español, el resto en inglés | `rooms.py:16,24` | §15 del plan dice código en inglés; renombrar |
-| H-21 | 93 warnings idénticos tapan cualquier warning nuevo | `pytest` output | `JWT_SECRET` de dev a ≥ 32 bytes en `.env.example`; y `filterwarnings` para el caso de test |
+| H-21 | Warnings idénticos que tapan cualquier warning nuevo | `pytest` output | **mitad hecho:** `filterwarnings` en tests deja la salida limpia; **falta** subir el `JWT_SECRET` de dev a ≥ 32 bytes en `.env.example` |
 | ✅ H-22 | Drift de docs: el plan y `.env.example` quedaron al día (419 tests, ~10 s; `WS_IDLE_TIMEOUT_SECONDS` y `STALE_MATCH_MINUTES` listados) | `plan.md:16`, `.env.example` | mantener los números al día en el mismo paso |
 | H-23 | `GET /me` hace un `flush` por lectura (pisa `last_seen_at`) | `routers/me.py:19-20` | correcto, pero es una escritura por cada GET; si el frontend lo llama seguido, conviene un `UPDATE ... WHERE last_seen_at < now() - interval '1 minute'` |
 | H-24 | **El desempate no tiene tope**: si los dos siguen empatando, la partida no termina nunca (cada ronda de desempate es de `seconds//2` y suma más rondas) | `match_engine.py:207-217`, `:109-114` | un máximo de rondas de desempate (p.ej. 3) y, agotado, gana quien tenga mejor tiempo acumulado o se declara empate |
@@ -692,13 +701,13 @@ online; nada de eso debería esperar al arcade.
 | ✅ 4 | **H-05** commit en los 4 endpoints de escritura (+ corregir el principio en el plan) | el principio documentado hoy es falso; 4 líneas y un test | chico |
 | ✅ 5 | **H-04 + H-03 + barrendero**: `UPDATE ... WHERE status='waiting' AND expires_at < now()`, refresco de `expires_at` al arrancar y desalojo de salas muertas | el barrendero es el próximo paso y **hacerlo mal mata partidas vivas** | medio |
 | ✅ 6 | **H-06** `start` sólo desde `WAITING` | dos verdades para el mismo estado | trivial |
-| 7 | **H-11** `mypy strict`, `ruff select`, `pytest-cov`, CI | convierte a los puntos 1-6 en algo que no puede volver a pasar | chico |
+| ✅ 7 | **H-11** `mypy strict`, `ruff select`, `pytest-cov`, CI | convierte a los puntos 1-6 en algo que no puede volver a pasar | chico |
 | 8 | **H-12** logging + **H-08** sacar el token de los logs | sin logs, el punto 2 es invisible | chico |
 | 9 | **H-25** barajar opciones al servir + rebalancear la semilla | es lo que más rápido se va a notar jugando, y es una función pura | chico |
 | 10 | Fase 4: WS de arcade + persistencia + ranking + binario de Redis | el resto del MVP | grande |
 
-Los puntos 1-6 ya están **hechos**. Siguen el 7 (**H-11**: `mypy strict`, `ruff`,
-cobertura y CI) y el 8 (logging y token fuera de los logs).
+Los puntos 1-7 ya están **hechos**. Sigue el 8 (logging y token fuera de los logs)
+y, después, el rebalanceo de la semilla (H-25).
 
 ---
 
@@ -706,11 +715,14 @@ cobertura y CI) y el 8 (logging y token fuera de los logs).
 
 ```bash
 make up                      # Postgres 16 + Redis 7
-cd backend
-uv run ruff check . && uv run ruff format --check . && uv run mypy app
-uv run alembic check         # sin drift entre modelos y migraciones
-uv run pytest -q             # 419 verdes, ~10 s
+make lint                    # ruff (select) + format + mypy strict
+make check-schema            # alembic check: sin drift entre modelos y migraciones
+make test                    # 419 verdes, ~10 s (sin umbral)
+make cov                     # el gate: 92 % contra un umbral de 85 %
 ```
+
+El CI (`.github/workflows/ci.yml`) corre los mismos targets con Postgres y Redis como
+*services*.
 
 Para H-01: `test_the_old_socket_closing_late_does_not_abandon_the_reconnected_player`
 (reconectar con `Outbox` nuevo y después cerrar el viejo) — pasaba a fallar sin el guard.
@@ -742,6 +754,6 @@ justamente donde todavía no hay nadie mirando: el socket que se va tarde, el re
 que se muere callado y lo que nadie cierra al apagar. Ya están corregidos, con sus
 tests y sabotajes.
 
-Lo que sigue, en orden: **H-11** (`mypy strict`, `ruff select`, cobertura y CI),
-después **H-12 + H-08** (logging y token fuera de los access logs) y recién ahí el
-arcade.
+Lo que sigue, en orden: **H-12 + H-08** (logging y token fuera de los access logs),
+después **H-25** (barajar las opciones al servir) y recién ahí el arcade. La barra de
+calidad ya no es una promesa: `make lint`, `make cov` y el CI la hacen cumplir.

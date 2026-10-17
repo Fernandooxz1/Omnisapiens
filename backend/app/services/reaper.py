@@ -40,7 +40,7 @@ async def sweep(
     now: datetime | None = None,
     stale_after: timedelta | None = None,
 ) -> SweepResult:
-    """Marca lo vencido. Commitea: no corre dentro de un pedido (igual que el manager)."""
+    """Marca lo vencido. Commitea: no corre dentro de un pedido (como el manager)."""
     now = now or datetime.now(UTC)
     stale_after = stale_after or timedelta(minutes=settings.stale_match_minutes)
 

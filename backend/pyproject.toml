@@ -24,12 +24,30 @@ dev = [
     "httpx",
     "ruff",
     "mypy",
+    "pytest-cov>=7.1.0",
 ]
+
+[tool.ruff.lint]
+# El piso de flake8 (E/F) no ve nada de lo que importa acá: concurrencia
+# (`ASYNC`), bugs (`B`), simplificaciones (`SIM`) y estilo de tests (`PT`).
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "ASYNC", "RUF", "PT"]
+ignore = [
+    # Los nombres de dominio se leen sin sufijo: `NickTaken`, no `NickTakenError`.
+    "N818",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Las migraciones llevan expresiones DDL largas a propósito: se comparan como
+# texto contra Postgres y cortarlas las vuelve ilegibles.
+"alembic/versions/*" = ["E501"]
 
 [tool.ruff.lint.isort]
 # Sin esto ruff ve la carpeta alembic/ y trata al paquete `alembic` como
 # código propio, mezclándolo con app.* en el bloque de imports locales.
 known-third-party = ["alembic"]
+
+[tool.mypy]
+strict = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -37,3 +55,8 @@ asyncio_mode = "auto"
 # de sesión y los tests en uno por test, asyncpg fallaría con loops cruzados.
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+filterwarnings = [
+    # El secreto de dev mide 18 bytes: es un aviso de producción, no de test.
+    # Taparlo acá deja ver cualquier warning nuevo (H-21).
+    "ignore::jwt.warnings.InsecureKeyLengthWarning",
+]

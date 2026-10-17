@@ -1,4 +1,4 @@
-.PHONY: up down api migrate seed import check-schema test lint fmt
+.PHONY: up down api migrate seed import check-schema test cov lint fmt
 
 up:
 	docker compose up -d --wait
@@ -27,8 +27,13 @@ check-schema:
 test:
 	cd backend && uv run pytest
 
+# El gate de calidad: tests con cobertura mínima. `test` queda rápido y sin
+# umbral para poder correr un archivo suelto mientras se trabaja.
+cov:
+	cd backend && uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=85
+
 lint:
-	cd backend && uv run ruff check . && uv run mypy app
+	cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app
 
 fmt:
 	cd backend && uv run ruff format .

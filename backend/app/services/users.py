@@ -56,6 +56,6 @@ async def rename_user(session: AsyncSession, usuario: User, nick: str) -> User:
 
 
 async def soft_delete_user(session: AsyncSession, usuario: User) -> None:
-    """Baja lógica: la fila queda, el token deja de servir y el único parcial libera el nick."""
+    """Baja lógica: la fila queda, el token deja de servir y el nick se libera."""
     usuario.deleted_at = datetime.now(UTC)
     await session.flush()

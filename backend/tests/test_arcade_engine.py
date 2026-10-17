@@ -52,9 +52,9 @@ def test_seconds_progression(correct_count: int, expected: int) -> None:
 
 
 def test_negative_correct_count_raises() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="correct_count negativo"):
         difficulty_for(-1)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="correct_count negativo"):
         seconds_for(-1)
 
 
@@ -224,7 +224,7 @@ def test_correct_index_must_be_a_valid_choice() -> None:
         round_index=0, question_id="q", difficulty=1, seconds=20, served_at_ms=0
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="correct_index fuera de rango"):
         resolve(ArcadeRun(), served, correct_index=7, answer=None)
 
 
@@ -242,5 +242,7 @@ def test_correct_index_must_be_a_valid_choice() -> None:
     ],
 )
 def test_impossible_states_are_rejected(overrides: dict[str, object]) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match=r"fuera de rango|negativo|streak|se contradicen"
+    ):
         ArcadeRun(**overrides)  # type: ignore[arg-type]

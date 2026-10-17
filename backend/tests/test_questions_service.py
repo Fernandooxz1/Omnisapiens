@@ -126,7 +126,9 @@ def test_candidates_spread_the_choice() -> None:
     [("nonsense", 3), ("science", 0), ("science", 6)],
 )
 def test_invalid_request_raises(category: str, difficulty: int) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match=r"categoría desconocida|dificultad fuera de rango"
+    ):
         select(pool(), category=category, difficulty=difficulty, rng=Random(1))
 
 
@@ -140,7 +142,10 @@ def test_invalid_request_raises(category: str, difficulty: int) -> None:
     ],
 )
 def test_candidate_validation(kwargs: dict[str, object]) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match=r"question_id vacío|categoría desconocida|dificultad fuera de rango",
+    ):
         Candidate(
             **{"question_id": "q", "category": "science", "difficulty": 3, **kwargs}
         )  # type: ignore[arg-type]
