@@ -23,17 +23,17 @@ El agente **escribe todo el código**: backend, tests, migraciones y configuraci
 
 ## Contexto del proyecto
 
-- Proyecto: **Omnisapiens** (trivia online). Plan en `docs/mvp-plan.md`; diseño detallado de datos en `docs/capa-de-datos.md`.
+- Proyecto: **Omnisapiens** (trivia online). Todo vive en `docs/plan.md`: el estado de sesión, el plan del MVP y, como Anexo A, el diseño de la capa de datos y servicios.
 - Stack: FastAPI + Python, SvelteKit + TypeScript, PostgreSQL + Redis, WebSocket. Proyecto `uv` (como Gradle, pero para Python) con CPython 3.12.
 - El alumno viene de Java: usá analogías con ese mundo.
 - El alumno **nunca hizo un proyecto web**: no conoce frontend/backend modernos ni cómo se publica una app web. Sí conoce Java y lógica de programación.
 - Estructura: **`backend/` y `frontend/`** como carpetas hermanas. Si el plan menciona `apps/api` o `apps/web`, es un remanente viejo.
 - El foco es el **backend**; el `frontend/` lo hará otra persona. El agente lo toca solo si un paso del backend necesita una pantalla mínima para probarse, sin invertir esfuerzo ahí.
 
-## Memoria de sesión (`docs/estado.md`)
+## Memoria de sesión (`docs/plan.md`, sección Estado)
 
-- **Al iniciar cualquier sesión**, leer `docs/estado.md` antes de responder. De ahí sale el estado y el próximo paso.
+- **Al iniciar cualquier sesión**, leer la sección **Estado de sesión** al principio de `docs/plan.md` antes de responder. De ahí sale el estado y el próximo paso.
 - Mientras se avanza, marcar lo hecho con `[x]` y agregar tareas nuevas `[ ]` al final de la cola.
-- Al cerrar un paso (o cada 2–3 tareas), actualizar `docs/estado.md`: reflejar lo completado, **podar** lo viejo y rellenar la cola hasta ~10 próximos pasos.
-- Mantenerlo **corto (una pantalla)**. Si crece, resumir lo hecho y borrar lo completado antiguo.
-- El plan detallado es `docs/mvp-plan.md`; no duplicarlo acá. **No leerlo entero**: se consulta por fragmento (grep, o `read` con `offset`/`limit`) solo cuando el paso en curso lo requiera.
+- Al cerrar un paso (o cada 2–3 tareas), actualizar esa sección: reflejar lo completado, **podar** lo viejo y rellenar la cola hasta ~10 próximos pasos.
+- Mantenerla **corta (una pantalla)**. Si crece, resumir lo hecho y borrar lo completado antiguo.
+- El plan detallado sigue en el mismo `docs/plan.md`; no duplicarlo en la sección de estado. **No leer el plan entero**: se consulta por fragmento (grep, o `read` con `offset`/`limit`) solo cuando el paso en curso lo requiera.

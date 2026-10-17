@@ -1,6 +1,111 @@
-# Trivia Online — Plan de implementación del MVP
+# Omnisapiens
 
-> Documento de arranque. Está pensado para que un agente o un desarrollador lo lea de punta a punta y pueda empezar a construir sin preguntar nada más.
+Trivia online. Backend: FastAPI + Python (proyecto `uv`, CPython 3.12), PostgreSQL 16 +
+Redis 7 por `docker compose`, WebSocket. Frontend: SvelteKit + TypeScript (lo hace otra
+persona; acá solo se toca `backend/`).
+
+> **Documento único.** Arriba, el **estado de sesión**: se lee al empezar y se poda en
+> cada paso. Después, el **plan de implementación del MVP**; y al final, como
+> **Anexo A**, el diseño de la **capa de datos y servicios**. El plan se consulta por
+> fragmento (grep o `read` con `offset`/`limit`): no hace falta leerlo entero.
+
+## Estado de sesión
+
+### Dónde estamos
+
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`) y el importador están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **386 tests en ~15 s** contra Postgres y Redis reales.
+
+**Todavía no hay WebSocket.** La identidad y las salas ya andan por HTTP: `/me` (perfil, nick, baja) y `/rooms` (crear + vista previa). El protocolo de mensajes (`game/protocols.py`) y la **máquina de estados pura de la sala** (`runtime/room.py`) están hechos; falta la parte con lock, entrega y timers: `runtime/room_manager.py`.
+
+**Pausa acá:** `runtime/room.py` (lobby, rondas, desempate, gracia, revancha) quedó cerrado y verificado con `tests/test_room.py` (ruff/format/mypy en verde). Sigue el `RoomStore` real (`room_manager.py`): lock por sala, sink de entrega y task de vencimientos.
+
+> Pendiente en `/rooms`: la vista previa devuelve `host_nick` y no "cuántos jugadores hay", porque la presencia vive en el WS (aún sin hacer). Se suma cuando exista `RoomStore`.
+
+Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
+
+### Hecho
+
+- [x] Base del repo: `.gitignore`, `.editorconfig`, `AGENTS.md`, `docker-compose.yml`, `Makefile`, `/health` con lifespan
+- [x] `app/game/` (motor puro) + `app/services/questions.py` (selección sin repetición)
+- [x] `models/`: las 7 tablas (nombres propios, enums por `CHECK`, único parcial de `nick`) y Alembic async con `0001`–`0003` sobre base limpia; `make check-schema` en verde
+- [x] Tests contra Postgres real (`trivia_test` recreada por sesión, rollback por test con SAVEPOINT): constraints con motivo exigido, guardia de schema y harness, cada uno validado con sabotaje
+- [x] Host de la sala = quien la crea (`rooms.host_user_id`); nick único sin distinguir mayúsculas (`lower(nick)`, parcial). `alembic check` resultó **ciego a los `CHECK`** (ve tablas, columnas, tipos, defaults, índices, unique y FK)
+- [x] Capa HTTP de entrada: `security/tokens.py` (JWT HS256) + `security/nicks.py` (limpieza, 1–16, prohibidas), `api/deps.py`, `api/errors.py`, `POST /auth/guest` y CORS
+- [x] Banco de preguntas (`services/question_bank.py`): candidatas publicadas de Postgres, `RoundQuestion` sin la respuesta correcta, y las vistas del arcade en Redis (tope 50, 24 h) con degradación si Redis no contesta
+- [x] Importador (`services/importer.py`): parseo CSV/JSON + validación puros (un motivo por fila) y carga a Postgres con `ON CONFLICT (content_hash) DO NOTHING`; informe de importadas/duplicadas/rechazadas
+- [x] `app/cli.py` (`import-questions`, `seed`) + `make seed` / `make import FILE=...` + 60 semilla publicadas (`seeds/questions.csv`, 10 por categoría) + `test_importer.py`
+- [x] Plan alineado con el código: §5.4, §8 (tablas), §12 (auth y códigos de error), §14 (desempate), §6 (árbol), §13 (import/semilla) y §18 (tests)
+- [x] `GET /me` (perfil + pisa `last_seen_at`), `PATCH /me` (nick, reemite token) y `DELETE /me` (baja lógica) con `get_current_user`; `UserOut`/`AuthOut`/`NickUpdate` en `schemas/users.py`
+- [x] `POST /rooms` (código de 6 sin ambiguos vía `secrets`, config por `field_validator` contra constants, host = creador, expira a `ROOM_IDLE_TIMEOUT_SECONDS`) + `GET /rooms/{code}` (preview, normaliza a mayúsculas, `ROOM_NOT_FOUND`)
+- [x] `game/protocols.py`: las formas del WS de salas (§10.1) como dataclasses + `encode` (sobre `{t, id, d}`); `round_start` sin `correct_index` por tipo
+- [x] `runtime/room.py`: máquina de estados pura de la sala (estado inmutable, transiciones con `now_ms` inyectado, mensajes por jugador) + `tests/test_room.py` (26 tests)
+
+### Próximos pasos
+
+- [ ] `runtime/room_manager.py`: el `RoomStore` (Protocol) con lock por sala, sink de entrega y task de vencimientos sobre `room.py`
+- [ ] `ws/room_ws.py`: el handler WebSocket sobre el `RoomStore`
+- [ ] Barrendero de salas/matches viejas al arrancar (hoy `expires_at` se escribe pero nadie la marca `expired`)
+- [ ] Arcade sobre WS + ranking + corte semanal en `America/Argentina/Buenos_Aires`
+- [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
+- [ ] `GET /rooms/{code}`: sumar `players` (presencia) cuando exista `RoomStore`
+- [ ] Pendiente de Fase 0: `README.md` con los cinco comandos de la sección 23
+- [ ] Página mínima para probar dos pestañas (la API sola ya se prueba con el smoke test de `/tmp`, fuera del repo)
+
+### Después
+
+- Fase 1: admin de preguntas y CI. Fases 2-4: partida completa y ranking. Fase 6: PWA, e2e, documentación.
+
+### Decisiones tomadas y trampas (no re-descubrir)
+
+- Molde de modelo: `Mapped[X]` decide el NOT NULL; `uuid4` en Python; `DateTime(timezone=True)` + `server_default=now()`; todo constraint con nombre propio; único parcial para el borrado lógico.
+- Los valores permitidos de cada `CHECK` salen de `game/constants.py` y de los enums de `game/*_engine.py`: motor y base no pueden divergir sin que la migración lo delate.
+- Un `CHECK` que evalúa a `NULL` **no viola nada**: para claves ausentes de un `jsonb`, `IS NOT DISTINCT FROM`, nunca `=`.
+- Sin `relationship()` en los modelos, el ORM no deduce el orden de los INSERT: en los tests lo ordena `acepta()` (un flush por tabla); el día que el repositorio inserte filas relacionadas, va a tener el mismo problema.
+- Alembic **nunca compara `CHECK`**: esas migraciones se escriben a mano y por eso existe la guardia de schema. Las FK sí las detecta, y un cambio en la **expresión de un índice** también (`remove_index` + `add_index`, con el `postgresql_where` intacto).
+- La verificación de una migración no es "mirar el archivo": se comparan inventarios de `pg_constraint`/`pg_indexes` de la base migrada contra el DDL de los modelos.
+- Un test que pasa no dice nada por sí solo: lo que prueba es el sabotaje.
+- Ojo con los tests que rompen dos reglas a la vez: el error que llega puede ser el de la otra. Aislar la fila inválida en vez de aflojar el `motivo`.
+- El host de la sala es **el creador** (`rooms.host_user_id`), no "el primero que entra": la fila vive más que las conexiones. En los tests, `room()` pide el id de un host ya insertado (como `match()` pide sus dos jugadores).
+- Una migración que agrega una columna `NOT NULL` sin default sobre una tabla con filas falla a propósito: en `0002` no hay host que inventarle a una sala vieja.
+- `get_session` commitea al final del pedido y hace rollback si algo revienta: los endpoints **no** commitean. El borde del pedido es el borde de la transacción.
+- El token se lee con `algorithms=[ALGORITHM]` explícito (sin eso, el `alg: none` clásico pasaría) y se atrapa `jwt.PyJWTError` entero: `InvalidTokenError` no cubre las fallas de clave o de algoritmo, que saldrían como 500.
+- Sin `Authorization` el usuario es `None`, pero con un token **roto** es 401 y no un usuario nuevo: ignorarlo le entregaría al cliente una identidad distinta sin avisarle. La identidad la manda el token, no el body.
+- Los tests de API usan la fixture `client` con `ASGITransport` y reemplazan `get_session` por la sesión del test: el pedido entra en la misma transacción y el rollback final lo deshace (sin eso, los tests de API ensuciarían la base y dependerían del orden).
+- El formato de error es `{"error": {"code", "message"}}` para todo lo que tenga código propio **y** para el 422 de validación. El 404 de ruta desconocida sigue siendo el de FastAPI: nadie le pega a una ruta que no existe.
+- El único de `nick` es funcional sobre `lower(nick)` y parcial: `Ana` y `ana` son el mismo nombre, y borrar una fila lógica lo libera. La guardia de schema compara texto de Postgres contra texto de Postgres (aplica el DDL de los modelos en un schema descartable y lo relee), así que un índice funcional no la rompe.
+- El Redis de los tests es el de desarrollo **en otra base** (`:6379/1` contra `/0`), igual que `trivia_test`: un `FLUSHDB` de los tests no toca el juego en curso. Por eso `pytest` ahora necesita Redis levantado, no solo Postgres.
+- `RoundQuestion` (lo que va al cliente) **no tiene** `correct_index` a propósito: la respuesta vive en `LoadedQuestion`, del lado del servidor. Un `hasattr` en el test lo vigila; si el campo vuelve al tipo, el test falla.
+- El historial de vistas del arcade degrada: si Redis no contesta se juega igual, sin historial, y la advertencia queda en el log. La sala no usa Redis para eso: el estado de la partida en memoria ya evita repetir, y duplicarlo sería una segunda verdad.
+- `JWT_SECRET` de dev tiene 18 bytes y PyJWT avisa (`InsecureKeyLengthWarning`): en prod tiene que tener 32 o más. Candidato a validación en `config.py` cuando exista `env != "local"`.
+- Todo lo de frontend es de otra persona: acá solo se toca `backend/`.
+- Este documento se mantiene alineado con el código en el mismo paso: el plan es lo que lee la próxima sesión.
+- La URL de la base **no** está en `alembic.ini`: sale de `.env` por `app.config.settings`. Un solo lugar donde se configura.
+- El `content_hash` (clave del `UNIQUE` de `questions`) se calcula sobre el enunciado **normalizado**: NFKD sin diacríticos, minúsculas, sin signos, espacios colapsados. "¿Cuál es el río?" y "Cual es el rio" son la misma pregunta, así que el importador no puede cargar dos.
+- El default del import es `draft` (§13.2); las 60 semilla entran `published` por flag (`make seed`), si no `candidates()` no las ve y no hay nada que jugar.
+- `import_rows` frena el duplicado **dentro del mismo archivo** en Python (diccionario de hashes): dos filas iguales en un solo `INSERT` no las cubre el `ON CONFLICT`, que solo ve lo ya cargado.
+- La CLI commitea a mano: `session_factory` no tiene el commit automático de `get_session` ("el borde del pedido es el borde de la transacción", pero acá no hay pedido).
+- El importador repite en Python los `CHECK` (categoría, dificultad, 1–300) y suma las reglas que la base no puede expresar (opciones no vacías y distintas, comparadas con `casefold`): así el informe trae la fila y el motivo, en vez de reventar con un `IntegrityError` sin contexto.
+- `get_current_user` **envuelve** a `get_optional_user` en vez de repetir la lectura del token: un solo camino de auth, y `POST /auth/guest` sigue usando la opcional.
+- `rename_user` NO hace un SELECT previo: el único parcial de `users` es el árbitro, y entre chequear y escribir hay una carrera. Atrapa `IntegrityError` y hace `rollback` (mismo patrón que `create_guest`); el costo es que en los tests eso descarta lo escrito en la transacción del test, así que un PATCH rechazado se verifica por status, no por fila.
+- `PATCH /me` reemite el token: el pase lleva el `nick` adentro y dejarlo viejo sería entregarle al cliente un pase que miente (aunque hoy la identidad se resuelva por `sub` contra la base).
+- `DELETE /me` es baja lógica (`deleted_at`) y responde 204: el mismo dep que lee el token rechaza al usuario borrado (401) y el único parcial libera el nick sin borrar la fila.
+- `GET /me` pisa `last_seen_at`: hasta este paso la columna se escribía una sola vez al crear el usuario y nunca más.
+- El perfil y el pase viven en `schemas/users.py` (`UserOut`, `AuthOut`, `NickUpdate`); `auth.py` los reimporta para que `/me` no dependa de un módulo de alta.
+- El código de sala se genera con `secrets` (no `random`): es la llave de la sala, tiene que ser impredecible. La colisión la arbitra el único de `code` con reintento, mismo patrón que el nick.
+- La config de `POST /rooms` se valida en el schema con `field_validator` contra `ONLINE_ROUNDS_OPTIONS`/`ONLINE_SECONDS_OPTIONS`: el valor malo sale 422 `VALIDATION_ERROR` (mismo formato que el resto) y no un `IntegrityError` del `CHECK`.
+- El `server_default="waiting"` de `rooms.status` no puebla el atributo en Python tras el `flush` (sin `eager_defaults`): por eso el POST devuelve solo `code`/`config` y el status se lee en el GET, que trae la fila desde la base.
+- La sala viva (`runtime/room.py`) es **estado inmutable + transiciones puras**: recibe `now_ms` y lo ya cargado (la `LoadedQuestion`, el `match_id`), y devuelve estado nuevo + mensajes. La base, los sockets, el reloj y el lock son de afuera: se testea sin nada levantado.
+- Los mensajes salen **por jugador** (`dict[user_id, mensajes]`), no como broadcast: `room_state` lleva `you` y `round_result`/`match_end` cambian de lado según quién mira. El error de un no sentado también viaja así.
+- El host se sienta siempre en `A` (calza con `rooms.host_user_id` / `matches.player_a_id`); el invitado en `B`. Un tercero recibe `ROOM_FULL`.
+- Al reanudar una ronda pausada se corre **todo** (arranque y respuestas ya dadas) por el hueco de la pausa: el tiempo medido de quien ya contestó no cambia y el reloj no gasta pausa. La gracia la fija el primer ausente.
+- Repetir una respuesta es idempotente (no cambia nada): al reconectar, el cliente puede reenviarla.
+- La última ronda de la partida emite `round_result` **y** `match_end` juntos: el resumen no necesita que el cliente recuerde la última revelación.
+
+---
+
+# Plan de implementación del MVP
+
+> Pensado para que un agente o un desarrollador pueda empezar a construir sin preguntar nada más. La **capa de datos y servicios** está detallada en el Anexo A, al final.
 > Idioma de la interfaz: **español**. Idioma del código, nombres de tablas, endpoints y variables: **inglés**.
 > Todo el MVP corre **local** en la máquina del dueño. No hay presupuesto de infraestructura.
 
@@ -266,12 +371,7 @@ trivia/
 │           │   └── LifeStrip.svelte
 │           └── design/tokens.ts
 └── docs/
-    ├── mvp-plan.md
-    ├── estado.md
-    ├── architecture.md
-    ├── game-rules.md
-    ├── design-system.md
-    └── questions-format.md
+    └── plan.md
 ```
 
 ---
@@ -372,7 +472,7 @@ make lint          # ruff + mypy + svelte-check
 
 PostgreSQL. Todo `snake_case`. UUID como clave primaria. Timestamps `timestamptz` en UTC.
 
-La letra chica —constraints con nombre propio, índices parciales, `CHECK` que replican las reglas del motor— está en **`docs/capa-de-datos.md`**. Acá queda el mapa de las tablas; cuando los dos documentos difieran, manda aquel.
+La letra chica —constraints con nombre propio, índices parciales, `CHECK` que replican las reglas del motor— está en el **Anexo A**. Acá queda el mapa de las tablas; cuando el plan y el anexo difieran, manda el anexo.
 
 ### `users`
 
@@ -1066,7 +1166,7 @@ Cada fase termina en algo que se puede abrir en el navegador y mirar. No se pasa
 **Criterios de aceptación**
 - La app es instalable desde el navegador y abre en modo standalone.
 - Playwright corre las dos pruebas de extremo a extremo en CI y pasan.
-- `docs/architecture.md`, `docs/game-rules.md`, `docs/design-system.md` y `docs/questions-format.md` están escritos y coinciden con el código.
+- `docs/plan.md` refleja el juego terminado y coincide con el código (producto, reglas y capa de datos en el Anexo A).
 - El README explica cómo cargar preguntas nuevas y cómo agregar una categoría.
 
 ### Fase 7 (opcional, posterior) — Preparado para publicar
@@ -1130,3 +1230,122 @@ No forma parte del MVP, pero queda preparado y documentado.
 5. Recién después, empezar la Fase 1.
 
 No adelantar fases. Cada fase se prueba en el navegador antes de seguir.
+# Anexo A — Capa de datos y servicios
+
+> Diseño de la capa de datos y servicios, plegado acá desde el viejo documento suelto.
+> Escrito antes de implementar `models/`, Alembic, repositorios y WebSocket, para no
+> refactorizar después: acá están las decisiones caras de cambiar.
+> Estado: **acordado y aplicado**. Los cuatro puntos marcados con ⚠️ (sección A8) están
+> confirmados e implementados en las migraciones `0001`–`0003`.
+
+## A1. Principios
+
+1. **Postgres es la fuente de verdad** de usuarios, preguntas e historial. Redis es caché y estado vivo: si se cae, el juego se degrada, no se rompe.
+2. **Cero migraciones descartables.** Lo irreversible se decide ahora; lo cosmético se decide cuando haga falta.
+3. **El tipo de retorno previene el bug**, no la disciplina del programador. Ejemplo: es imposible armar el mensaje de ronda con un objeto que incluya la respuesta correcta.
+4. **Nada de SQLite en tests.** No soporta `jsonb`, ni índices parciales, ni `CHECK` con regex: daría confianza falsa justo en lo que estamos diseñando.
+5. **Ningún estado inválido persistible**: toda regla que pueda vivir en un `CHECK` o en un índice único, vive ahí y no solo en Python.
+
+## A2. Decisiones irreversibles
+
+| # | Decisión | Por qué ahora |
+|---|---|---|
+| 1 | `MetaData(naming_convention=...)` desde la primera migración | Sin esto los constraints quedan anónimos y cada `drop_constraint` posterior es adivinanza. Retrofittearlo obliga a una migración de churn sobre todas las tablas |
+| 2 | Enums como `varchar` + `CHECK`, no `ENUM` nativo | Agregar una categoría es un `ALTER` de un check, no un `ALTER TYPE`; y queda grepeable en la migración |
+| 3 | `questions.options` como `jsonb` array de 4 | Es lo que el plan pide. El `CHECK` valida forma y largo; que las opciones no estén vacías ni repetidas se valida en Python (Postgres no admite subconsultas en un `CHECK`) |
+| 4 | `match_rounds` guarda `correct_index`, `difficulty` y `seconds` | Con esos campos cada fila es autosuficiente: se puede auditar y recomputar un puntaje histórico. Agregar columnas después es fácil; rellenar las viejas es imposible |
+| 5 | Hash de deduplicación con normalización congelada | `content_hash = sha256(texto normalizado)`. Si el algoritmo cambia, todos los hashes existentes quedan inválidos y entran duplicados. Se define una vez, con tests de vectores fijos |
+| 6 | Índice único **parcial** de `nick`: `UNIQUE (nick) WHERE deleted_at IS NULL` | Con un único global, un usuario con borrado lógico bloquea su nick para siempre |
+| 7 | Regla de desempate del ranking definida ahora | ⚠️ Propuesta: mejor puntaje `DESC`, y empate resuelto por **el momento más temprano en que ese jugador alcanzó ese puntaje**. El SQL del plan ordena por `MAX(ended_at) ASC`, que significa "quien jugó por última vez hace más tiempo va primero": arbitrario e inestable |
+
+## A3. Decisiones de arquitectura
+
+**A3.1 El tipo impide filtrar la respuesta correcta.** El repositorio devuelve dos formas distintas:
+
+- `RoundQuestion`: id, enunciado, opciones, categoría, dificultad. **Sin** índice correcto.
+- `GraderQuestion`: lo anterior más `correct_index` y explicación.
+
+La capa de WebSocket solo puede construir `round_start` con la primera. Filtrar la respuesta correcta exige pedir explícitamente la segunda, así que el error deja de ser un descuido posible. Test: el diccionario del mensaje no contiene la clave.
+
+**A3.2 La partida se escribe en dos momentos, no en cada ronda.** ⚠️ Me aparto del plan ("la base se escribe al terminar"):
+
+- Al arrancar: `INSERT` de la fila de `matches` con `status = playing`.
+- Al terminar: `UPDATE` del match + `INSERT` en bloque de `match_rounds`.
+
+Motivo: el estado `void` del plan necesita una fila que exista. Si solo se escribe al final, un proceso que muere en medio no deja rastro y `void` es inalcanzable. Sigue habiendo cero escrituras por ronda. Un barrendero al arrancar marca como `void` toda partida `playing` más vieja que N minutos.
+
+**A3.3 `score_a` / `score_b` son una copia derivada.** Se guardan para listados rápidos, y el único que los escribe es el motor, que los deriva del historial de rondas. Una sola verdad, una sola copia.
+
+**A3.4 `matches` con `player_a_id` / `player_b_id`, no tabla de jugadores.** Como pide el plan. "Mis últimas partidas" queda como `OR` entre dos índices: suficiente para 1v1 fijo. Cambiar a una tabla de jugadores es posible pero no gratis, y solo hace falta si alguna vez se juega de a más de dos.
+
+**A3.5 Ranking en Postgres, no en Redis.** Menos sincronización, menos bugs. Los sorted sets de Redis quedan para cuando se mida que hace falta.
+
+**A3.6 La interfaz del estado de sala se define ahora, la implementación después.** Es la pieza con más chance de reescritura. Se define un protocolo `RoomStore` y una implementación en memoria con `asyncio.Lock` por sala. Multi-instancia = nueva implementación de la misma interfaz, sin tocar a quien la usa.
+
+**A3.7 Redis caído no rompe el arcade.** Errores de Redis se atrapan y se loguean (mismo criterio que `/health`): el arcade degrada a repetir preguntas y el ranking sigue funcionando.
+
+## A4. Esquema
+
+Convenciones: todo `snake_case`, PK `uuid` nativa con `default=uuid.uuid4` (en Python, no en la base), timestamps `timestamptz` en UTC con `server_default=now()`.
+
+| Tabla | Integridad | Índices |
+|---|---|---|
+| `users` | PK uuid; `nick` 1–16 sin espacios sobrantes; `email`/`provider` nulos en MVP; `deleted_at` para borrado lógico | único parcial de `nick` entre vivos |
+| `questions` | PK uuid; `category` en 6 valores; `difficulty` 1–5; `prompt` ≤ 300; `options` jsonb array de 4; `correct_index` 0–3; `status` draft/published/archived; `content_hash` único; `media_type` none/image/audio con la regla "si no es none, `media_url` no es nulo" | `(status, category, difficulty)`; único en `content_hash` |
+| `rooms` | PK uuid; `host_user_id` FK a `users` (el creador es el host; la fila vive más que las conexiones); `code` char(6) único, con `CHECK` del alfabeto sin caracteres ambiguos; `config` jsonb; `status` waiting/playing/finished/expired | `(status, expires_at)`; `host_user_id` |
+| `matches` | PK uuid; FK a `rooms` y a los dos jugadores; `config` jsonb; `status` playing/finished/abandoned/void; `winner_id` nulo en empate y en void; `score_a`/`score_b` ≥ 0 | `(status, started_at)`, `player_a_id`, `player_b_id` |
+| `match_rounds` | PK uuid; FK a `matches` `ON DELETE CASCADE`; único `(match_id, round_index)`; elecciones 0–3 o nulas; `ms` ≥ 0; `points` ≥ 0; + `correct_index`, `difficulty`, `seconds` | FKs |
+| `arcade_runs` | PK uuid; FK a `users`; `score`, `correct_count`, `max_difficulty`, `longest_streak`; `status` playing/finished/invalid | `(user_id, score DESC)`, `(ended_at)`, `(score DESC)`, los tres parciales `WHERE status = 'finished'` |
+| `arcade_answers` | PK uuid; FK a `arcade_runs` `ON DELETE CASCADE`; único `(run_id, round_index)`; `chosen_index` nulo si no contestó; `is_correct`, `ms`, `points` | FKs |
+
+Detalles que quedan fijados:
+
+- **`config` jsonb** con forma `{"rounds": n, "seconds": s}`. Se serializa desde y se parsea hacia la misma clase `MatchConfig` del motor, así el formato no puede divergir entre el motor y la base.
+- **Anti-trampa**: `status = invalid` existe en el esquema; el umbral concreto (cantidad de respuestas imposibles) queda como constante a definir en `game/constants.py`.
+- **Corte semanal**: lunes 00:00 en `America/Argentina/Buenos_Aires`, calculado con `zoneinfo` y comparado como `timestamptz`.
+- **`last_seen_at`** se actualiza al crear sesión y al terminar una partida, no en cada request.
+- **Sin revocación de tokens**: el JWT de invitado no se puede invalidar antes de su vencimiento. Consecuencia aceptada del diseño sin sesiones en base.
+
+## A5. Migraciones y tests
+
+- `alembic/env.py` **async** sobre el engine de asyncpg, con `compare_type=True` y `compare_server_default=True` para que autogenerate no ignore cambios de tipo o de default.
+- **Una migración inicial** que crea todo. Nunca `create_all` en código de aplicación.
+- **`alembic check` en CI**: falla si los modelos y las migraciones se desincronizaron. Es el guardarraíl contra "funciona en mi máquina porque yo tenía la tabla".
+- Tests contra Postgres real, base `trivia_test`, migraciones una vez por sesión, cada test dentro de una transacción que se revierte. `pytest-asyncio` en modo `auto`.
+- Los tests de constraints son explícitos: se intenta insertar el dato inválido y se exige el error. Es la única forma de saber que el `CHECK` está donde creemos.
+
+## A6. Orden de implementación
+
+Cada paso termina con su verificación y no se pisa con el siguiente.
+
+| # | Paso | Verificación |
+|---|---|---|
+| 1 | `models/`: las 7 tablas, `MetaData` con convención, enums, checks | `mypy` limpio y autogenerate produce lo esperado |
+| 2 | `alembic.ini`, `env.py` async y migración inicial revisada a mano | `upgrade head` sobre base limpia y `alembic check` sin diferencias |
+| 3 | Fixtures de test con Postgres real y rollback por test | Un test por constraint, exigiendo el rechazo |
+| 4 | `api/deps.py` con `get_session`; `POST /auth/guest` + JWT + filtro de nicks | Endpoints con `httpx`: nick duplicado resuelto, palabra prohibida rechazada |
+| 5 | Repositorio de preguntas: candidatas desde Postgres (`RoundQuestion`), vistos desde Redis con degradación | Una partida de 7 rondas nunca repite; el payload no filtra el índice |
+| 6 | Importador CSV/JSON + `cli.py` + 60 preguntas semilla | Informe de importadas/duplicadas/rechazadas y vectores fijos del hash |
+| 7 | `game/protocols.py` (mensajes WS) y `RoomStore` en memoria con lock por sala | Tests de la máquina de estados de la sala |
+| 8 | `ws/room_ws.py`: lobby, presencia, arranque, rondas con el motor, desempate, gracia de 20 s, revancha | Partida completa entre dos clientes simulados, con desconexión y reconexión |
+| 9 | Arcade sobre WS + ranking + `leaderboard` con corte semanal | Test del lunes 00:00 local y de la regla de desempate |
+| 10 | Admin, README y CI completo | CI en verde de punta a punta |
+
+## A7. Lo que NO se hace
+
+- Nada de `create_all` en runtime, ni migraciones automáticas al arrancar la API.
+- Nada de estado de partida en Postgres mientras la partida ocurre (salvo la fila del match).
+- Nada de SQLite en tests.
+- Nada de escribir el estado vivo solo en Redis sin la interfaz `RoomStore` de por medio.
+- Nada de ranking por sorted sets de Redis en el MVP.
+
+## A8. Puntos a confirmar al arrancar
+
+1. ⚠️ Fila de `matches` al arrancar (A3.2) en vez de solo al terminar, para que `void` sea alcanzable.
+2. ⚠️ Desempate del ranking por el momento más temprano en que se alcanzó el mejor puntaje (decisión A7).
+3. ⚠️ Índice único parcial de `nick` para permitir reuso tras el borrado lógico (decisión A6).
+4. ⚠️ (confirmado 2026-10-17) El host de la sala es **quien la creó**, y se guarda en `rooms.host_user_id` (FK a `users` + índice). Una columna en la fila y no estado en memoria: la sala vive más que las conexiones, y el host es el único que elige la config y manda `start`.
+
+## A9. Relación con el plan general
+
+El **§9 del plan** sigue mandando en el producto, las reglas del juego y el protocolo de mensajes. Este anexo solo fija la capa de datos y servicios, y en los cuatro puntos marcados ⚠️ (sección A8) propone un cambio respecto del plan. Ya están confirmados y reflejados en el plan (secciones §8 y §14).
