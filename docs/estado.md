@@ -19,11 +19,12 @@ Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.openc
 - [x] 108 sondas de constraints contra el Postgres real, 0 fallas; commits `96f3b2e`, `a33e08c`, `b03e1f3` pusheados
 - [x] `alembic.ini` + `env.py` async (URL desde `.env`, `compare_type` y `compare_server_default`) y migración `0001`
 - [x] Verificación de la migración: `upgrade`/`downgrade`/`upgrade` sobre base limpia, `alembic check` limpio, y DDL migrado idéntico al de los modelos (79 columnas, 65 constraints, 23 índices); `make check-schema`
+- [x] Alcance real de `alembic check` medido: ve tablas, columnas, tipos, defaults, índices, unique y **FK** (probe con `ondelete`); es **ciego a los `CHECK`** en las 4 formas (agregar, cambiar, renombrar, borrar)
 
 ## Próximos pasos (orden del plan de capa de datos, §6)
 
-- [ ] Probar si `alembic check` **detecta un `CHECK` cambiado** (es la única comparación que no está probada)
-^- [ ] Fixtures con Postgres real (`trivia_test`): migraciones una vez por sesión, rollback por test
+- [ ] Fixtures con Postgres real (`trivia_test`): migraciones una vez por sesión, rollback por test
+- [ ] Test de guardia de schema: inventario de `pg_constraint`/`pg_indexes` de la base migrada == DDL de los modelos (lo que `alembic check` no ve)
 - [ ] Las 108 sondas se convierten en tests de pytest, uno por constraint
 - [ ] `api/deps.py` (`get_session`) + `POST /auth/guest` con JWT y filtro de nicks
 - [ ] Repositorio de preguntas (`RoundQuestion`, sin la respuesta correcta) + vistos en Redis
@@ -46,7 +47,8 @@ Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.openc
 - Arcade: `ms` es obligatorio (mide la ventana agotada) y el estado `invalid` es el que saca una corrida del ranking.
 - Los riesgos al escalar están anotados en el chat, no en el código: purgar salas y corridas viejas, GIN para `tags`, único en `email`, `TABLESAMPLE` para elegir preguntas. Nada urgente.
 - Todo lo de frontend es de otra persona: acá solo se toca `backend/`.
-- Alembic 1.20 **sí** autogenera `CHECK` (trae el plugin `autogenerate.compare.constraints`): la migración inicial salió completa, incluidos los parciales `WHERE` de los índices. Lo único no probado aún es si detecta un `CHECK` *modificado*.
+- Alembic **nunca compara `CHECK`**: en la migración inicial salieron porque la tabla era nueva (se emite el `CREATE TABLE` completo del metadata), no porque los compare. Cambiar, renombrar, agregar o borrar un `CHECK` en un modelo produce "No new upgrade operations detected". Esas migraciones se escriben a mano (`drop_constraint` + `create_check_constraint`) y por eso hace falta el test de guardia de schema.
+- Las FK sí se detectan, incluso un cambio de `ondelete` (aparece como `remove_fk` + `add_fk` y `alembic check` sale con 255).
 - La verificación de la migración no es "mirar el archivo": se comparan inventarios del `pg_constraint`/`pg_indexes` del schema migrado contra el DDL de los modelos. Es el control que va a repetirse cuando haya cambios de schema.
 - La URL de la base **no** está en `alembic.ini`: sale de `.env` por `app.config.settings`. Un solo lugar donde se configura.
 - `docs/mvp-plan.md` es referencia: no leerlo entero, consultarlo por fragmento.
