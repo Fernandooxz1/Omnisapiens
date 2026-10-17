@@ -13,11 +13,11 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas** y **el WebSocket de sala** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **414 tests en ~11 s** contra Postgres y Redis reales.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas**, **el WebSocket de sala** y **el barrendero** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **419 tests en ~10 s** contra Postgres y Redis reales.
 
-El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). Falta el resto del tiempo real: **el arcade por WS** y **el barrendero**. La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`).
+El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`) y el barrendero cierra al arrancar lo que quedó abierto. Falta el resto del tiempo real: **el arcade por WS**.
 
-**Pausa acá:** **H-01, H-02, H-05, H-06 y `players` cerrados** (testeados y sabotajeados). Sigue el **barrendero** —hecho a consciencia de H-04 (no matar partidas vivas) y H-03 (desalojar salas muertas)—.
+**Pausa acá:** **H-01, H-02, H-05, H-06, H-03, H-04 y `players` cerrados** (testeados y sabotajeados). Sigue **H-11**: `mypy strict`, `ruff select`, cobertura y CI.
 
 Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
@@ -36,19 +36,18 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - [x] `GET /rooms/{code}`: la vista previa muestra `players` (presencia viva del `RoomStore`) + test con una sala viva
 - [x] **H-05 (P1)**: los 4 endpoints de escritura (`/auth/guest`, `POST /rooms`, `PATCH`/`DELETE /me`) commitean ellos antes de responder; `get_session` queda como red de seguridad (el `yield` de FastAPI se cierra *después* de la respuesta)
 - [x] **H-06 (P1)**: `room.start` sólo acepta `WAITING`: con la sala `finished` ya no se arranca una partida salteando el acuerdo de revancha + test
+- [x] **Barrendero (H-04 + H-03)**: `services/reaper.py` expira al arrancar las salas `waiting` vencidas y anula (`void`) las partidas `playing` más viejas que `STALE_MATCH_MINUTES`; `rooms.status` se sincroniza con la vida de la sala (`playing`/`finished`/`waiting`) y `expires_at` se refresca al arrancar; `RoomStore.open` desaloja las salas muertas + 5 tests
 
 ### Próximos pasos
 
 > Auditoría completa en `docs/observaciones.md` (2026-10-17): ≈60 % del backend.
-> Los dos P0 (H-01 y H-02), la presencia `players` y los P1 H-05/H-06 están
-> cerrados; sigue la cola de abajo.
+> Los dos P0 (H-01 y H-02), la presencia `players`, los P1 H-03/H-04/H-05/H-06 y el
+> barrendero están cerrados; sigue la cola de abajo.
 
-- [ ] **H-04 (P1)**: el barrendero filtra `status='waiting'` y `expires_at` se refresca al arrancar la partida
-- [ ] **H-03 (P1)**: desalojar salas muertas: `_rooms` crece para toda la vida del proceso
 - [ ] **H-11**: `mypy strict`, `ruff select` (B, ASYNC, SIM...), `pytest-cov` con umbral y CI
 - [ ] **H-12 + H-08**: configurar logging y sacar el `?token=` de los access logs
 - [ ] **H-25**: barajar las opciones al servir (la correcta es B en 48 % de la semilla)
-- [ ] Barrendero al arrancar: salas con `expires_at` vencido → `expired`, y matches `playing` más viejos que N minutos → `void`
+- [ ] Barrendero periódico (no solo al arrancar): el mismo `sweep` en una task con intervalo, para que una sala `waiting` venza sin esperar un reinicio. Coordinar con H-03 (el estado vivo ya no existe para entonces) y con `expires_at` refrescado (H-04 ya lo hace)
 - [ ] Arcade sobre WS (`ws/arcade_ws.py`) + ranking + corte semanal en `America/Argentina/Buenos_Aires`
 - [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
 - [ ] Validar `JWT_SECRET` (≥ 32 bytes) cuando `env != "local"`
@@ -114,7 +113,9 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - La entrega es un `outbox` (cola) por jugador y no un callback: el vencimiento tiene que entregar sin que haya nadie esperando del otro lado, y el timer no conoce sockets. `disconnect` suelta esa cola: mensajes para un socket que ya no está no le sirven a nadie y se acumularían.
 - `disconnect` recibe el `outbox` de **su** conexión y no toca la silla si esa cola ya no es la vigente (H-01): un corte silencioso deja al socket viejo vivo hasta el timeout, y cuando por fin cierra no puede desmontar al jugador que ya reconectó. El `outbox` es único por conexión (`asyncio.Queue` nueva por handler), así que la comparación por identidad alcanza: no hace falta un contador de generación.
 - En los tests, `drain()` vacía la cola: dos `drain` seguidos para pedir dos tipos distintos descartan el que no se miró (un `uno(...)` que devuelve vacío). Un solo `drain` por tanda.
-- El barrendero queda pendiente y es el que cierra lo que nadie más cierra: una sala `playing` sin preguntas o un proceso que muere a mitad de partida dejan la fila abierta a propósito (§5.4).
+- El **barrendero** (`services/reaper.py`) corre al arrancar y cierra lo que nadie más cierra: una sala `playing` sin preguntas o un proceso que muere a mitad de partida dejan la fila abierta a propósito (§5.4). Son dos `UPDATE` con `returning` y un solo commit: salas `waiting` vencidas → `expired` y partidas `playing` más viejas que `STALE_MATCH_MINUTES` (15) → `void` con `ended_at`. Es idempotente y best-effort: si la base no contesta, la API arranca y el barrido se reintenta en el próximo arranque.
+- **H-04 es un filtro, no un detalle**: el barrido de salas filtra `status='waiting'`; una sala `playing` puede tener `expires_at` viejo. Para que el filtro signifique algo, `rooms.status` se sincroniza con la sala viva: `playing` al arrancar/revancha, `finished` al cerrar, `waiting` cuando se va alguien de una sala terminada. Al arrancar la partida también se refresca `expires_at` con `rounds × (seconds + gracia) + 60 s`, así la vista previa no sigue mostrando el vencimiento del lobby.
+- **H-03 se desaloja en `open`, no con otra tarea**: antes de crear una sala, `RoomStore` descarta las que no tienen `outbox`, no están `playing` y llevan más de `ROOM_IDLE_TIMEOUT_SECONDS` sin actividad (`last_activity_ms` se actualiza en cada transición). Como el mapa crece con las altas, una barrida por alta alcanza para que no crezca sin techo. Una entrada `expired` que se reabre se reemplaza por una sala fresca.
 - `authenticate` (`api/deps.py`) es la **única puerta de auth**: la usan el header `Authorization` de HTTP y el `?token=` del WebSocket (el navegador no deja headers en `new WebSocket`). Dos transportes, una regla.
 - El WS **acepta antes de autenticar**: un token malo tiene que poder recibir su `error` `AUTH_REQUIRED` por el socket (§12); si se cortara sin aceptar, el cliente no tendría por dónde enterarse. El rechazo de entrada (token, sala, sala llena) cierra con **1008**.
 - El handler hace `join` **al conectar**, no al `hello`: la presencia tiene que existir cuando el navegador abre la sala (Fase 2). `hello` → `sync` repinta el estado completo y, de paso, la ronda en curso con su `ends_at` original (§10.3).
@@ -312,6 +313,7 @@ trivia/
 │   │   │   ├── users.py          # alta del invitado
 │   │   │   ├── leaderboard.py
 │   │   │   ├── rooms.py
+│   │   │   ├── reaper.py         # barrendero: vencidos al arrancar
 │   │   │   └── importer.py       # CSV/JSON
 │   │   ├── api/
 │   │   │   ├── deps.py           # dependencias: sesión, usuario, admin

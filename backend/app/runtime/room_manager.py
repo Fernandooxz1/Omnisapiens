@@ -28,7 +28,7 @@ import uuid
 from collections.abc import Callable, Coroutine
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from random import Random
 from typing import Protocol
 
@@ -45,7 +45,7 @@ from app.game.match_engine import (
     RoundRecord,
     difficulty_range,
 )
-from app.models import Match, MatchRound
+from app.models import Match, MatchRound, Room
 from app.runtime import room
 from app.runtime.room import Effects, RoomState, Transition
 from app.services.question_bank import LoadedQuestion, candidates, load
@@ -139,6 +139,9 @@ class _Room:
     # reintenta. No se usa `needs_next_round` a secas porque el caso `NO_QUESTIONS`
     # también lo deja en `True` y ahí hay que esperar, no girar en vacío.
     retry_serve: bool = False
+    # Última vez que pasó algo (alta, join, transición). El alta de una sala nueva
+    # usa este dato para desalojar las que murieron sin que nadie las cierre (H-03).
+    last_activity_ms: int = 0
     task: asyncio.Task[None] | None = None
 
 
@@ -160,6 +163,7 @@ class InMemoryRoomStore:
         rng: Random | None = None,
         max_failures: int = MAX_EXPIRY_FAILURES,
         backoff_s: float = EXPIRY_BACKOFF_S,
+        idle_timeout_seconds: int = settings.room_idle_timeout_seconds,
     ) -> None:
         self._sessions = session_factory
         self._grace_seconds = grace_seconds
@@ -168,19 +172,46 @@ class InMemoryRoomStore:
         self._rng = rng or Random()
         self._max_failures = max_failures
         self._backoff_s = backoff_s
+        self._idle_timeout_ms = idle_timeout_seconds * 1000
         self._rooms: dict[str, _Room] = {}
 
     async def open(
         self, *, code: str, room_id: str, config: MatchConfig, host_id: str
     ) -> None:
-        if code in self._rooms:
+        actual = self._rooms.get(code)
+        if actual is not None and not self._evictable(actual):
             return
+        if actual is not None:
+            # La sala de ese código está muerta: se reemplaza por una fresca. Es
+            # el caso de una reconexión después del timeout de inactividad.
+            self._rooms.pop(code, None)
+            _cancel(actual)
+        self._evict_dead()
         entry = _Room(
             room_id=room_id,
             state=RoomState(code=code, config=config, host_id=host_id),
+            last_activity_ms=self._now_ms(),
         )
         self._rooms[code] = entry
         entry.task = asyncio.create_task(self._expiry_loop(entry))
+
+    def _evict_dead(self) -> None:
+        """Saca del mapa las salas que ya no pueden revivir (H-03).
+
+        Se corre en cada alta: como el mapa crece justamente con las altas, una
+        barrida por alta alcanza para que no crezca sin techo.
+        """
+        for codigo, entry in list(self._rooms.items()):
+            if self._evictable(entry):
+                self._rooms.pop(codigo, None)
+                _cancel(entry)
+
+    def _evictable(self, entry: _Room) -> bool:
+        return (
+            not entry.outboxes
+            and entry.state.status is not room.RoomStatus.PLAYING
+            and self._now_ms() - entry.last_activity_ms >= self._idle_timeout_ms
+        )
 
     async def join(self, *, code: str, user_id: str, nick: str, outbox: Outbox) -> None:
         entry = self._entry(code)
@@ -264,6 +295,10 @@ class InMemoryRoomStore:
             1 for seat in entry.state.seats if seat is not None and seat.connected
         )
 
+    def room_count(self) -> int:
+        """Salas vivas en memoria: la métrica que vigila el desalojo de H-03."""
+        return len(self._rooms)
+
     def seated(self, *, code: str, user_id: str) -> bool:
         entry = self._rooms.get(code)
         return entry is not None and entry.state.player_of(user_id) is not None
@@ -297,6 +332,7 @@ class InMemoryRoomStore:
         porque nadie vio todavía nada.
         """
         before = entry.state
+        entry.last_activity_ms = self._now_ms()
         after, effects = transition(before)
         entry.state = after
         try:
@@ -378,20 +414,21 @@ class InMemoryRoomStore:
             return await load(session, selection.question_id)
 
     async def _persist(self, entry: _Room, before: RoomState, after: RoomState) -> None:
-        """Las dos escrituras de §5.4, más la revancha, que abre una partida nueva."""
-        if after.match is None:
-            return
-        playing = after.match.status is MatchStatus.PLAYING
-        if playing and (
-            before.match is None or before.match.status is not MatchStatus.PLAYING
-        ):
+        """Las escrituras de §5.4, más el estado de la sala y la revancha."""
+        playing = after.match is not None and after.match.status is MatchStatus.PLAYING
+        was_playing = (
+            before.match is not None and before.match.status is MatchStatus.PLAYING
+        )
+        if playing and not was_playing:
             await self._write_match(entry, after)
+        elif was_playing and not playing:
+            await self._close_match(entry, after)
         elif (
-            before.match is not None
-            and before.match.status is MatchStatus.PLAYING
-            and not playing
+            before.status is room.RoomStatus.FINISHED
+            and after.status is room.RoomStatus.WAITING
         ):
-            await self._close_match(after)
+            # Se fue uno de una sala terminada: vuelve a estar disponible.
+            await self._reopen_room(entry)
 
     async def _write_match(self, entry: _Room, state: RoomState) -> None:
         assert state.match_id is not None
@@ -407,10 +444,19 @@ class InMemoryRoomStore:
             status=MatchStatus.PLAYING.value,
         )
         async with self._sessions() as session:
+            # La sala deja de ser `waiting` y su vencimiento pasa a ser el techo
+            # de la partida: si el barrendero mirara solo `expires_at`, una partida
+            # viva con la fecha vieja sería una víctima (H-04).
+            sala = await session.get(Room, uuid.UUID(entry.room_id))
+            if sala is not None:
+                sala.status = room.RoomStatus.PLAYING.value
+                sala.expires_at = datetime.now(UTC) + timedelta(
+                    seconds=self._match_ceiling_seconds(state)
+                )
             session.add(match)
             await session.commit()
 
-    async def _close_match(self, state: RoomState) -> None:
+    async def _close_match(self, entry: _Room, state: RoomState) -> None:
         assert state.match is not None and state.match_id is not None
         match_id = uuid.UUID(state.match_id)
         async with self._sessions() as session:
@@ -428,7 +474,31 @@ class InMemoryRoomStore:
             )
             match.ended_at = datetime.now(UTC)
             session.add_all(_round_rows(match_id, state.match.rounds))
+            sala = await session.get(Room, uuid.UUID(entry.room_id))
+            if sala is not None:
+                sala.status = room.RoomStatus.FINISHED.value
             await session.commit()
+
+    async def _reopen_room(self, entry: _Room) -> None:
+        """Una sala terminada vuelve al lobby: la fila tiene que decir lo mismo."""
+        async with self._sessions() as session:
+            sala = await session.get(Room, uuid.UUID(entry.room_id))
+            if sala is None:
+                return
+            sala.status = room.RoomStatus.WAITING.value
+            sala.expires_at = datetime.now(UTC) + timedelta(
+                seconds=self._idle_timeout_ms // 1000
+            )
+            await session.commit()
+
+    def _match_ceiling_seconds(self, state: RoomState) -> int:
+        """Techo de una partida: cada ronda con su ventana y una gracia por ronda.
+
+        Los desempates (H-24) pueden estirarlo; no importa para el barrido, que
+        nunca toca una sala `playing`. Es sobre todo para que la vista previa no
+        siga mostrando el vencimiento del lobby durante una partida.
+        """
+        return state.config.rounds * (state.config.seconds + self._grace_seconds) + 60
 
     async def _expiry_loop(self, entry: _Room) -> None:
         """Vence lo que el reloj tenga que vencer, sin polling.
@@ -516,6 +586,11 @@ class InMemoryRoomStore:
             despertar.cancel()
             await asyncio.gather(reloj, despertar, return_exceptions=True)
         return reloj in hechos and despertar not in hechos
+
+
+def _cancel(entry: _Room) -> None:
+    if entry.task is not None:
+        entry.task.cancel()
 
 
 async def _deliver(entry: _Room, effects: Effects) -> None:

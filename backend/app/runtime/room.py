@@ -38,7 +38,7 @@ from app.services.question_bank import LoadedQuestion
 
 
 class RoomStatus(StrEnum):
-    """Los mismos estados que `rooms.status` en la base, menos `expired`.
+    """Los mismos estados que `rooms.status` en la base.
 
     `expired` lo escribe el barrendero sobre la fila de Postgres; la sala viva no
     se "vence a sí misma": si nadie juega, se la lleva el timeout de inactividad.
@@ -47,6 +47,7 @@ class RoomStatus(StrEnum):
     WAITING = "waiting"
     PLAYING = "playing"
     FINISHED = "finished"
+    EXPIRED = "expired"
 
 
 @dataclass(frozen=True)

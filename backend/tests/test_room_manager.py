@@ -551,6 +551,57 @@ async def test_the_rematch_starts_and_writes_a_new_match(
     assert primera.status == "finished"
 
 
+async def test_the_room_row_follows_the_match_lifecycle(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    """H-04: la fila de `rooms` no puede quedarse en `waiting` toda la vida."""
+    h, ana, beto, fila = await sala_armada(session, abrir)
+    lobby_expira = fila.expires_at
+    a_out, _ = await sentar(h, fila, ana, beto)
+
+    await h.store.start(code=fila.code, user_id=str(ana.id))
+    await session.refresh(fila)
+    assert fila.status == "playing"
+    # El vencimiento pasa a ser el techo de la partida, no el del lobby.
+    assert fila.expires_at < lobby_expira
+
+    for ronda in range(3):
+        await jugar_ronda(h, fila, ana, beto, ronda)
+    await session.refresh(fila)
+    assert fila.status == "finished"
+
+    # Se va uno de la sala terminada: vuelve al lobby y la fila lo refleja.
+    await h.store.disconnect(code=fila.code, user_id=str(ana.id), outbox=a_out)
+    await session.refresh(fila)
+    assert fila.status == "waiting"
+
+
+async def test_a_dead_room_is_evicted_when_another_one_opens(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    """H-03: una sala sin conexiones ni partida no vive para siempre en `_rooms`."""
+    h, ana, beto, fila = await sala_armada(session, abrir)
+    a_out, b_out = await sentar(h, fila, ana, beto)
+    await h.store.disconnect(code=fila.code, user_id=str(ana.id), outbox=a_out)
+    await h.store.disconnect(code=fila.code, user_id=str(beto.id), outbox=b_out)
+    assert h.store.room_count() == 1
+
+    # Sin nadie conectado, al vencer el idle la sala es desalojable.
+    await correr(h, 600_000)
+    otra = room(ana.id, config={"rounds": 3, "seconds": 10})
+    session.add(otra)
+    await session.flush()
+    await h.store.open(
+        code=otra.code,
+        room_id=str(otra.id),
+        config=MatchConfig(rounds=3, seconds=10),
+        host_id=str(ana.id),
+    )
+
+    assert h.store.room_count() == 1
+    assert h.store.player_count(fila.code) == 0
+
+
 async def test_without_a_question_for_the_round_the_room_reports_it(
     session: AsyncSession, abrir: Callable[..., Harness]
 ) -> None:

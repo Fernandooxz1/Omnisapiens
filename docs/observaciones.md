@@ -10,16 +10,17 @@
 > una línea del arcade.
 
 > **Estado (2026-10-17, tarde).** Resueltos y verificados: **H-01, H-02** (los dos
-> P0), **H-05, H-06** (P1) y el `players` de `GET /rooms/{code}`. Van marcados con
-> ✅ en su título; el resto sigue vigente tal como está escrito. El detalle de cada
-> arreglo quedó en `docs/plan.md` (sección *Estado de sesión*).
+> P0), **H-03, H-04, H-05, H-06** (P1), el `players` de `GET /rooms/{code}` y el
+> **barrendero**. Van marcados con ✅ en su título; el resto sigue vigente tal como
+> está escrito. El detalle de cada arreglo quedó en `docs/plan.md` (sección *Estado
+> de sesión*).
 
 ---
 
 ## 0. Veredicto en cinco renglones
 
 El proyecto está **muy bien construido para tener 2 días de vida**: capas limpias,
-motor puro, constraints de verdad en Postgres, 414 tests que corren en ~11 segundos y
+motor puro, constraints de verdad en Postgres, 419 tests que corren en ~10 segundos y
 comentarios que explican el *porqué* y no el *qué*. El modo online —lo único
 jugable hoy— tenía **dos defectos serios de ciclo de vida**: una reconexión podía
 hacerte **perder la partida por un socket viejo**, y **cualquier error de base mataba
@@ -44,7 +45,7 @@ Comandos y resultado exacto, para que sea verificable:
 | Formato | `uv run ruff format --check .` | `78 files already formatted` |
 | Tipos | `uv run mypy app` | `Success: no issues found in 47 source files` |
 | Schema | `uv run alembic check` | `No new upgrade operations detected.` |
-| Tests | `uv run pytest -q` | **414 passed in ~11 s**, 95 warnings (la auditoría corrió con 408; los arreglos sumaron 6) |
+| Tests | `uv run pytest -q` | **419 passed in ~10 s**, 95 warnings (la auditoría corrió con 408; los arreglos sumaron 11) |
 
 Los 93 warnings son todos el mismo: `InsecureKeyLengthWarning`, el `JWT_SECRET` de
 dev mide 18 bytes. Está anotado en el plan y es correcto anotarlo, pero mientras
@@ -77,11 +78,11 @@ objetiva. El "%" es contra el backend terminado (el frontend no cuenta acá).
 | API HTTP de ranking (`/leaderboard/arcade`, `/me`) | no existe | **0** | endpoints + consulta §14 |
 | API HTTP de admin (listado + import) | no existe | **0** | 2 endpoints y el `X-Admin-Token` |
 | WS de arcade | no existe | **0** | `ws/arcade_ws.py` + persistencia de la corrida |
-| Barrendero (salas vencidas, matches colgados) | no existe | **0** | la fase que cierra lo que nadie cierra |
+| Barrendero (salas vencidas, matches colgados) | completo (al arrancar) | **100** | barrido periódico (opcional) |
 | Redis (ranking, rate limit, Pub/Sub) | solo historial de vistas | **15** | sorted sets, límites, multi-instancia |
-| Concurrencia / ciclo de vida de sala | el camino feliz y los P0, corregidos | **75** | H-03, H-04, H-07 |
+| Concurrencia / ciclo de vida de sala | camino feliz, P0 y fugas corregidos | **90** | H-07 (multi-instancia) |
 | Infra local (compose, Makefile, env) | completa | **70** | `README.md`, CI |
-| Tests | 414 verdes, sin cobertura medida; tests de carrera para H-01/H-02 | **80** | cobertura, CI |
+| Tests | 419 verdes, sin cobertura medida; tests de carrera para H-01/H-02 y del barrendero | **80** | cobertura, CI |
 | Frontend | **fuera de alcance de este repo** | — | lo hace otra persona |
 
 **Backend ponderado: ≈ 60 %** al cerrar la auditoría. Los arreglos de esta tarde
@@ -116,7 +117,7 @@ Cumplidos a nivel backend: **3,5 de 6** (el 1 y el 3 esperan al frontend/arcade)
 | Commits | 30, en **2 días** (16–17 oct 2026) | ritmo altísimo, un commit = un paso testeado |
 | LOC `app/` | 3.994 en 47 módulos (mypy) | razonable para el alcance |
 | LOC `tests/` | 5.006 | **ratio test:código 1,25:1** — excelente |
-| Tests | 414, ~11 s, contra Postgres y Redis reales | sin SQLite, sin mocks de base |
+| Tests | 419, ~10 s, contra Postgres y Redis reales | sin SQLite, sin mocks de base |
 | Tablas | 7 (users, questions, rooms, matches, match_rounds, arcade_runs, arcade_answers) | 1:1 con §8 del plan |
 | Migraciones | 3 (`0001`–`0003`), **sin drift** | `alembic check` limpio |
 | Dependencias | 12 runtime + 5 dev | 2 son código muerto (H-16) |
@@ -281,7 +282,7 @@ pedido; sabotajes: volver a "morir" rompe los tres, quitar `retry_serve` rompe u
 
 ## 5. Hallazgos P1 — serios
 
-### H-03. Las salas vivas nunca se liberan (fuga de memoria por código)
+### H-03 — ✅ RESUELTO. Las salas vivas nunca se liberan (fuga de memoria por código)
 
 `InMemoryRoomStore._rooms` (`room_manager.py:150`) sólo se limpia entero en
 `close()` (`:246-251`), que corre al apagar el proceso. No hay desalojo en régimen:
@@ -298,7 +299,15 @@ y más honesta: un TTL (`last_activity_ms` en `_Room`) que el `_expiry_loop` usa
 deadline adicional. En condiciones normales el barrendero de salas (§próximos pasos)
 es el lugar natural de esto.
 
-### H-04. `rooms.expires_at` no se refresca: el barrendero que viene puede matar partidas vivas
+**✅ Implementado (2026-10-17).** Se tomó el TTL, pero **sin tocar el reloj**: `_Room`
+guarda `last_activity_ms` (se actualiza en cada transición) y `RoomStore.open`
+desaloja, antes de crear una sala, las que no tienen `outbox`, no están `playing` y
+llevan más de `ROOM_IDLE_TIMEOUT_SECONDS` inactivas. Como el mapa crece con las
+altas, una barrida por alta lo mantiene acotado. Test:
+`test_a_dead_room_is_evicted_when_another_one_opens` (saboteado: sin desalojo,
+`room_count` queda en 2).
+
+### H-04 — ✅ RESUELTO. `rooms.expires_at` no se refresca: el barrendero que viene puede matar partidas vivas
 
 `expires_at` se calcula **una sola vez** al crear la sala (`services/rooms.py:34-35`:
 `now + room_idle_timeout_seconds`, 600 s). Nunca se extiende.
@@ -319,6 +328,15 @@ paso de la cola) el riesgo es concreto: si el barrido es
    `now() + techo_de_partida`.
 3. De paso: la vista previa deja de mentir (`api/routers/rooms.py:35` devuelve un
    `expires_at` que ya no representa nada).
+
+**✅ Implementado (2026-10-17).** El barrendero (`services/reaper.py`) filtra
+`status='waiting'` y, además, `rooms.status` se sincroniza con la vida de la sala
+(hasta hoy la fila se quedaba en `waiting` para siempre): `playing` al arrancar y en
+cada revancha, `finished` al cerrar, `waiting` cuando se va alguien de una sala
+terminada. Al arrancar la partida `expires_at` pasa a
+`now + rounds × (seconds + gracia) + 60 s`, así la vista previa tampoco miente.
+Tests: `test_the_room_row_follows_the_match_lifecycle` y el barrido con una sala
+`playing` de fecha vieja, los dos saboteados.
 
 ### 🔬 H-05 — ✅ RESUELTO. El commit corre **después** de que el cliente recibe la respuesta
 
@@ -525,7 +543,7 @@ detalle = "; ".join(f"{'.'.join(str(p) for p in e['loc'][1:])}: {e['msg']}" for 
 | H-19 | `/health` responde **200 degradado** (db/redis en `error`) | `routers/health.py:28` | 503 si algo está mal; si no, ningún balanceador va a reaccionar |
 | H-20 | Mezcla de idiomas: handlers `crear_sala`/`vista_previa` en español, el resto en inglés | `rooms.py:16,24` | §15 del plan dice código en inglés; renombrar |
 | H-21 | 93 warnings idénticos tapan cualquier warning nuevo | `pytest` output | `JWT_SECRET` de dev a ≥ 32 bytes en `.env.example`; y `filterwarnings` para el caso de test |
-| H-22 | Drift de docs: el plan ya está al día (414 tests, ~11 s); falta `.env.example` con `WS_IDLE_TIMEOUT_SECONDS` | `plan.md:16`, `.env.example` | agregar la variable; mantener los números al día en el mismo paso |
+| ✅ H-22 | Drift de docs: el plan y `.env.example` quedaron al día (419 tests, ~10 s; `WS_IDLE_TIMEOUT_SECONDS` y `STALE_MATCH_MINUTES` listados) | `plan.md:16`, `.env.example` | mantener los números al día en el mismo paso |
 | H-23 | `GET /me` hace un `flush` por lectura (pisa `last_seen_at`) | `routers/me.py:19-20` | correcto, pero es una escritura por cada GET; si el frontend lo llama seguido, conviene un `UPDATE ... WHERE last_seen_at < now() - interval '1 minute'` |
 | H-24 | **El desempate no tiene tope**: si los dos siguen empatando, la partida no termina nunca (cada ronda de desempate es de `seconds//2` y suma más rondas) | `match_engine.py:207-217`, `:109-114` | un máximo de rondas de desempate (p.ej. 3) y, agotado, gana quien tenga mejor tiempo acumulado o se declara empate |
 | H-25 | **Sesgo de posición en la semilla**: correcta en B 48,3 %, C 28,3 %, A 21,7 %, D 1,7 % (n=60). Y las opciones **no se mezclan al servir** (`room.py:429`, `list(question.question.options)`) | `seeds/questions.csv` | (a) barajar opciones al servir, recalculando `correct_index` en el servidor —arregla el problema para siempre y también el banco futuro—; (b) rebalancear la semilla |
@@ -545,7 +563,7 @@ senior y son las que hacen que el resto sea barato de arreglar:
 1. **El motor es puro y el borde es sucio a propósito.** `game/` no conoce Postgres,
    ni sockets, ni `time.time()`. `now_ms`, `sleep` y `rng` se inyectan
    (`room_manager.py:136-149`): una partida entera corre en milisegundos en los tests
-   con el `FakeClock`. Esa decisión sola explica los 414 tests en ~11 s.
+   con el `FakeClock`. Esa decisión sola explica los 419 tests en ~10 s.
 2. **La respuesta correcta no puede filtrarse: no está en el tipo.** `RoundQuestion`
    (`question_bank.py:39-50`) no tiene `correct_index`; el `match_end` con
    `RoundResult` es lo único que lo expone. Un test con `hasattr` lo vigila. Esto es
@@ -605,8 +623,8 @@ están en las **transiciones de ciclo de vida** de ese modelo, no en el modelo.
 |---|---|---|---|
 | H-01 | **cierre del socket viejo vs. `join` del nuevo** (confirmada) | pérdida de partida injusta | **P0 — ✅ resuelto** |
 | H-02 | error en `_step` dentro del `_expiry_loop` | sala sin reloj para siempre | **P0 — ✅ resuelto** |
-| H-03 | `_rooms` sin desalojo | fuga de memoria | P1 |
-| — | **`open()` sin lock**: `if code in self._rooms: return` + asignación, sin `await` en el medio → atómico en el event loop, **pero sólo por eso**. Conviene un comentario que lo declare (o meterlo bajo un lock global si alguna vez se agrega I/O ahí) | latente | P3 |
+| H-03 | `_rooms` sin desalojo | fuga de memoria | P1 — ✅ resuelto |
+| — | **`open()` sin lock**: `open` y el desalojo no tienen `await` en el medio → atómicos en el event loop, **pero sólo por eso**. Si alguna vez se agrega I/O ahí, hay que meterlo bajo un lock. | latente | P3 |
 | — | **`_pick` + `_serve_next` toman el lock de la sala durante I/O de Postgres**: una base lenta bloquea la sala *y* su reloj. Con 60 preguntas y una instancia, irrelevante; con el banco grande, se soluciona eligiendo la pregunta **antes** de tomar el lock (el id ya se conoce) | latente | P3 |
 | — | **hasta 2 sesiones de base por transición** (`_persist` y `_pick` abren la suya, `:326, 378, 385`): con pool por defecto (5+10) y muchas salas, agotamiento del pool | contención | P2 |
 | — | **`outbox` ilimitado** (H-13) | memoria | P2 |
@@ -672,15 +690,15 @@ online; nada de eso debería esperar al arcade.
 | ✅ 2 | **H-02** el reloj de la sala no muere: reintento con backoff, aviso a los clientes y rendición acotada + test | fallo silencioso de liveness sin red de seguridad (el barrendero no existe) | chico |
 | ✅ 3 | `players` en `GET /rooms/{code}` con `room_store.player_count` | ya está en la cola del plan, es una línea, y cierra Fase 2 | trivial |
 | ✅ 4 | **H-05** commit en los 4 endpoints de escritura (+ corregir el principio en el plan) | el principio documentado hoy es falso; 4 líneas y un test | chico |
-| 5 | **H-04 + H-03 + barrendero**: `UPDATE ... WHERE status='waiting' AND expires_at < now()`, refresco de `expires_at` al arrancar y desalojo de salas muertas | el barrendero es el próximo paso y **hacerlo mal mata partidas vivas** | medio |
+| ✅ 5 | **H-04 + H-03 + barrendero**: `UPDATE ... WHERE status='waiting' AND expires_at < now()`, refresco de `expires_at` al arrancar y desalojo de salas muertas | el barrendero es el próximo paso y **hacerlo mal mata partidas vivas** | medio |
 | ✅ 6 | **H-06** `start` sólo desde `WAITING` | dos verdades para el mismo estado | trivial |
 | 7 | **H-11** `mypy strict`, `ruff select`, `pytest-cov`, CI | convierte a los puntos 1-6 en algo que no puede volver a pasar | chico |
 | 8 | **H-12** logging + **H-08** sacar el token de los logs | sin logs, el punto 2 es invisible | chico |
 | 9 | **H-25** barajar opciones al servir + rebalancear la semilla | es lo que más rápido se va a notar jugando, y es una función pura | chico |
 | 10 | Fase 4: WS de arcade + persistencia + ranking + binario de Redis | el resto del MVP | grande |
 
-Los puntos 1, 2, 4 y 6 ya están **hechos** (más el 3). El 5 y el 7 son los que
-siguen. El 7 es una hora y cambia el piso de calidad del proyecto para siempre.
+Los puntos 1-6 ya están **hechos**. Siguen el 7 (**H-11**: `mypy strict`, `ruff`,
+cobertura y CI) y el 8 (logging y token fuera de los logs).
 
 ---
 
@@ -691,13 +709,16 @@ make up                      # Postgres 16 + Redis 7
 cd backend
 uv run ruff check . && uv run ruff format --check . && uv run mypy app
 uv run alembic check         # sin drift entre modelos y migraciones
-uv run pytest -q             # 414 verdes, ~11 s
+uv run pytest -q             # 419 verdes, ~10 s
 ```
 
 Para H-01: `test_the_old_socket_closing_late_does_not_abandon_the_reconnected_player`
 (reconectar con `Outbox` nuevo y después cerrar el viejo) — pasaba a fallar sin el guard.
 Para H-05: el arreglo es estructural (los endpoints commitean antes de responder); se
 verifica leyendo `routers/auth.py`, `routers/rooms.py` y `routers/me.py`.
+Para el barrendero: `tests/test_reaper.py` (salas y partidas) más
+`test_the_room_row_follows_the_match_lifecycle` y
+`test_a_dead_room_is_evicted_when_another_one_opens` en `test_room_manager.py`.
 Para H-25:
 
 ```bash
@@ -715,11 +736,12 @@ PY
 ## 13. Cierre
 
 El proyecto va bien: **≈60 % del backend** y **≈35 % del producto**, con la mitad
-difícil (datos, reglas, tiempo real del 1v1) hecha y verificada. Los dos problemas
-que importaban no eran de arquitectura sino de **cierre de ciclos de vida**, y
-aparecían justamente donde todavía no hay nadie mirando: el socket que se va tarde y
-el reloj que se muere callado. Ya están corregidos, con sus tests y sabotajes.
+difícil (datos, reglas, tiempo real del 1v1) hecha y verificada. Los problemas que
+importaban no eran de arquitectura sino de **cierre de ciclos de vida**, y aparecían
+justamente donde todavía no hay nadie mirando: el socket que se va tarde, el reloj
+que se muere callado y lo que nadie cierra al apagar. Ya están corregidos, con sus
+tests y sabotajes.
 
-Lo que sigue, en orden: el **barrendero** —hecho a consciencia de H-04 (no matar
-partidas vivas) y con el desalojo de H-03—, después **H-11** (`mypy strict`,
-`ruff select`, cobertura y CI) y recién ahí el arcade.
+Lo que sigue, en orden: **H-11** (`mypy strict`, `ruff select`, cobertura y CI),
+después **H-12 + H-08** (logging y token fuera de los access logs) y recién ahí el
+arcade.
