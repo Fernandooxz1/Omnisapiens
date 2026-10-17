@@ -63,10 +63,12 @@ async def _inventario(connection: AsyncConnection, esquema: str) -> set[str]:
     return {_sin_esquema(fila[0], esquema) for fila in filas}
 
 
-async def test_el_schema_migrado_es_el_que_compilan_los_modelos(
+async def test_migrated_schema_matches_the_models(
     connection: AsyncConnection,
 ) -> None:
-    await connection.execute(sa.text(f"DROP SCHEMA IF EXISTS {ESQUEMA_MODELOS} CASCADE"))
+    await connection.execute(
+        sa.text(f"DROP SCHEMA IF EXISTS {ESQUEMA_MODELOS} CASCADE")
+    )
     await connection.execute(sa.text(f"CREATE SCHEMA {ESQUEMA_MODELOS}"))
     # Los CREATE TABLE van sin calificar: el search_path decide dónde caen, y
     # las FK se resuelven entre tablas del mismo schema. SET LOCAL es de la
