@@ -33,18 +33,11 @@ from app.game.constants import (
     ROOM_CODE_ALPHABET,
     ROOM_CODE_LENGTH,
 )
-from app.game.match_engine import MatchStatus, Player
+from app.game.match_engine import MatchStatus
 from app.models.base import Base
+from app.models.checks import number_list, quoted_list
 
 ROOM_STATUSES = ("waiting", "playing", "finished", "expired")
-
-_choices = ", ".join(str(choice) for choice in CHOICES)
-_room_statuses = ", ".join(f"'{status}'" for status in ROOM_STATUSES)
-_match_statuses = ", ".join(f"'{status}'" for status in MatchStatus)
-_players = ", ".join(f"'{player}'" for player in Player)
-_rounds = ", ".join(f"'{rounds}'" for rounds in ONLINE_ROUNDS_OPTIONS)
-_seconds = ", ".join(f"'{seconds}'" for seconds in ONLINE_SECONDS_OPTIONS)
-_rejections = ", ".join(f"'{reason}'" for reason in RejectReason)
 
 
 def _config_constraint(name: str) -> CheckConstraint:
@@ -58,8 +51,8 @@ def _config_constraint(name: str) -> CheckConstraint:
         "jsonb_typeof(config) = 'object'"
         " AND jsonb_typeof(config->'rounds') IS NOT DISTINCT FROM 'number'"
         " AND jsonb_typeof(config->'seconds') IS NOT DISTINCT FROM 'number'"
-        f" AND (config->>'rounds') IN ({_rounds})"
-        f" AND (config->>'seconds') IN ({_seconds})",
+        f" AND (config->>'rounds') IN ({quoted_list(ONLINE_ROUNDS_OPTIONS)})"
+        f" AND (config->>'seconds') IN ({quoted_list(ONLINE_SECONDS_OPTIONS)})",
         name=name,
     )
 
@@ -82,7 +75,9 @@ class Room(Base):
             f"code ~ '^[{ROOM_CODE_ALPHABET}]{{{ROOM_CODE_LENGTH}}}$'",
             name="code_alphabet",
         ),
-        CheckConstraint(f"status IN ({_room_statuses})", name="status_known"),
+        CheckConstraint(
+            f"status IN ({quoted_list(ROOM_STATUSES)})", name="status_known"
+        ),
         _config_constraint("config_valid"),
         UniqueConstraint("code"),
         # Lo que busca el barrendero: salas vivas con la fecha vencida.
@@ -115,7 +110,7 @@ class Match(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
-        CheckConstraint(f"status IN ({_match_statuses})", name="status_known"),
+        CheckConstraint(f"status IN ({quoted_list(MatchStatus)})", name="status_known"),
         _config_constraint("config_valid"),
         CheckConstraint("player_a_id <> player_b_id", name="players_differ"),
         CheckConstraint(
@@ -175,16 +170,20 @@ class MatchRound(Base):
             name="difficulty_range",
         ),
         CheckConstraint("seconds > 0", name="seconds_positive"),
-        CheckConstraint(f"correct_index IN ({_choices})", name="correct_index_choice"),
         CheckConstraint(
-            f"(a_choice IS NULL OR a_choice IN ({_choices}))"
-            f" AND (b_choice IS NULL OR b_choice IN ({_choices}))",
+            f"correct_index IN ({number_list(CHOICES)})", name="correct_index_choice"
+        ),
+        CheckConstraint(
+            f"(a_choice IS NULL OR a_choice IN ({number_list(CHOICES)}))"
+            f" AND (b_choice IS NULL OR b_choice IN ({number_list(CHOICES)}))",
             name="choices_in_range",
         ),
-        # Sin respuesta no hay tiempo que medir, y al revés.
+        # Sin respuesta no hay tiempo que medir, y al revés. El tope es la ventana:
+        # `settle` no deja medir más que el tiempo que se mostró la pregunta.
         CheckConstraint(
             "(a_choice IS NULL) = (a_ms IS NULL) AND (b_choice IS NULL) = (b_ms IS NULL)"
-            " AND (a_ms IS NULL OR a_ms >= 0) AND (b_ms IS NULL OR b_ms >= 0)",
+            " AND (a_ms IS NULL OR (a_ms >= 0 AND a_ms <= seconds * 1000))"
+            " AND (b_ms IS NULL OR (b_ms >= 0 AND b_ms <= seconds * 1000))",
             name="times_consistent",
         ),
         # Las mismas invariantes que ya garantiza `settle`: acá quedan escritas en piedra.
@@ -194,8 +193,8 @@ class MatchRound(Base):
             name="correctness_from_choice",
         ),
         CheckConstraint(
-            f"(a_rejected IS NULL OR a_rejected IN ({_rejections}))"
-            f" AND (b_rejected IS NULL OR b_rejected IN ({_rejections}))"
+            f"(a_rejected IS NULL OR a_rejected IN ({quoted_list(RejectReason)}))"
+            f" AND (b_rejected IS NULL OR b_rejected IN ({quoted_list(RejectReason)}))"
             " AND (a_rejected IS NULL OR a_choice IS NULL)"
             " AND (b_rejected IS NULL OR b_choice IS NULL)",
             name="rejections_consistent",

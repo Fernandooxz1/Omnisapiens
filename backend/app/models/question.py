@@ -17,15 +17,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.game.constants import CATEGORIES, CHOICES, DIFFICULTY_MAX, DIFFICULTY_MIN
 from app.models.base import Base
+from app.models.checks import number_list, quoted_list
 
 PROMPT_MAX_LENGTH = 300
 STATUSES = ("draft", "published", "archived")
 MEDIA_TYPES = ("none", "image", "audio")
-
-_categories = ", ".join(f"'{category}'" for category in CATEGORIES)
-_choices = ", ".join(str(choice) for choice in CHOICES)
-_statuses = ", ".join(f"'{status}'" for status in STATUSES)
-_media_types = ", ".join(f"'{media}'" for media in MEDIA_TYPES)
 
 
 class Question(Base):
@@ -62,7 +58,9 @@ class Question(Base):
     )
 
     __table_args__ = (
-        CheckConstraint(f"category IN ({_categories})", name="category_known"),
+        CheckConstraint(
+            f"category IN ({quoted_list(CATEGORIES)})", name="category_known"
+        ),
         CheckConstraint(
             f"difficulty BETWEEN {DIFFICULTY_MIN} AND {DIFFICULTY_MAX}",
             name="difficulty_range",
@@ -81,10 +79,14 @@ class Question(Base):
             """NOT jsonb_path_exists(options, '$[*] ? (@.type() != "string")')""",
             name="options_strings",
         ),
-        CheckConstraint(f"correct_index IN ({_choices})", name="correct_index_choice"),
-        CheckConstraint(f"status IN ({_statuses})", name="status_known"),
+        CheckConstraint(
+            f"correct_index IN ({number_list(CHOICES)})", name="correct_index_choice"
+        ),
+        CheckConstraint(f"status IN ({quoted_list(STATUSES)})", name="status_known"),
         CheckConstraint("content_hash ~ '^[0-9a-f]{64}$'", name="content_hash_hex"),
-        CheckConstraint(f"media_type IN ({_media_types})", name="media_type_known"),
+        CheckConstraint(
+            f"media_type IN ({quoted_list(MEDIA_TYPES)})", name="media_type_known"
+        ),
         CheckConstraint(
             "(media_type = 'none') = (media_url IS NULL)", name="media_consistent"
         ),

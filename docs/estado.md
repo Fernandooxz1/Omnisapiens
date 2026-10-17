@@ -18,12 +18,14 @@ Diseño acordado: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`
 - [x] `models/base.py` (`MetaData` con convención de nombres), `models/user.py`, `models/question.py`; commit `e6756cb`
 - [x] `users` y `questions` verificadas contra el Postgres real: 11 + 24 sondas de constraints, 0 fallas
 - [x] `models/match.py` (`rooms`, `matches`, `match_rounds`): 43 sondas más, 0 fallas
+- [x] `models/arcade.py` (`arcade_runs`, `arcade_answers`): 31 sondas más. Total: **108 sondas, 0 fallas**
+- [x] `models/checks.py`: los ayudantes de listas para los `CHECK`, con el DDL verificado byte a byte tras el refactor
 - [x] Commit `96f3b2e` (tabla `questions`)
 
 ## Próximos pasos (en orden, según el plan de capa de datos)
 - [x] Confirmar los 3 puntos ⚠️ del plan
-- [x] `models/match.py`: salas, partidas y rondas (comparten el JSONB de `config`)
-- [ ] `models/arcade.py`: `arcade_runs` + `arcade_answers` y los índices parciales del ranking
+- [x] Los 7 modelos con convención de nombres, enums por `CHECK` e invariantes del motor
+- [ ] Alembic async + migración inicial; `alembic check` limpio (y probar si detecta un `CHECK` cambiado)
 - [ ] Alembic async + migración inicial; `alembic check` limpio
 - [ ] Fixtures de test contra Postgres real, con rollback por test
 - [ ] `api/deps.py` (`get_session`) + `POST /auth/guest` con JWT y filtro de nicks
@@ -46,4 +48,6 @@ Diseño acordado: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`
 - Molde de modelo fijado en `models/user.py`: `Mapped[X]` decide el NOT NULL, `uuid4` en Python, `DateTime(timezone=True)` + `server_default=now()`, checks con nombre propio y único parcial para el borrado lógico.
 - Un `CHECK` que evalúa a `NULL` no viola nada (SQL trata "desconocido" como válido): para claves ausentes de un `jsonb` hay que usar `IS NOT DISTINCT FROM`, no `=`.
 - El `uuid` de PK lo genera Python (`default=uuid.uuid4`), así que un `INSERT` crudo por `psql` tiene que mandar el `id` a mano; el ORM lo hace solo.
+- Los valores permitidos de cada `CHECK` salen de `game/constants.py` y de los enums de `game/*_engine.py`: motor y base no pueden divergir sin que `alembic check` lo delate.
+- Las sondas de constraints viven en `/tmp/opencode/check_*.sh` (Postgres real, schema descartable). Son descartables a propósito: en el paso 3 se convierten en tests de pytest.
 - ruff 0.17 trae un preset estricto (814 reglas); el lock fija la versión, así que CI se comporta igual.
