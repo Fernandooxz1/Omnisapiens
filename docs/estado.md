@@ -4,11 +4,11 @@
 
 ## Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). El motor de juego (`app/game/`), el selector de preguntas y la capa de datos están hechos y testeados: los 7 modelos, la migración `0001` aplicada y **235 tests en ~4 s** contra Postgres real.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). El motor de juego (`app/game/`), el selector de preguntas y la capa de datos están hechos y testeados: los 7 modelos, las migraciones `0001` y `0002` aplicadas y **236 tests en ~3 s** contra Postgres real.
 
 **Todavía no hay endpoints ni WebSocket**: lo que sigue es la capa HTTP (auth de invitado) y el repositorio de preguntas.
 
-Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`**. Los 3 puntos ⚠️ están **confirmados**: fila de `matches` al arrancar (3.2), desempate del ranking por quién alcanzó antes el puntaje (decisión 7) y `UNIQUE` parcial de `nick` (decisión 6).
+Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`**. Los 3 puntos ⚠️ están **confirmados**: fila de `matches` al arrancar (3.2), desempate del ranking por quién alcanzó antes el puntaje (decisión 7) y `UNIQUE` parcial de `nick` (decisión 6). El cuarto (host de la sala) también, y ya está en el esquema: punto 4 del §8.
 
 ## Hecho
 
@@ -21,10 +21,10 @@ Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.openc
 - [x] Tests contra Postgres real (`trivia_test` recreada por sesión, rollback por test con SAVEPOINT) y test de guardia de schema, validado con dos sabotajes
 - [x] `tests/factories.py` + `tests/constraints.py`: las 108 sondas convertidas en 114 tests con nombre propio; validado dropeando los 70 `CHECK` (fallan esos 70 y ningún otro)
 - [x] `docs/mvp-plan.md` alineado con el código: §5.4 (la partida se escribe al arrancar), §8 (las 7 tablas, `varchar(6)`, único parcial de `nick`, columnas de auditoría), §14 (desempate por quién llegó antes, con el `DISTINCT ON`), §6 (árbol de archivos) y §18 (los tests de constraints y la guardia de schema)
+- [x] Host de la sala: es **quien la crea**, en `rooms.host_user_id` (FK a `users` + índice de FK) con la migración `0002` (upgrade/downgrade/upgrade y `alembic check` limpios)
 
 ## Próximos pasos (orden del plan de capa de datos, §6)
 
-- [ ] Decidir **quién es el host de la sala** (⚠️ en el plan §8): si es "el que la creó" hace falta `host_user_id` en `rooms` + migración; si es "el primero que entra", no. Antes del WS de sala
 - [ ] `api/deps.py` (`get_session`) + `POST /auth/guest` con JWT y filtro de nicks. Dos decisiones: si el JWT y el filtro viven en `security/tokens.py` + `security/nicks.py` (como el plan) o dentro de `api/`, y si la lista de palabras prohibidas es una constante versionada o una tabla
 - [ ] Pendiente de Fase 0: `README.md` con los cinco comandos de la sección 23
 - [ ] Repositorio de preguntas (`RoundQuestion`, sin la respuesta correcta) + vistos en Redis
@@ -56,4 +56,6 @@ Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.openc
 - **Sin `relationship()` en los modelos, el ORM no deduce el orden de los INSERT**: si una partida y sus jugadores van en el mismo flush, el INSERT de `matches` sale primero y la FK lo rechaza. En los tests lo ordena `acepta()` (un flush por tabla, en orden de `metadata.sorted_tables`); el día que el repositorio inserte filas relacionadas, va a tener el mismo problema.
 - `docs/mvp-plan.md` quedó alineado con el código (2026-10-17). Si el código se vuelve a adelantar, se sincroniza el md en el mismo paso: el plan es lo que lee la próxima sesión.
 - Ojo con los tests que rompen dos reglas a la vez: el error que llega puede ser el de la otra regla. Cuando pasa, aislar la fila inválida (`seconds=0, ms=0`) en vez de aflojar el `motivo`.
+- El host de la sala es **el creador**, y por eso vive en la fila (`rooms.host_user_id`) y no en la memoria del proceso: la sala vive más que las conexiones y el host es el único que elige la config y manda `start`. Consecuencia en los tests: `room()` pide el id de un host ya insertado (como `match()` pide sus dos jugadores), porque sin él el rechazo que llega es el de la FK y el test creería estar probando el `CHECK`.
+- Una migración que agrega una columna `NOT NULL` sin default sobre una tabla con filas falla a propósito: en `0002` `rooms` está vacía y una sala vieja no tiene host que inventarle.
 - La URL de la base **no** está en `alembic.ini`: sale de `.env` por `app.config.settings`. Un solo lugar donde se configura.

@@ -412,12 +412,13 @@ La letra chica —constraints con nombre propio, índices parciales, `CHECK` que
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | uuid PK | |
+| `host_user_id` | uuid FK | quien creó la sala. El host es el creador, no "el primero que entra": la fila vive más que las conexiones, así que una reconexión no cambia de dueño la sala. Índice de FK |
 | `code` | varchar(6) | único, sin caracteres ambiguos (sin `0`, `1`, `I`, `O`). varchar y no char: char rellena con espacios y vuelve sutiles las comparaciones |
 | `config` | jsonb | `{"rounds": 5, "seconds": 20}`, con `CHECK` de forma y de valores permitidos |
 | `status` | varchar(16) | `waiting`, `playing`, `finished`, `expired` |
 | `created_at`, `expires_at` | timestamptz | |
 
-⚠️ **Pendiente de decidir: quién es el host de la sala.** Hoy el esquema **no** guarda quién la creó. Si el host tiene que sobrevivir a una reconexión, o ser el único que elige la config y arranca la partida, hace falta una columna `host_user_id` (con su FK y su índice). Si alcanza con "el primero que entra es el host", no hace falta. Se define antes del WebSocket de sala (Fase 2).
+El host es el único que elige la config y manda `start`, así que su identidad tiene que sobrevivir a la conexión: por eso está en la fila y no en la memoria del proceso. El `POST /rooms` la escribe en el mismo momento en que nace el código de sala.
 
 ### `matches`
 

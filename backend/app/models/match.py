@@ -61,6 +61,9 @@ class Room(Base):
     __tablename__ = "rooms"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    # El host es quien crea la sala, y no "el primero que entra": la fila vive más
+    # que las conexiones, así que una reconexión no cambia de dueño la sala.
+    host_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     # varchar y no char: char(n) rellena con espacios y las comparaciones se vuelven sutiles.
     code: Mapped[str] = mapped_column(String(ROOM_CODE_LENGTH))
     config: Mapped[dict[str, int]] = mapped_column(JSONB)
@@ -80,6 +83,9 @@ class Room(Base):
         ),
         _config_constraint("config_valid"),
         UniqueConstraint("code"),
+        # Índice de FK (Postgres no lo crea solo): "las salas que creé" y el
+        # chequeo de la FK no barren la tabla.
+        Index(None, "host_user_id"),
         # Lo que busca el barrendero: salas vivas con la fecha vencida.
         Index(None, "status", "expires_at"),
     )

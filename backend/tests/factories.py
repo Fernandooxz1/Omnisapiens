@@ -64,11 +64,13 @@ def question(**overrides: Any) -> Question:
     )
 
 
-def room(**overrides: Any) -> Room:
+def room(host_user_id: uuid.UUID, **overrides: Any) -> Room:
+    """Necesita el id del host ya existente: `host_user_id` es FK obligatoria."""
     return Room(
         **(
             {
                 "id": uuid.uuid4(),
+                "host_user_id": host_user_id,
                 "code": _codigo(),
                 "config": {"rounds": 7, "seconds": 20},
                 "expires_at": datetime.now(UTC) + timedelta(hours=1),

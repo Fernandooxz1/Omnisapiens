@@ -3,6 +3,7 @@
 import uuid
 from typing import NamedTuple
 
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,91 +16,135 @@ from .factories import match, match_round, question, room, user
 class Escenario(NamedTuple):
     ana: User
     beto: User
+    anfitrion: User
     sala: Room
     pregunta: Question
     partida: Match
 
 
 async def escenario(session: AsyncSession) -> Escenario:
-    """Lo que la sonda de shell armaba antes de empezar: dos jugadores, una sala,
-    una pregunta y una partida ya en la base."""
-    ana, beto, sala, pregunta = user(), user(), room(), question()
+    """Lo que la sonda de shell armaba antes de empezar: dos jugadores, el host de
+    la sala, una pregunta y una partida ya en la base."""
+    ana, beto, anfitrion, pregunta = user(), user(), user(), question()
+    sala = room(anfitrion.id)
     partida = match(player_a_id=ana.id, player_b_id=beto.id, room_id=sala.id)
-    await acepta(session, ana, beto, sala, pregunta, partida)
-    return Escenario(ana, beto, sala, pregunta, partida)
+    await acepta(session, ana, beto, anfitrion, sala, pregunta, partida)
+    return Escenario(ana, beto, anfitrion, sala, pregunta, partida)
 
 
 # ---------------------------------------------------------------- rooms
 
 
-async def test_a_room_is_accepted(session: AsyncSession) -> None:
-    await acepta(session, room())
+@pytest.fixture
+async def host(session: AsyncSession) -> uuid.UUID:
+    """Un host real ya en la base.
+
+    `rooms.host_user_id` es FK: sin el host insertado, el rechazo que llegaría
+    sería el de la FK y no el del `CHECK` que cada test quiere probar.
+    """
+    jugador = user()
+    await acepta(session, jugador)
+    return jugador.id
 
 
-async def test_a_room_code_with_a_zero_is_rejected(session: AsyncSession) -> None:
+async def test_a_room_is_accepted(session: AsyncSession, host: uuid.UUID) -> None:
+    await acepta(session, room(host))
+
+
+async def test_a_room_code_with_a_zero_is_rejected(
+    session: AsyncSession, host: uuid.UUID
+) -> None:
     # El alfabeto excluye 0/1/I/O: se dicta por voz o se lee de una pantalla.
-    await rechaza(session, room(code="ABCDE0"), motivo="ck_rooms_code_alphabet")
+    await rechaza(session, room(host, code="ABCDE0"), motivo="ck_rooms_code_alphabet")
 
 
-async def test_a_room_code_with_an_i_is_rejected(session: AsyncSession) -> None:
-    await rechaza(session, room(code="ABCDEI"), motivo="ck_rooms_code_alphabet")
+async def test_a_room_code_with_an_i_is_rejected(
+    session: AsyncSession, host: uuid.UUID
+) -> None:
+    await rechaza(session, room(host, code="ABCDEI"), motivo="ck_rooms_code_alphabet")
 
 
-async def test_a_room_code_of_5_characters_is_rejected(session: AsyncSession) -> None:
-    await rechaza(session, room(code="ABCDE"), motivo="ck_rooms_code_alphabet")
+async def test_a_room_code_of_5_characters_is_rejected(
+    session: AsyncSession, host: uuid.UUID
+) -> None:
+    await rechaza(session, room(host, code="ABCDE"), motivo="ck_rooms_code_alphabet")
 
 
-async def test_a_lowercase_room_code_is_rejected(session: AsyncSession) -> None:
-    await rechaza(session, room(code="abcdef"), motivo="ck_rooms_code_alphabet")
+async def test_a_lowercase_room_code_is_rejected(
+    session: AsyncSession, host: uuid.UUID
+) -> None:
+    await rechaza(session, room(host, code="abcdef"), motivo="ck_rooms_code_alphabet")
 
 
-async def test_a_repeated_room_code_is_rejected(session: AsyncSession) -> None:
-    sala = room()
+async def test_a_repeated_room_code_is_rejected(
+    session: AsyncSession, host: uuid.UUID
+) -> None:
+    sala = room(host)
     await acepta(session, sala)
 
-    await rechaza(session, room(code=sala.code), motivo="uq_rooms_code")
+    await rechaza(session, room(host, code=sala.code), motivo="uq_rooms_code")
 
 
-async def test_seconds_that_are_not_offered_are_rejected(session: AsyncSession) -> None:
+async def test_seconds_that_are_not_offered_are_rejected(
+    session: AsyncSession, host: uuid.UUID
+) -> None:
     await rechaza(
         session,
-        room(config={"rounds": 7, "seconds": 15}),
+        room(host, config={"rounds": 7, "seconds": 15}),
         motivo="ck_rooms_config_valid",
     )
 
 
-async def test_a_config_without_seconds_is_rejected(session: AsyncSession) -> None:
-    await rechaza(session, room(config={"rounds": 7}), motivo="ck_rooms_config_valid")
+async def test_a_config_without_seconds_is_rejected(
+    session: AsyncSession, host: uuid.UUID
+) -> None:
+    await rechaza(
+        session, room(host, config={"rounds": 7}), motivo="ck_rooms_config_valid"
+    )
 
 
-async def test_a_config_without_rounds_is_rejected(session: AsyncSession) -> None:
-    await rechaza(session, room(config={"seconds": 20}), motivo="ck_rooms_config_valid")
+async def test_a_config_without_rounds_is_rejected(
+    session: AsyncSession, host: uuid.UUID
+) -> None:
+    await rechaza(
+        session, room(host, config={"seconds": 20}), motivo="ck_rooms_config_valid"
+    )
 
 
-async def test_rounds_as_text_are_rejected(session: AsyncSession) -> None:
+async def test_rounds_as_text_are_rejected(
+    session: AsyncSession, host: uuid.UUID
+) -> None:
     await rechaza(
         session,
-        room(config={"rounds": "7", "seconds": 20}),
+        room(host, config={"rounds": "7", "seconds": 20}),
         motivo="ck_rooms_config_valid",
     )
 
 
 async def test_a_config_that_is_not_an_object_is_rejected(
-    session: AsyncSession,
+    session: AsyncSession, host: uuid.UUID
 ) -> None:
-    await rechaza(session, room(config=[]), motivo="ck_rooms_config_valid")
+    await rechaza(session, room(host, config=[]), motivo="ck_rooms_config_valid")
 
 
-async def test_an_unknown_room_status_is_rejected(session: AsyncSession) -> None:
-    await rechaza(session, room(status="abierta"), motivo="ck_rooms_status_known")
+async def test_an_unknown_room_status_is_rejected(
+    session: AsyncSession, host: uuid.UUID
+) -> None:
+    await rechaza(session, room(host, status="abierta"), motivo="ck_rooms_status_known")
 
 
-async def test_a_room_without_an_expiry_is_rejected(session: AsyncSession) -> None:
-    await rechaza(session, room(expires_at=None), motivo="expires_at")
+async def test_a_room_without_an_expiry_is_rejected(
+    session: AsyncSession, host: uuid.UUID
+) -> None:
+    await rechaza(session, room(host, expires_at=None), motivo="expires_at")
 
 
-async def test_defaults_of_a_new_room(session: AsyncSession) -> None:
-    sala = room()
+async def test_a_room_with_a_missing_host_is_rejected(session: AsyncSession) -> None:
+    await rechaza(session, room(uuid.uuid4()), motivo="fk_rooms_host_user_id")
+
+
+async def test_defaults_of_a_new_room(session: AsyncSession, host: uuid.UUID) -> None:
+    sala = room(host)
 
     await acepta(session, sala)
 
