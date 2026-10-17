@@ -23,42 +23,40 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 
 ### Hecho
 
-- [x] Base del repo (`.gitignore`, `.editorconfig`, `AGENTS.md`, `docker-compose.yml`, `Makefile`, `/health` con lifespan) y `models/`: las 7 tablas, Alembic async `0001`–`0003`, guardia de schema y las sondas de constraints contra Postgres real
-- [x] Capa HTTP de entrada: `security/tokens.py` (JWT HS256) + `security/nicks.py`, `api/deps.py`, `api/errors.py`, `POST /auth/guest`, `GET/PATCH/DELETE /me`, `POST /rooms` + `GET /rooms/{code}` y CORS
-- [x] Banco de preguntas (`services/question_bank.py`), importador (`services/importer.py`), `app/cli.py` + 60 semilla publicadas y `make seed`/`make import`
-- [x] Motor puro: `match_engine`, `scoring`, `answers`, `services/questions.py`, `game/protocols.py` (mensajes WS) y `runtime/room.py` (lobby, rondas, desempate, gracia, revancha)
-- [x] `runtime/room_manager.py`: `RoomStore` + implementación en memoria (lock por sala, `outbox` por jugador, task de vencimientos, próxima pregunta y las dos escrituras de §5.4) + `tests/test_room_manager.py`
-- [x] Revancha: el segundo pedido arranca la partida nueva (hasta ahora `ready_for_rematch` era código muerto) + `tests/test_room.py` al día
-- [x] `ws/room_ws.py`: WebSocket de sala sobre el `RoomStore` (token por query, accepts antes de autenticar, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio) + `authenticate` único en `deps.py` + `RoomStore.seated` + `tests/test_room_ws.py` y el cliente WS de test (`tests/ws_client.py`)
-- [x] Plan alineado con el código: §5.4, §8 (tablas), §12 (auth y códigos de error), §14 (desempate), §6 (árbol), §13 (import/semilla) y §18 (tests)
-- [x] **H-01 (P0)**: `disconnect` recibe el `outbox` de la conexión y no toca la silla si esa cola ya no es la vigente: un socket viejo que cierra tarde no desmonta al jugador reconectado + test de carrera (`tests/test_room_manager.py`)
-- [x] **H-02 (P0)**: el reloj de la sala ya no muere con el primer error de base: reintenta con backoff (`MAX_EXPIRY_FAILURES`/`EXPIRY_BACKOFF_S`), avisa `ROOM_CLOCK_DOWN` y se rinde acotado; el servir la ronda siguiente también se reintenta (`retry_serve`) + 3 tests
-- [x] `GET /rooms/{code}`: la vista previa muestra `players` (presencia viva del `RoomStore`) + test con una sala viva
-- [x] **H-05 (P1)**: los 4 endpoints de escritura (`/auth/guest`, `POST /rooms`, `PATCH`/`DELETE /me`) commitean ellos antes de responder; `get_session` queda como red de seguridad (el `yield` de FastAPI se cierra *después* de la respuesta)
-- [x] **H-06 (P1)**: `room.start` sólo acepta `WAITING`: con la sala `finished` ya no se arranca una partida salteando el acuerdo de revancha + test
-- [x] **Barrendero (H-04 + H-03)**: `services/reaper.py` expira al arrancar las salas `waiting` vencidas y anula (`void`) las partidas `playing` más viejas que `STALE_MATCH_MINUTES`; `rooms.status` se sincroniza con la vida de la sala (`playing`/`finished`/`waiting`) y `expires_at` se refresca al arrancar; `RoomStore.open` desaloja las salas muertas + 5 tests
-- [x] **H-11 (calidad)**: `ruff select` (E/F/W/I/N/UP/B/SIM/ASYNC/RUF/PT), `mypy strict`, `pytest-cov` con umbral **85 %** en `make cov` (92 % real; `make test` queda rápido para corridas dirigidas) y CI de GitHub con Postgres 16 + Redis 7 (`.github/workflows/ci.yml`)
-- [x] **H-12 + H-08**: logging configurado en el lifespan (`LOG_LEVEL`, formato con hora y logger) y un filtro que descarta del log los renglones de WS con `?token=` (`logging_config.py`) + test
-- [x] **H-25**: `shuffle_options` baraja los índices al servir y remapea `correct_index`; la pregunta guardada no se toca. Adiós al sesgo de posición (B en 48 %) + 4 tests
-- [x] **H-24**: tope de `MAX_TIEBREAK_ROUNDS = 3`: si siguen empatados, la partida termina en empate (`FINISHED`, `winner=None`, `MatchEnd.winner="tie"`) en vez de servir rondas para siempre + tests de motor y de sala
-- [x] **P3 (H-16..H-21, H-23)**: `orjson`/`python-multipart`/`admin_token` fuera; `services/rooms.get_by_code` único (HTTP y WS); `GET /` devuelve `{name, version}`; `/health` responde 503 si falta DB o Redis; handlers de salas en inglés; `JWT_SECRET` de dev ≥ 32 bytes y validado si `env != "local"`; `GET /me` refresca `last_seen_at` como mucho una vez por minuto + tests
-- [x] **P2 (H-09, H-10, H-13, H-14, H-15)**: rate limiting por IP en Redis (degrada si Redis no está) en alta, vista previa y WS; las salas `expired` o `waiting` vencidas no se reviven desde HTTP ni WS; `outbox` acotado a 64 y candidatas filtradas por dificultad en SQL; el 422 lleva `loc`; tope de cuerpo de 1 MB, `max_length` del nick y import por lotes de 500
-- [x] **`README.md`**: qué es, los cinco comandos para levantarlo, tabla de `make`, endpoints y las decisiones que no hay que olvidar
+- [x] Base del repo, `models/` (7 tablas), Alembic `0001`–`0003` y guardia de schema
+- [x] Capa HTTP: JWT, `/auth/guest`, `/me`, `/rooms`, CORS y errores con código
+- [x] Banco de preguntas + importador + CLI + 60 semilla (`make seed` / `make import`)
+- [x] Motores puros (`match_engine`, `arcade_engine`, `scoring`, `answers`, `questions`) y `runtime/room.py`
+- [x] `runtime/room_manager.py` + `ws/room_ws.py`: salas vivas, outbox, reloj, gracia, revancha y WS
+- [x] Barrendero (`services/reaper.py`) y desalojo de salas muertas (H-03/H-04)
+- [x] Auditoría P0/P1: H-01, H-02, H-05 y H-06 cerrados con tests y sabotajes
+- [x] Calidad: `ruff select`, `mypy strict`, cobertura 92 % en `make cov` y CI (H-11)
+- [x] Seguridad/observabilidad: logging y token fuera de logs (H-08/H-12), rate limit (H-09), salas vencidas (H-10), outbox y límites (H-13/H-15), 422 con campo (H-14), secretos largos (H-21)
+- [x] Juego: opciones barajadas al servir (H-25) y tope del desempate (H-24)
+- [x] P3 varios (H-16..H-20, H-23) y `README.md`
 
 ### Próximos pasos
 
-> Auditoría completa en `docs/observaciones.md` (2026-10-17): ≈60 % del backend.
-> Los P0 y P1 de la auditoría, el barrendero, la calidad y los P3 están cerrados;
-> sigue la cola de abajo.
+> Auditoría **cerrada** al 2026-10-17 (`docs/observaciones.md`, H-01..H-25), con
+> `README.md` y CI. Solo queda el arcade. Flujo: §9.3 · Protocolo: §10.2 ·
+> API: §11 · Ranking y desempate: §14 + Anexo A (`arcade_runs`/`arcade_answers`).
 
-- [ ] Arcade sobre WS (`ws/arcade_ws.py`) + ranking + corte semanal en `America/Argentina/Buenos_Aires`
-- [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
-- [ ] Barrendero periódico (no solo al arrancar): el mismo `sweep` en una task con intervalo, para que una sala `waiting` venza sin esperar un reinicio. Coordinar con H-03 y con `expires_at` (H-04 ya lo refresca)
-- [ ] Página mínima para probar dos pestañas (la API sola ya se prueba con el smoke test de `/tmp`, fuera del repo)
+**Arcade en 4 cortes** — cada uno con tests, no arrancar el siguiente sin cerrar el anterior:
+
+- [ ] **1. `runtime/arcade_session.py`**: máquina de estados **pura** por conexión sobre `game/arcade_engine` (motor ya testeado), con `now_ms`/`rng` inyectados y los mensajes de §10.2. Espejo de `runtime/room.py`: sin sockets, sin DB.
+- [ ] **2. `ws/arcade_ws.py`**: `WS /ws/arcade?token=...` (`arcade_start`/`answer`/`ping`, y `arcade_end` al terminar). Un solo escritor + `outbox` acotado + idle timeout, reusando `authenticate` y el patrón de `room_ws.py`; tests con `tests/ws_client.py`.
+- [ ] **3. Persistencia**: fila `arcade_runs` al **arrancar** (`playing`, así `void` es alcanzable si el proceso muere) y `arcade_answers` + cierre al terminar. La base es de afuera: si falla, no matar la corrida en silencio (mismo criterio que el reloj de la sala).
+- [ ] **4. Ranking**: sorted sets en Redis (global y semanal), desempate por **quién alcanzó antes ese puntaje** (§14, decisión A7), corte semanal en `America/Argentina/Buenos_Aires`; `GET /leaderboard/arcade?period=all|week` y `/leaderboard/arcade/me`; si Redis no contesta, el arcade juega igual sin ranking.
+
+**Después del arcade:**
+
+- [ ] `GET /me`: mejor marca y últimas partidas (depende del ranking).
+- [ ] Barrendero periódico (no solo al arrancar): el mismo `sweep` en una task con intervalo. **Coordinar con el `RoomStore`**: una sala `waiting` con jugadores conectados no se puede marcar `expired` en la base.
+- [ ] Página mínima para probar dos pestañas (la API sola ya se prueba con el smoke test de `/tmp`, fuera del repo).
 
 ### Después
 
-- Fase 1: admin de preguntas y CI. Fases 2-4: partida completa y ranking. Fase 6: PWA, e2e, documentación.
+- Fase 1: **admin de preguntas** (faltan los dos endpoints y devolver `X-Admin-Token` a la config). Fase 4: arcade y ranking (los 4 cortes de arriba). Fase 6: PWA, e2e y documentación. El CI ya está.
 
 ### Decisiones tomadas y trampas (no re-descubrir)
 
