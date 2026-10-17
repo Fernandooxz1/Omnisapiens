@@ -18,12 +18,14 @@ Fase 0 (esqueleto). La API arranca y lee configuración; falta conectarla a Post
 - [x] `make lint` en verde (ruff + mypy), `app/__init__.py` agregado
 - [x] `lifespan` en `main.py` + `GET /health` con router propio (probado con Redis caído)
 - [x] `app/game/`: motor puro con invariantes (`answers`, `scoring`, `arcade_engine`, `match_engine`)
-- [x] `tests/` del motor: 100 tests en verde; `make lint` limpio
+- [x] `tests/` del motor: 117 tests en verde; `make lint` limpio
+- [x] Commit `8eebea9`: motor, config, db, redis, `/health`, Makefile
+- [ ] `app/services/questions.py`: selector puro con `Random` inyectado (sin commitear)
 
 ## Próximos pasos (en orden)
 - [ ] `app/game/protocols.py`: dataclasses de los mensajes WS
-- [ ] `app/services/questions.py`: selección con `RNG` inyectado y sin repetición
 - [ ] `models/` + Alembic: tablas del plan, migración inicial
+- [ ] Repositorio de preguntas: candidatas desde Postgres + visto en Redis
 - [ ] `api/deps.py` con `get_session`
 - [ ] `POST /auth/guest` + JWT de invitado
 - [ ] Importador de preguntas CSV/JSON (`services/importer.py` + `cli.py`)
