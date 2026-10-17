@@ -21,10 +21,10 @@ Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.openc
 - [x] Verificación de la migración: `upgrade`/`downgrade`/`upgrade` sobre base limpia, `alembic check` limpio, y DDL migrado idéntico al de los modelos (79 columnas, 65 constraints, 23 índices); `make check-schema`
 - [x] Alcance real de `alembic check` medido: ve tablas, columnas, tipos, defaults, índices, unique y **FK** (probe con `ondelete`); es **ciego a los `CHECK`** en las 4 formas (agregar, cambiar, renombrar, borrar)
 - [x] `tests/conftest.py`: base real `trivia_test` (se recrea y migra una vez por sesión) y rollback por test con SAVEPOINT; 121 tests en ~1,5 s
+- [x] Test de guardia `tests/test_schema_matches_models.py`: crea un schema descartable con el DDL de los modelos y compara inventario de constraints e índices contra la base migrada; probado con dos sabotajes (cambiar un `CHECK` y borrarlo) y 122 tests verdes
 
 ## Próximos pasos (orden del plan de capa de datos, §6)
 
-- [ ] Test de guardia de schema: inventario de `pg_constraint`/`pg_indexes` de la base migrada == DDL de los modelos (lo que `alembic check` no ve)
 - [ ] Las 108 sondas se convierten en tests de pytest, uno por constraint
 - [ ] `api/deps.py` (`get_session`) + `POST /auth/guest` con JWT y filtro de nicks
 - [ ] Repositorio de preguntas (`RoundQuestion`, sin la respuesta correcta) + vistos en Redis
@@ -51,5 +51,7 @@ Diseño acordado, leer antes de tocar la capa de datos: **`/home/fernando/.openc
 - Las FK sí se detectan, incluso un cambio de `ondelete` (aparece como `remove_fk` + `add_fk` y `alembic check` sale con 255).
 - La verificación de la migración no es "mirar el archivo": se comparan inventarios del `pg_constraint`/`pg_indexes` del schema migrado contra el DDL de los modelos. Es el control que va a repetirse cuando haya cambios de schema.
 - Los tests usan `trivia_test`, no SQLite, y cada uno corre en una transacción que se revierte (SAVEPOINT para los `commit()` del código bajo prueba). Antes de confiar en un fixture de aislamiento, sabotearlo (`rollback` → `commit`) y ver que el test que lo delata falle de verdad.
+- `trivia_test` se **recrea** al empezar cada sesión de pytest: si alguien edita la base a mano para probar algo, el próximo `pytest` lo borra. Se ve bien, pero sorprende al principio.
+- Un test que pasa no dice nada por sí solo: los dos sabotajes del test de guardia (cambiar un `CHECK` en el modelo y borrarlo en la base) son parte de la verificación, no un extra.
 - La URL de la base **no** está en `alembic.ini`: sale de `.env` por `app.config.settings`. Un solo lugar donde se configura.
 - `docs/mvp-plan.md` es referencia: no leerlo entero, consultarlo por fragmento.
