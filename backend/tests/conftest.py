@@ -140,6 +140,7 @@ async def _rate_limit_aislado(redis: Redis, monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(rate_limit, "redis_client", redis)
     monkeypatch.setattr(rate_limit.settings, "rate_limit_guest_per_minute", 10_000)
     monkeypatch.setattr(rate_limit.settings, "rate_limit_room_per_minute", 10_000)
+    monkeypatch.setattr(rate_limit.settings, "rate_limit_arcade_per_minute", 10_000)
 
 
 def _sesion_del_test(

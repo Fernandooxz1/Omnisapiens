@@ -15,9 +15,9 @@ persona; acá solo se toca `backend/`).
 
 Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas**, **el WebSocket de sala** y **el barrendero** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **448 tests en ~12 s** contra Postgres y Redis reales.
 
-El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`) y el barrendero cierra al arrancar lo que quedó abierto. Las opciones se barajan al servir (H-25), el token no se escribe en los logs (H-08) y el desempate tiene tope (H-24). El **corte 1 del arcade** (`runtime/arcade_session.py`) está cerrado; sigue el WS (`ws/arcade_ws.py`).
+El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`) y el barrendero cierra al arrancar lo que quedó abierto. Las opciones se barajan al servir (H-25), el token no se escribe en los logs (H-08) y el desempate tiene tope (H-24). El **corte 2 del arcade** (`ws/arcade_ws.py`) está cerrado: `WS /ws/arcade` con `start`/`answer`/`ping`, reloj de vencimiento, selección con historial de Redis y un solo escritor. Sigue la **persistencia** (corte 3).
 
-**Pausa acá:** **auditoría cerrada (H-01..H-25), `README.md` escrito** y calidad con CI. Queda el **arcade por WS + ranking** (cortes 2–4).
+**Pausa acá:** **auditoría cerrada (H-01..H-25), `README.md` escrito** y calidad con CI. Queda el **arcade: persistencia y ranking** (cortes 3–4).
 
 Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
@@ -28,6 +28,7 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - [x] Banco de preguntas + importador + CLI + 60 semilla (`make seed` / `make import`)
 - [x] Motores puros (`match_engine`, `arcade_engine`, `scoring`, `answers`, `questions`) y `runtime/room.py`
 - [x] `runtime/arcade_session.py`: máquina pura de la corrida (start/serve/answer/expire) con protocolo §10.2 y tests
+- [x] `ws/arcade_ws.py`: `WS /ws/arcade` con reloj, selección, historial de Redis y un solo escritor; tests con `ws_client.py`
 - [x] `runtime/room_manager.py` + `ws/room_ws.py`: salas vivas, outbox, reloj, gracia, revancha y WS
 - [x] Barrendero (`services/reaper.py`) y desalojo de salas muertas (H-03/H-04)
 - [x] Auditoría P0/P1: H-01, H-02, H-05 y H-06 cerrados con tests y sabotajes
@@ -45,7 +46,7 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 **Arcade en 4 cortes** — cada uno con tests, no arrancar el siguiente sin cerrar el anterior:
 
 - [x] **1. `runtime/arcade_session.py`**: máquina de estados **pura** por conexión sobre `game/arcade_engine`, con `now_ms`/`rng` inyectados y los mensajes de §10.2. Espejo de `runtime/room.py`: sin sockets, sin DB.
-- [ ] **2. `ws/arcade_ws.py`**: `WS /ws/arcade?token=...` (`arcade_start`/`answer`/`ping`, y `arcade_end` al terminar). Un solo escritor + `outbox` acotado + idle timeout, reusando `authenticate` y el patrón de `room_ws.py`; tests con `tests/ws_client.py`.
+- [x] **2. `ws/arcade_ws.py`**: `WS /ws/arcade?token=...` (`start`/`answer`/`ping`, y `arcade_end` al terminar). Un solo escritor + `outbox` acotado + idle timeout, reusando `authenticate` y el patrón de `room_ws.py`; tests con `tests/ws_client.py`.
 - [ ] **3. Persistencia**: fila `arcade_runs` al **arrancar** (`playing`, así `void` es alcanzable si el proceso muere) y `arcade_answers` + cierre al terminar. La base es de afuera: si falla, no matar la corrida en silencio (mismo criterio que el reloj de la sala).
 - [ ] **4. Ranking**: sorted sets en Redis (global y semanal), desempate por **quién alcanzó antes ese puntaje** (§14, decisión A7), corte semanal en `America/Argentina/Buenos_Aires`; `GET /leaderboard/arcade?period=all|week` y `/leaderboard/arcade/me`; si Redis no contesta, el arcade juega igual sin ranking.
 
@@ -136,6 +137,10 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - El arcade resuelve **en la primera respuesta**, no espera a nadie: `answer` devuelve `arcade_result` y deja la sesión pidiendo la próxima pregunta. Una respuesta repetida de la misma ronda llega cuando la ronda ya no está en vuelo y se rechaza con `ROUND_MISMATCH`.
 - La transición del arcade devuelve `(state, effects, record)` y **no** acumula `RoundRecord` en el estado: el motor los entrega justamente para que el borde los guarde y el estado quede chico. `ArcadeEnd` sale con las posiciones en `None`: el ranking (corte 4) es quien las completa.
 - El `seen` del arcade vive en el estado de la sesión: es lo que evita repetir pregunta dentro de una corrida, porque el motor no guarda historial a propósito. `serve(..., allow_repeat=True)` es la excepción de §9.4: con el pool agotado se repite y se sigue, con la advertencia en el log del llamador.
+- El **WebSocket del arcade no tiene store global**: una conexión es una corrida, así que el estado vive en el handler. El único escritor es la corrutina que drena el `outbox`, y la cola lleva `(mensaje, id)`: hasta el `pong` pasa por ahí y conserva su correlación sin lock de escritura.
+- El reloj y el `Random` del arcade entran por `ArcadeRuntime` (dependencia inyectable). El `sleep` del `FakeClock` calcula el vencimiento al llamarlo y resuelve un registro que nace vencido: cubre la carrera entre el `advance` del test y la tarea que recién se agenda. Está en `tests/clock.py`, compartido con la sala.
+- La sesión SQL del WS del arcade es la del pedido (`SessionDep`) y se usa serializada por el lock de la corrida. La selección recorta el pool a la dificultad objetivo ±1 y solo abre todo el banco si no alcanza; la repetición queda como último recurso.
+- El `start` del arcade es **una vez por conexión**: para otra corrida se reconecta. No hay `restart` en §10.2.
 
 ---
 

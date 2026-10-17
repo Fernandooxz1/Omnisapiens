@@ -14,7 +14,7 @@ from app.logging_config import configure_logging
 from app.redis import redis_client
 from app.runtime.room_manager import room_store
 from app.services.reaper import sweep
-from app.ws import room_ws
+from app.ws import arcade_ws, room_ws
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,7 @@ app.include_router(health.router)
 app.include_router(me.router)
 app.include_router(rooms.router)
 app.include_router(room_ws.router)
+app.include_router(arcade_ws.router)
 
 
 @app.get("/")

@@ -31,37 +31,8 @@ from app.game.protocols import RoomState as RoomStateMessage
 from app.models import Match, MatchRound, Question, Room, User
 from app.runtime.room_manager import InMemoryRoomStore, Outbox
 
+from .clock import FakeClock
 from .factories import question, room, user
-
-
-class FakeClock:
-    """Reloj que el test mueve a mano.
-
-    `sleep` registra el vencimiento y se queda ahí: el tiempo no pasa solo. El
-    test avanza la hora y despierta a los que ya vencieron.
-    """
-
-    def __init__(self, start: int = 1_000_000) -> None:
-        self.ms = start
-        self._durmiendo: list[tuple[int, asyncio.Future[None]]] = []
-
-    def now_ms(self) -> int:
-        return self.ms
-
-    async def sleep(self, seconds: float) -> None:
-        vence = self.ms + int(seconds * 1000)
-        futuro: asyncio.Future[None] = asyncio.get_running_loop().create_future()
-        self._durmiendo.append((vence, futuro))
-        try:
-            await futuro
-        finally:
-            self._durmiendo = [(d, f) for d, f in self._durmiendo if f is not futuro]
-
-    def advance(self, ms: int) -> None:
-        self.ms += ms
-        for vence, futuro in self._durmiendo:
-            if vence <= self.ms and not futuro.done():
-                futuro.set_result(None)
 
 
 @dataclass
