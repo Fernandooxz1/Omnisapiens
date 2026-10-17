@@ -13,11 +13,11 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador y **el estado vivo de las salas** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **398 tests en ~30 s** contra Postgres y Redis reales.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas** y **el WebSocket de sala** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **408 tests en ~25 s** contra Postgres y Redis reales.
 
-**Todavía no hay WebSocket.** Falta el handler `ws/room_ws.py`: traducir los mensajes de §10.1 a llamadas del `RoomStore`, abrir el canal por `hello` y leer el `outbox` de cada jugador. La vista previa de `/rooms/{code}` sigue sin mostrar `players`: el dato ya existe (`RoomStore.player_count`), solo falta conectarlo.
+El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). Falta el resto del tiempo real: **el arcade por WS** y **el barrendero**. La vista previa de `/rooms/{code}` sigue sin mostrar `players`: el dato ya existe (`RoomStore.player_count`), solo falta el cable.
 
-**Pausa acá:** `runtime/room_manager.py` quedó cerrado y verificado (ruff/format/mypy en verde; `tests/test_room_manager.py`, validado con sabotajes). El `RoomStore` en memoria tiene lock por sala, entrega por jugador, la task de vencimientos, la elección de la próxima pregunta y las dos escrituras de la partida (§5.4). Sigue `ws/room_ws.py`.
+**Pausa acá:** `ws/room_ws.py` quedó cerrado y verificado (ruff/format/mypy en verde; `tests/test_room_ws.py`, validado con sabotajes). Sigue el cable de `players` en `GET /rooms/{code}` (una línea) y después el barrendero.
 
 Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
@@ -29,16 +29,16 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - [x] Motor puro: `match_engine`, `scoring`, `answers`, `services/questions.py`, `game/protocols.py` (mensajes WS) y `runtime/room.py` (lobby, rondas, desempate, gracia, revancha)
 - [x] `runtime/room_manager.py`: `RoomStore` + implementación en memoria (lock por sala, `outbox` por jugador, task de vencimientos, próxima pregunta y las dos escrituras de §5.4) + `tests/test_room_manager.py`
 - [x] Revancha: el segundo pedido arranca la partida nueva (hasta ahora `ready_for_rematch` era código muerto) + `tests/test_room.py` al día
+- [x] `ws/room_ws.py`: WebSocket de sala sobre el `RoomStore` (token por query, accepts antes de autenticar, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio) + `authenticate` único en `deps.py` + `RoomStore.seated` + `tests/test_room_ws.py` y el cliente WS de test (`tests/ws_client.py`)
 - [x] Plan alineado con el código: §5.4, §8 (tablas), §12 (auth y códigos de error), §14 (desempate), §6 (árbol), §13 (import/semilla) y §18 (tests)
 
 ### Próximos pasos
 
-- [ ] `ws/room_ws.py`: el handler WebSocket sobre el `RoomStore` (token por query, `hello`/`start`/`answer`/`rematch`/`ping`, heartbeat y cierre limpio)
 - [ ] `GET /rooms/{code}`: sumar `players` con `room_store.player_count` (el dato ya está; falta el cable)
-- [ ] `test_room_ws.py`: partida completa entre dos clientes simulados, con desconexión y reconexión dentro de la gracia
 - [ ] Barrendero al arrancar: salas con `expires_at` vencido → `expired`, y matches `playing` más viejos que N minutos → `void`
-- [ ] Arcade sobre WS + ranking + corte semanal en `America/Argentina/Buenos_Aires`
+- [ ] Arcade sobre WS (`ws/arcade_ws.py`) + ranking + corte semanal en `America/Argentina/Buenos_Aires`
 - [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
+- [ ] Validar `JWT_SECRET` (≥ 32 bytes) cuando `env != "local"`
 - [ ] `README.md` con los cinco comandos de la sección 23 (pendiente de Fase 0)
 - [ ] Página mínima para probar dos pestañas (la API sola ya se prueba con el smoke test de `/tmp`, fuera del repo)
 
@@ -71,11 +71,8 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - Todo lo de frontend es de otra persona: acá solo se toca `backend/`.
 - Este documento se mantiene alineado con el código en el mismo paso: el plan es lo que lee la próxima sesión.
 - La URL de la base **no** está en `alembic.ini`: sale de `.env` por `app.config.settings`. Un solo lugar donde se configura.
-- El `content_hash` (clave del `UNIQUE` de `questions`) se calcula sobre el enunciado **normalizado**: NFKD sin diacríticos, minúsculas, sin signos, espacios colapsados. "¿Cuál es el río?" y "Cual es el rio" son la misma pregunta, así que el importador no puede cargar dos.
-- El default del import es `draft` (§13.2); las 60 semilla entran `published` por flag (`make seed`), si no `candidates()` no las ve y no hay nada que jugar.
-- `import_rows` frena el duplicado **dentro del mismo archivo** en Python (diccionario de hashes): dos filas iguales en un solo `INSERT` no las cubre el `ON CONFLICT`, que solo ve lo ya cargado.
+- El `content_hash` (clave del `UNIQUE` de `questions`) se calcula sobre el enunciado **normalizado**: NFKD sin diacríticos, minúsculas, sin signos, espacios colapsados, así "¿Cuál es el río?" y "Cual es el rio" son la misma pregunta. El default del import es `draft` (§13.2) y las 60 semilla entran `published` por flag (`make seed`), si no `candidates()` no ve nada que jugar. `import_rows` frena el duplicado **dentro del mismo archivo** en Python (diccionario de hashes): el `ON CONFLICT` solo ve lo ya cargado. El importador repite en Python los `CHECK` y las reglas que la base no expresa (opciones no vacías y distintas con `casefold`), para que el informe traiga la fila y el motivo en vez de un `IntegrityError` sin contexto.
 - La CLI commitea a mano: `session_factory` no tiene el commit automático de `get_session` ("el borde del pedido es el borde de la transacción", pero acá no hay pedido).
-- El importador repite en Python los `CHECK` (categoría, dificultad, 1–300) y suma las reglas que la base no puede expresar (opciones no vacías y distintas, comparadas con `casefold`): así el informe trae la fila y el motivo, en vez de reventar con un `IntegrityError` sin contexto.
 - `get_current_user` **envuelve** a `get_optional_user` en vez de repetir la lectura del token: un solo camino de auth, y `POST /auth/guest` sigue usando la opcional.
 - `rename_user` NO hace un SELECT previo: el único parcial de `users` es el árbitro, y entre chequear y escribir hay una carrera. Atrapa `IntegrityError` y hace `rollback` (mismo patrón que `create_guest`); el costo es que en los tests eso descarta lo escrito en la transacción del test, así que un PATCH rechazado se verifica por status, no por fila.
 - `PATCH /me` reemite el token: el pase lleva el `nick` adentro y dejarlo viejo sería entregarle al cliente un pase que miente (aunque hoy la identidad se resuelva por `sub` contra la base).
@@ -101,6 +98,14 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - La entrega es un `outbox` (cola) por jugador y no un callback: el vencimiento tiene que entregar sin que haya nadie esperando del otro lado, y el timer no conoce sockets. `disconnect` suelta esa cola: mensajes para un socket que ya no está no le sirven a nadie y se acumularían.
 - En los tests, `drain()` vacía la cola: dos `drain` seguidos para pedir dos tipos distintos descartan el que no se miró (un `uno(...)` que devuelve vacío). Un solo `drain` por tanda.
 - El barrendero queda pendiente y es el que cierra lo que nadie más cierra: una sala `playing` sin preguntas o un proceso que muere a mitad de partida dejan la fila abierta a propósito (§5.4).
+- `authenticate` (`api/deps.py`) es la **única puerta de auth**: la usan el header `Authorization` de HTTP y el `?token=` del WebSocket (el navegador no deja headers en `new WebSocket`). Dos transportes, una regla.
+- El WS **acepta antes de autenticar**: un token malo tiene que poder recibir su `error` `AUTH_REQUIRED` por el socket (§12); si se cortara sin aceptar, el cliente no tendría por dónde enterarse. El rechazo de entrada (token, sala, sala llena) cierra con **1008**.
+- El handler hace `join` **al conectar**, no al `hello`: la presencia tiene que existir cuando el navegador abre la sala (Fase 2). `hello` → `sync` repinta el estado completo y, de paso, la ronda en curso con su `ends_at` original (§10.3).
+- `RoomStore.seated` existe por el tercero: el store le deja su `ROOM_FULL` en el `outbox` y el handler lo manda y **corta** la conexión. Sin esa consulta, una conexión sin silla queda viva sin tener a quién entregarle nada.
+- El socket lo escribe **una sola corrutina** en régimen (la que drena el `outbox`); el lector pasa por el mismo lock para el `pong` y los errores que responde por su cuenta. Dos `send` en paralelo sobre el mismo socket no son seguros.
+- Un corte de red silencioso no genera `disconnect`: lo detecta el **timeout de inactividad** (`ws_idle_timeout_seconds`, 45 s = 3 heartbeats del cliente) y recién ahí arranca la gracia. El handler cierra el socket al salir, así el cliente ve un cierre limpio y no un 1006.
+- Códigos nuevos del WS: `BAD_MESSAGE` (sobre o `answer` mal formados) y `UNKNOWN_MESSAGE` (tipo que no conocemos). No se reusa `VALIDATION_ERROR`, que es del cuerpo HTTP.
+- Los tests de WS **no usan `starlette.testclient`**: levanta la app en otro hilo y otro event loop y la sesión de asyncpg del test no cruza de loop (el rollback dejaría de ver lo escrito). `tests/ws_client.py` maneja el `scope: "websocket"` a mano en el loop del test, igual que `ASGITransport` con HTTP: mismo aislamiento (sesión y reloj falso) que el resto. Un `until(t)` saltea los mensajes que ya llegaron; el test pide por tipo, no por orden exacto.
 
 ---
 

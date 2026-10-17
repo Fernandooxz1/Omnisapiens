@@ -98,6 +98,14 @@ class RoomStore(Protocol):
         """Cuántos jugadores hay conectados: la presencia que le falta a la vista previa."""
         ...
 
+    def seated(self, *, code: str, user_id: str) -> bool:
+        """Si ese usuario tiene silla.
+
+        Lo consulta el handler después de `join`: un tercero ya recibió su
+        `ROOM_FULL` en el `outbox` y hay que cortarle la conexión.
+        """
+        ...
+
     async def close(self) -> None:
         """Corta las tareas de vencimiento (shutdown del proceso)."""
         ...
@@ -230,6 +238,10 @@ class InMemoryRoomStore:
         return sum(
             1 for seat in entry.state.seats if seat is not None and seat.connected
         )
+
+    def seated(self, *, code: str, user_id: str) -> bool:
+        entry = self._rooms.get(code)
+        return entry is not None and entry.state.player_of(user_id) is not None
 
     async def close(self) -> None:
         tasks = [entry.task for entry in self._rooms.values() if entry.task]

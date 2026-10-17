@@ -33,6 +33,26 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
+async def authenticate(session: AsyncSession, token: str) -> User:
+    """Un token → el usuario vivo, o `ApiError` 401.
+
+    La única puerta de auth: la usan el header `Authorization` (HTTP) y el
+    `?token=` del WebSocket. Dos transportes, una sola regla de identidad.
+    """
+    try:
+        identidad = read_guest_token(token)
+    except InvalidToken:
+        raise ApiError(
+            401, "AUTH_REQUIRED", "El token venció o no es válido."
+        ) from None
+
+    usuario = await session.get(User, identidad.user_id)
+    # El borrado es lógico: la fila sigue ahí, pero el token ya no es de nadie.
+    if usuario is None or usuario.deleted_at is not None:
+        raise ApiError(401, "AUTH_REQUIRED", "El token venció o no es válido.")
+    return usuario
+
+
 async def get_optional_user(
     session: SessionDep,
     authorization: Annotated[str | None, Header()] = None,
@@ -45,19 +65,7 @@ async def get_optional_user(
     """
     if authorization is None:
         return None
-
-    try:
-        identidad = read_guest_token(_bearer(authorization))
-    except InvalidToken:
-        raise ApiError(
-            401, "AUTH_REQUIRED", "El token venció o no es válido."
-        ) from None
-
-    usuario = await session.get(User, identidad.user_id)
-    # El borrado es lógico: la fila sigue ahí, pero el token ya no es de nadie.
-    if usuario is None or usuario.deleted_at is not None:
-        raise ApiError(401, "AUTH_REQUIRED", "El token venció o no es válido.")
-    return usuario
+    return await authenticate(session, _bearer(authorization))
 
 
 def _bearer(authorization: str) -> str:

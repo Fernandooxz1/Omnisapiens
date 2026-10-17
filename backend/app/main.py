@@ -9,6 +9,7 @@ from app.config import settings
 from app.db import engine
 from app.redis import redis_client
 from app.runtime.room_manager import room_store
+from app.ws import room_ws
 
 
 @asynccontextmanager
@@ -39,6 +40,7 @@ app.include_router(auth.router)
 app.include_router(health.router)
 app.include_router(me.router)
 app.include_router(rooms.router)
+app.include_router(room_ws.router)
 
 
 @app.get("/")

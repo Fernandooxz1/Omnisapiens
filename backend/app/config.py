@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     jwt_ttl_days: int = 30
     reconnect_grace_seconds: int = 20
     room_idle_timeout_seconds: int = 600
+    # Tres heartbeats del cliente (ping cada 15 s, §10.3). Sin esto, un socket
+    # que muere sin `close` deja la silla "conectada" y la gracia nunca arranca.
+    ws_idle_timeout_seconds: int = 45
 
 
 # mypy no ve que BaseSettings llena los campos desde el entorno.
