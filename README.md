@@ -39,12 +39,17 @@ SQLite ni mocks. Por eso `make up` tiene que estar corriendo.
 ## API
 
 - `POST /auth/guest` → alta de invitado y token JWT.
-- `GET`/`PATCH`/`DELETE /me` → perfil, cambio de nick y baja lógica.
+- `GET`/`PATCH`/`DELETE /me` → perfil (con mejor marca e historial de arcade y 1v1),
+  cambio de nick y baja lógica.
 - `POST /rooms` → crea una sala 1v1 y devuelve el código.
 - `GET /rooms/{code}` → vista previa (estado, config, `players`, vencimiento).
 - `WS /ws/room/{code}?token=...` → sala en vivo (`hello`, `start`, `answer`,
   `rematch`, `ping`; el servidor manda `room_state`, `round_start`, `round_result`,
   `match_end`, `error`).
+- `WS /ws/arcade?token=...` → corrida flash (`start`, `answer`, `ping`; el servidor
+  manda `arcade_start`, `arcade_question`, `arcade_result`, `arcade_end`).
+- `GET /leaderboard/arcade?period=all|week&limit=50` → tabla del ranking.
+- `GET /leaderboard/arcade/me` → posición y marca del jugador en ambos períodos.
 - `GET /health` → 503 si falta Postgres o Redis.
 
 Los errores tienen siempre la forma `{"error": {"code", "message"}}`.

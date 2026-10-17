@@ -14,7 +14,7 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). **Sala 1v1 y arcade completos**: HTTP, banco de preguntas e importador, motores puros, sala viva con WS, barrendero al arrancar, arcade con WS, persistencia y **ranking en Postgres**. 7 tablas, migraciones `0001`–`0003`, **501 tests en ~14 s**, cobertura **93 %**.
+Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). **Sala 1v1 y arcade completos**: HTTP, banco de preguntas e importador, motores puros, sala viva con WS, barrendero al arrancar, arcade con WS, persistencia y **ranking en Postgres**. 7 tablas, migraciones `0001`–`0003`, **505 tests en ~15 s**, cobertura **93 %**.
 
 El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en Redis. El plan del MVP está abajo en este archivo y el diseño de datos en el **Anexo A**: se consultan por fragmento (`grep` o `read` con `offset`/`limit`), no hace falta leerlos enteros. Verificación estándar antes de commitear: `make up` una vez y `make lint` + `make cov`.
 
@@ -25,20 +25,19 @@ El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en R
 - [x] Banco de preguntas + importador + CLI + 60 semilla; motores puros y `runtime/`.
 - [x] Sala 1v1: `runtime/room.py`, `room_manager` y `ws/room_ws.py` con presencia, gracia y revancha.
 - [x] Arcade: `arcade_session`, `ws/arcade_ws`, persistencia (`arcade_runs`/`arcade_answers`) y ranking.
+- [x] `GET /me` con marcas (`all_time`/`week`) e historial de arcade y 1v1 (`services/profile.py`), tope 10 y solo `finished`.
 - [x] Barrendero al arrancar (salas, partidas y corridas), auditoría H-01..H-25, README y calidad (ruff/mypy/cobertura/CI).
 
 ### Próximos pasos
 
-**Ahora: `GET /me` con mejor marca y últimas partidas.** El ranking ya existe (`services/leaderboard.py`: `rank()` y `run_summary()`), así que la pieza es solo HTTP + schema. **Antes de codificar, acordar la forma**: ¿las "últimas partidas" son solo arcade, solo 1v1 o las dos? ¿qué campos? No inventar el contrato sin confirmarlo. Puntos de arranque: `api/routers/me.py`, `schemas/users.py`, `tests/test_me_api.py`, §11 y §14.
+**Ahora: barrendero periódico (task con intervalo).** Hoy el barrido corre una vez al arrancar. Hay que repetirlo cada N minutos sin pisar salas vivas: **coordinar con `RoomStore`** (una sala `waiting` con jugadores vivos no se expira) y con el arcade (una corrida viva puede superar `stale_match_minutes`). Puntos de arranque: `services/reaper.py`, `main.py` (lifespan), `tests/test_reaper.py` y Anexo B (reloj y arranque).
 
-- [ ] Extender `GET /me` con la mejor marca (global/semanal) y el historial acordado.
-- [ ] Tests de API del `GET /me` nuevo (con y sin corridas, con y sin token).
-- [ ] Barrendero periódico (task con intervalo): **coordinar con `RoomStore`** (una sala `waiting` con jugadores vivos no se expira) y con el arcade (una corrida viva puede superar `stale_match_minutes`).
+- [ ] Barrendero periódico con intervalo, cancelado limpio en el shutdown.
+- [ ] Tests del barrido repetido (no expira salas vivas, sí vencidas).
 - [ ] Página mínima para probar dos pestañas (el smoke test de `/tmp` ya cubre la API sola).
 - [ ] Fase 1: `GET /admin/questions` paginado con `X-Admin-Token`.
 - [ ] Fase 1: `POST /admin/questions/import` y devolver `X-Admin-Token` a `config.py`.
 - [ ] Fase 6: PWA, e2e y documentación (la parte de frontend es de otra persona).
-- [ ] Actualizar `README.md` con `/leaderboard` y lo que agregue `GET /me`.
 - [ ] Repasar `docs/observaciones.md` por pendientes P3 sin cerrar.
 
 > **Trampas y decisiones que no se re-descubren: Anexo B**, al final. Consultarlo
@@ -779,6 +778,7 @@ Todas las respuestas en JSON. Los errores siguen el formato `{"error": {"code": 
 - **Códigos de error** que devuelve hoy: `AUTH_REQUIRED` (401), `NICK_TAKEN` (409), `NICK_FORBIDDEN` y `NICK_LENGTH` (400), `ROOM_NOT_FOUND` (404), `VALIDATION_ERROR` (422, forma del body). El formato es el de §11: `{"error": {"code", "message"}}`.
 - **El nick se limpia y se valida** en `security/nicks.py` (espacios de sobra, 1–16 caracteres, lista corta de palabras prohibidas que no ve leet ni homoglifos). El mismo módulo sirve para el `PATCH /me`.
 - **`/me`**: `GET` devuelve el perfil y refresca `last_seen_at` como mucho una vez por minuto; `PATCH` cambia el nick (mismos códigos `NICK_*`) y devuelve un token fresco (el viejo lleva el nick viejo); `DELETE` es baja lógica (204) y a partir de ahí el token da 401 y el nick queda libre.
+  - El `GET` agrega `best` (`all_time` y `week`, dos enteros o `null`), `arcade_runs` y `matches` (hasta 10 cada uno, solo `finished`). Las dos listas son independientes: los campos de una corrida y de un 1v1 no se parecen. Los puntajes de la partida vienen ya puestos desde el punto de vista del jugador (`my_score`, `opponent_score`, `opponent_nick`, `result` = `win`/`loss`/`draw`). La posición en el ranking **no** se repite acá: vive en `/leaderboard/arcade/me`.
 - **CORS:** los orígenes salen de `CORS_ORIGINS` y el frontend corre en otro puerto (`5173`), así que el navegador exige el middleware para poder llamar a la API.
 - El token es un **JWT HS256** con `sub` (id del usuario), `nick`, `guest: true`, `iat` y `exp` a 30 días. Se firma con `JWT_SECRET`.
 - El cliente lo guarda en `localStorage` y lo manda en el header `Authorization: Bearer ...`, o como query param `?token=` en los WebSocket (el navegador no permite headers en `new WebSocket`).
