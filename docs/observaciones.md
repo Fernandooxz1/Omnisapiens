@@ -10,7 +10,7 @@
 > una línea del arcade.
 
 > **Estado (2026-10-17, tarde).** Resueltos y verificados: **H-01, H-02** (los dos
-> P0), **H-03, H-04, H-05, H-06, H-08, H-11, H-12, H-25**, el `players` de
+> P0), **H-03, H-04, H-05, H-06, H-08, H-11, H-12, H-24, H-25**, el `players` de
 > `GET /rooms/{code}` y el **barrendero**. Van marcados con ✅ en su título; el resto
 > sigue vigente tal como está escrito. El detalle de cada arreglo quedó en
 > `docs/plan.md` (sección *Estado de sesión*).
@@ -20,7 +20,7 @@
 ## 0. Veredicto en cinco renglones
 
 El proyecto está **muy bien construido para tener 2 días de vida**: capas limpias,
-motor puro, constraints de verdad en Postgres, 426 tests que corren en ~10 segundos y
+motor puro, constraints de verdad en Postgres, 428 tests que corren en ~10 segundos y
 comentarios que explican el *porqué* y no el *qué*. El modo online —lo único
 jugable hoy— tenía **dos defectos serios de ciclo de vida**: una reconexión podía
 hacerte **perder la partida por un socket viejo**, y **cualquier error de base mataba
@@ -45,7 +45,7 @@ Comandos y resultado exacto, para que sea verificable:
 | Formato | `uv run ruff format --check .` | `80 files already formatted` |
 | Tipos | `uv run mypy app` | `Success: no issues found in 48 source files` |
 | Schema | `uv run alembic check` | `No new upgrade operations detected.` |
-| Tests | `uv run pytest -q` | **426 passed in ~10 s**, sin warnings (la dev key se filtra en tests, H-21) |
+| Tests | `uv run pytest -q` | **428 passed in ~10 s**, sin warnings (la dev key se filtra en tests, H-21) |
 
 Los warnings eran todos el mismo: `InsecureKeyLengthWarning`, el `JWT_SECRET` de
 dev mide 18 bytes. Ya no ensucian la salida de los tests (filtro en
@@ -83,7 +83,7 @@ objetiva. El "%" es contra el backend terminado (el frontend no cuenta acá).
 | Redis (ranking, rate limit, Pub/Sub) | solo historial de vistas | **15** | sorted sets, límites, multi-instancia |
 | Concurrencia / ciclo de vida de sala | camino feliz, P0 y fugas corregidos | **90** | H-07 (multi-instancia) |
 | Infra local (compose, Makefile, env) | completa, con CI | **90** | `README.md` |
-| Tests | 426 verdes, 92 % de cobertura, con tests de carrera | **95** | nada |
+| Tests | 428 verdes, 92 % de cobertura, con tests de carrera | **95** | nada |
 | Frontend | **fuera de alcance de este repo** | — | lo hace otra persona |
 
 **Backend ponderado: ≈ 60 %** al cerrar la auditoría. Los arreglos de esta tarde
@@ -118,7 +118,7 @@ Cumplidos a nivel backend: **3,5 de 6** (el 1 y el 3 esperan al frontend/arcade)
 | Commits | 30, en **2 días** (16–17 oct 2026) | ritmo altísimo, un commit = un paso testeado |
 | LOC `app/` | 3.994 en 47 módulos (mypy) | razonable para el alcance |
 | LOC `tests/` | 5.006 | **ratio test:código 1,25:1** — excelente |
-| Tests | 426, ~10 s, contra Postgres y Redis reales | sin SQLite, sin mocks de base |
+| Tests | 428, ~10 s, contra Postgres y Redis reales | sin SQLite, sin mocks de base |
 | Tablas | 7 (users, questions, rooms, matches, match_rounds, arcade_runs, arcade_answers) | 1:1 con §8 del plan |
 | Migraciones | 3 (`0001`–`0003`), **sin drift** | `alembic check` limpio |
 | Dependencias | 12 runtime + 5 dev | 2 son código muerto (H-16) |
@@ -565,9 +565,9 @@ detalle = "; ".join(f"{'.'.join(str(p) for p in e['loc'][1:])}: {e['msg']}" for 
 | H-19 | `/health` responde **200 degradado** (db/redis en `error`) | `routers/health.py:28` | 503 si algo está mal; si no, ningún balanceador va a reaccionar |
 | H-20 | Mezcla de idiomas: handlers `crear_sala`/`vista_previa` en español, el resto en inglés | `rooms.py:16,24` | §15 del plan dice código en inglés; renombrar |
 | H-21 | Warnings idénticos que tapan cualquier warning nuevo | `pytest` output | **mitad hecho:** `filterwarnings` en tests deja la salida limpia; **falta** subir el `JWT_SECRET` de dev a ≥ 32 bytes en `.env.example` |
-| ✅ H-22 | Drift de docs: el plan y `.env.example` quedaron al día (426 tests, ~10 s; `WS_IDLE_TIMEOUT_SECONDS` y `STALE_MATCH_MINUTES` listados) | `plan.md:16`, `.env.example` | mantener los números al día en el mismo paso |
+| ✅ H-22 | Drift de docs: el plan y `.env.example` quedaron al día (428 tests, ~10 s; `WS_IDLE_TIMEOUT_SECONDS` y `STALE_MATCH_MINUTES` listados) | `plan.md:16`, `.env.example` | mantener los números al día en el mismo paso |
 | H-23 | `GET /me` hace un `flush` por lectura (pisa `last_seen_at`) | `routers/me.py:19-20` | correcto, pero es una escritura por cada GET; si el frontend lo llama seguido, conviene un `UPDATE ... WHERE last_seen_at < now() - interval '1 minute'` |
-| H-24 | **El desempate no tiene tope**: si los dos siguen empatando, la partida no termina nunca (cada ronda de desempate es de `seconds//2` y suma más rondas) | `match_engine.py:207-217`, `:109-114` | un máximo de rondas de desempate (p.ej. 3) y, agotado, gana quien tenga mejor tiempo acumulado o se declara empate |
+| ✅ H-24 | **El desempate no tenía tope**: si los dos seguían empatando, la partida no terminaba nunca | `match_engine.py:207-217`, `:109-114` | **resuelto:** `MAX_TIEBREAK_ROUNDS = 3`; agotado, `FINISHED` con `winner=None` (`MatchEnd.winner="tie"`) |
 | ✅ H-25 | **Sesgo de posición en la semilla**: correcta en B 48,3 %, C 28,3 %, A 21,7 %, D 1,7 % (n=60). Las opciones **no se mezclaban al servir** | `seeds/questions.csv` | **resuelto:** `shuffle_options` baraja los índices al servir y remapea `correct_index`; la semilla no se toca |
 
 H-25 era el hallazgo que más rápido se iba a notar jugando: "toco siempre la
@@ -587,7 +587,7 @@ senior y son las que hacen que el resto sea barato de arreglar:
 1. **El motor es puro y el borde es sucio a propósito.** `game/` no conoce Postgres,
    ni sockets, ni `time.time()`. `now_ms`, `sleep` y `rng` se inyectan
    (`room_manager.py:136-149`): una partida entera corre en milisegundos en los tests
-   con el `FakeClock`. Esa decisión sola explica los 426 tests en ~10 s.
+   con el `FakeClock`. Esa decisión sola explica los 428 tests en ~10 s.
 2. **La respuesta correcta no puede filtrarse: no está en el tipo.** `RoundQuestion`
    (`question_bank.py:39-50`) no tiene `correct_index`; el `match_end` con
    `RoundResult` es lo único que lo expone. Un test con `hasattr` lo vigila. Esto es
@@ -733,7 +733,7 @@ el siguiente bloque grande.
 make up                      # Postgres 16 + Redis 7
 make lint                    # ruff (select) + format + mypy strict
 make check-schema            # alembic check: sin drift entre modelos y migraciones
-make test                    # 426 verdes, ~10 s (sin umbral)
+make test                    # 428 verdes, ~10 s (sin umbral)
 make cov                     # el gate: 92 % contra un umbral de 85 %
 ```
 
@@ -774,6 +774,6 @@ justamente donde todavía no hay nadie mirando: el socket que se va tarde, el re
 que se muere callado y lo que nadie cierra al apagar. Ya están corregidos, con sus
 tests y sabotajes.
 
-Lo que sigue, en orden: **H-24** (tope del desempate), después el **arcade por WS +
-ranking**, y los P3 sueltos (H-16 a H-23) más el `README.md`. La barra de calidad ya
-no es una promesa: `make lint`, `make cov` y el CI la hacen cumplir.
+Lo que sigue, en orden: los P3 sueltos (H-16 a H-23), el `README.md` y el **arcade
+por WS + ranking**. La barra de calidad ya no es una promesa: `make lint`,
+`make cov` y el CI la hacen cumplir.

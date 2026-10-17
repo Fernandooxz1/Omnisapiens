@@ -3,6 +3,7 @@ import pytest
 from app.game.answers import Answer, RejectReason
 from app.game.errors import InvalidTransition
 from app.game.match_engine import (
+    MAX_TIEBREAK_ROUNDS,
     MatchConfig,
     MatchState,
     MatchStatus,
@@ -202,6 +203,18 @@ def test_tiebreak_repeats_while_tied() -> None:
     assert state_.round_index == 4
 
 
+def test_the_tiebreak_stops_at_the_cap_with_a_draw() -> None:
+    state_ = state()
+    for _ in range(3):
+        state_ = play(state_, a_choice=1, b_choice=2, difficulty=2).state
+    for _ in range(MAX_TIEBREAK_ROUNDS):
+        state_ = play(state_, a_choice=1, b_choice=2, difficulty=4).state
+
+    assert state_.status is MatchStatus.FINISHED
+    assert state_.winner is None
+    assert state_.round_index == 3 + MAX_TIEBREAK_ROUNDS
+
+
 def test_scores_are_derived_from_the_round_history() -> None:
     state_ = state()
     for _ in range(3):
@@ -269,5 +282,5 @@ def test_round_indices_must_be_consecutive() -> None:
 
 
 def test_finished_match_needs_a_winner() -> None:
-    with pytest.raises(ValueError, match="necesita ganador"):
+    with pytest.raises(ValueError, match="terminada sin ganador"):
         MatchState(config=config(), status=MatchStatus.FINISHED)

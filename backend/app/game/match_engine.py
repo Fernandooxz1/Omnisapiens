@@ -16,6 +16,9 @@ from app.game.scoring import round_points
 # (última ronda del tramo, dificultad mínima, dificultad máxima)
 _DIFFICULTY_BY_ROUND = ((1, 1, 2), (3, 2, 3), (5, 3, 4))
 _TIEBREAK_DIFFICULTY = (4, 5)
+# Sin tope, dos jugadores igualados podían jugar rondas de desempate para siempre
+# (H-24). Agotadas estas, la partida termina en empate: es el resultado honesto.
+MAX_TIEBREAK_ROUNDS = 3
 
 
 class Player(StrEnum):
@@ -87,11 +90,18 @@ class MatchState:
         elif self.status is MatchStatus.VOID:
             if self.winner is not None:
                 raise ValueError("una partida anulada no tiene ganador")
-        else:
+        elif self.status is MatchStatus.ABANDONED:
             if self.winner is None:
-                raise ValueError(f"una partida {self.status} necesita ganador")
-            if self.in_tiebreak and self.score_a == self.score_b:
-                raise ValueError("una partida terminada no puede quedar empatada")
+                raise ValueError("una partida abandonada necesita ganador")
+        elif self.winner is None:
+            # Un FINISHED sin ganador sólo puede ser el empate tras agotar el
+            # tope de desempates (H-24). Antes de eso se sigue jugando.
+            empate_en_el_tope = (
+                self.score_a == self.score_b
+                and self.round_index >= self.config.rounds + MAX_TIEBREAK_ROUNDS
+            )
+            if not empate_en_el_tope:
+                raise ValueError("una partida terminada sin ganador no es un empate")
 
     @property
     def score_a(self) -> int:
@@ -205,9 +215,13 @@ def resolve_round(
     score_a = state.score_a + a_points
     score_b = state.score_b + b_points
 
-    decided = len(rounds) >= state.config.rounds and score_a != score_b
+    # Termina cuando hay ganador o cuando se agotó el tope de desempates: en ese
+    # caso queda empatada, en vez de seguir sirviendo rondas para siempre (H-24).
+    decided = len(rounds) >= state.config.rounds and (
+        score_a != score_b or len(rounds) >= state.config.rounds + MAX_TIEBREAK_ROUNDS
+    )
     winner = None
-    if decided:
+    if decided and score_a != score_b:
         winner = Player.A if score_a > score_b else Player.B
 
     next_state = replace(

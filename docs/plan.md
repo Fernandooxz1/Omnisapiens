@@ -13,11 +13,11 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas**, **el WebSocket de sala** y **el barrendero** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **426 tests en ~10 s** contra Postgres y Redis reales.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la capa HTTP (`/auth/guest`, `/me`, `/rooms`), el importador, **el estado vivo de las salas**, **el WebSocket de sala** y **el barrendero** están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **428 tests en ~10 s** contra Postgres y Redis reales.
 
-El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`) y el barrendero cierra al arrancar lo que quedó abierto. Las opciones se barajan al servir (H-25) y el token no se escribe en los logs (H-08). Falta el resto del tiempo real: **el arcade por WS**.
+El canal en vivo de la sala está cerrado: `WS /ws/room/{code}?token=...` traduce §10.1 al `RoomStore` (auth por query, `hello`/`start`/`answer`/`rematch`/`ping`, corte por inactividad y cierre limpio). La vista previa de `/rooms/{code}` ya muestra `players` (presencia viva del `RoomStore`) y el barrendero cierra al arrancar lo que quedó abierto. Las opciones se barajan al servir (H-25), el token no se escribe en los logs (H-08) y el desempate tiene tope (H-24). Falta el resto del tiempo real: **el arcade por WS**.
 
-**Pausa acá:** **H-01..H-06, H-08, H-11, H-12, H-25 y `players` cerrados** (testeados y sabotajeados). Sigue el **arcade por WS + ranking**, después H-24 (tope del desempate) y los P3 sueltos.
+**Pausa acá:** **H-01..H-06, H-08, H-11, H-12, H-24, H-25 y `players` cerrados** (testeados y sabotajeados). Siguen los P3 sueltos (H-16..H-23), el `README.md` y el **arcade por WS + ranking**.
 
 Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este documento. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
@@ -40,6 +40,7 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - [x] **H-11 (calidad)**: `ruff select` (E/F/W/I/N/UP/B/SIM/ASYNC/RUF/PT), `mypy strict`, `pytest-cov` con umbral **85 %** en `make cov` (92 % real; `make test` queda rápido para corridas dirigidas) y CI de GitHub con Postgres 16 + Redis 7 (`.github/workflows/ci.yml`)
 - [x] **H-12 + H-08**: logging configurado en el lifespan (`LOG_LEVEL`, formato con hora y logger) y un filtro que descarta del log los renglones de WS con `?token=` (`logging_config.py`) + test
 - [x] **H-25**: `shuffle_options` baraja los índices al servir y remapea `correct_index`; la pregunta guardada no se toca. Adiós al sesgo de posición (B en 48 %) + 4 tests
+- [x] **H-24**: tope de `MAX_TIEBREAK_ROUNDS = 3`: si siguen empatados, la partida termina en empate (`FINISHED`, `winner=None`, `MatchEnd.winner="tie"`) en vez de servir rondas para siempre + tests de motor y de sala
 
 ### Próximos pasos
 
@@ -47,11 +48,10 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 > Los P0 (H-01/H-02), los P1 H-03..H-06, H-12/H-08, H-25, H-11, el barrendero y la
 > presencia están cerrados; sigue la cola de abajo.
 
-- [ ] **H-24 (P3, juego)**: tope del desempate (hoy puede no terminar nunca); máximo de rondas y, agotado, gana el mejor tiempo acumulado o empate
+- [ ] Los P3 sin resolver: H-16 (deps/config muertas), H-17 (lookup de sala ×3), H-18 (`GET /`), H-19 (`/health` 503), H-20 (handlers en español), H-23 (`GET /me` escribe por lectura)
 - [ ] Arcade sobre WS (`ws/arcade_ws.py`) + ranking + corte semanal en `America/Argentina/Buenos_Aires`
 - [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
 - [ ] Validar `JWT_SECRET` (≥ 32 bytes) cuando `env != "local"` y subir el de dev en `.env.example` (H-21)
-- [ ] Los P3 sin resolver: H-16 (deps/config muertas), H-17 (lookup de sala ×3), H-18 (`GET /`), H-19 (`/health` 503), H-20 (handlers en español), H-23 (`GET /me` escribe por lectura)
 - [ ] Barrendero periódico (no solo al arrancar): el mismo `sweep` en una task con intervalo, para que una sala `waiting` venza sin esperar un reinicio. Coordinar con H-03 y con `expires_at` (H-04 ya lo refresca)
 - [ ] `README.md` con los cinco comandos de la sección 23 (pendiente de Fase 0)
 - [ ] Página mínima para probar dos pestañas (la API sola ya se prueba con el smoke test de `/tmp`, fuera del repo)
@@ -113,6 +113,7 @@ Diseño acordado, leer antes de tocar datos o auth: **Anexo A** de este document
 - **La barra de calidad es un gate, no un adorno**: `ruff` con `select` (incluye `ASYNC`, `B`, `SIM`, `PT`), `mypy strict` y **92 % de cobertura** contra un umbral de 85 %. La cobertura **no** va en `addopts` a propósito: si estuviera, `pytest tests/test_room.py` fallaría por la cobertura global; `make test` corre rápido y `make cov` es el gate que usa el CI. `N818` queda ignorado: `NickTaken`/`InvalidTransition` se leen mejor sin el sufijo `Error`.
 - El token del WS viaja en `?token=` (el navegador no deja headers en `new WebSocket`), y uvicorn loguea el handshake con la URL completa en `uvicorn.error`. `logging_config._HideWebSocketTokens` descarta los registros cuyos argumentos son `/ws/...` o contienen `?token=`; el resto de `uvicorn.error` (arranque, errores) sigue visible. El filtro va por logger, no por handler, porque uvicorn escribe esos renglones directamente en `uvicorn.access`/`uvicorn.error`.
 - Las opciones se barajan **al servir** (`shuffle_options`) y `correct_index` se remapea en la misma copia: `RoundStart` y `match_rounds` ven el índice nuevo, y la pregunta guardada no se toca. Se barajan **índices**, no textos, para que un banco con opciones repetidas no desplace la respuesta. El `RoomStore` acepta `shuffle_served_options=False` para los tests que necesitan predecir la letra; producción lo deja en `True`.
+- El desempate tiene tope (`MAX_TIEBREAK_ROUNDS = 3`): si tras tres rondas extra siguen empatados, la partida termina **en empate** (`FINISHED`, `winner=None`). `MatchState` sólo acepta un terminado sin ganador si `round_index >= config.rounds + MAX_TIEBREAK_ROUNDS`; antes del tope sigue siendo inválido. `MatchEnd` ya traducía `winner=None` a `"tie"`.
 - El reloj y el `sleep` se inyectan: el `FakeClock` de los tests no duerme, espera a que el test mueva la hora. Así una partida entera por vencimientos corre en milisegundos, sin esperar los 10–20 s reales de cada ronda.
 - Los tests del `room_manager` pasan la **sesión del test** como factory (su `commit` se vuelve SAVEPOINT): igual que la fixture `client`, sin ensuciar `trivia_test`.
 - La entrega es un `outbox` (cola) por jugador y no un callback: el vencimiento tiene que entregar sin que haya nadie esperando del otro lado, y el timer no conoce sockets. `disconnect` suelta esa cola: mensajes para un socket que ya no está no le sirven a nadie y se acumularían.
@@ -667,7 +668,7 @@ Ejemplo con 20 segundos: acertar en 1 segundo da 148 puntos; acertar al límite 
 **Fin de la partida**
 
 - Terminadas todas las rondas, gana el que más puntos tiene.
-- Si hay empate, se juega **una ronda de desempate** con la mitad del tiempo configurado y una pregunta de dificultad 4 o 5. Se repite hasta que haya un ganador.
+- Si hay empate, se juega **una ronda de desempate** con la mitad del tiempo configurado y una pregunta de dificultad 4 o 5. Se repite hasta que haya un ganador o hasta agotar `MAX_TIEBREAK_ROUNDS = 3`; agotado el tope, la partida termina en **empate** (`winner_id` nulo).
 - El servidor envía `match_end` con el ganador, los puntajes, y el resumen ronda por ronda.
 
 **Abandono y desconexión**

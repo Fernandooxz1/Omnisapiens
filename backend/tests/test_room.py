@@ -300,6 +300,21 @@ def test_a_tie_opens_a_tiebreak_with_half_the_time() -> None:
     assert only(effects, HOST).total_seconds == 10  # type: ignore[union-attr]
 
 
+def test_the_tiebreak_cap_ends_the_match_with_a_tie() -> None:
+    state = playing()
+    for start_ms in (1_000, 30_000, 60_000, 90_000, 120_000, 150_000):
+        state, effects = play_round(
+            state, a_choice=1, b_choice=1, correct_index=0, start_ms=start_ms
+        )
+
+    assert state.status is R.RoomStatus.FINISHED
+    assert state.match is not None
+    assert state.match.winner is None
+    finales = [m for m in effects[HOST] if isinstance(m, MatchEnd)]
+    assert len(finales) == 1
+    assert finales[0].winner == "tie"
+
+
 def test_needs_next_round_only_between_rounds_and_with_both_players() -> None:
     state = playing()
     assert state.needs_next_round
