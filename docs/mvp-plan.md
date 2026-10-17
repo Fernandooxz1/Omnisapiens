@@ -722,7 +722,10 @@ Todas las respuestas en JSON. Los errores siguen el formato `{"error": {"code": 
 
 ## 12. Autenticación
 
-- **Invitado primero.** `POST /auth/guest` crea un `users` con `is_guest = true` y un nick generado si no se manda uno (por ejemplo `Jugador4821`).
+- **Invitado primero.** `POST /auth/guest` crea un `users` con `is_guest = true` y un nick generado si no se manda uno (por ejemplo `Jugador4821`). Con un token válido en el header **no** da de alta a nadie: devuelve el mismo usuario con un token fresco, e ignora el nick que venga en el body (la identidad la manda el token).
+- **Códigos de error** que devuelve hoy: `AUTH_REQUIRED` (401), `NICK_TAKEN` (409), `NICK_FORBIDDEN` y `NICK_LENGTH` (400), `VALIDATION_ERROR` (422, forma del body). El formato es el de §11: `{"error": {"code", "message"}}`.
+- **El nick se limpia y se valida** en `security/nicks.py` (espacios de sobra, 1–16 caracteres, lista corta de palabras prohibidas que no ve leet ni homoglifos). El mismo módulo sirve para el `PATCH /me`.
+- **CORS:** los orígenes salen de `CORS_ORIGINS` y el frontend corre en otro puerto (`5173`), así que el navegador exige el middleware para poder llamar a la API.
 - El token es un **JWT HS256** con `sub` (id del usuario), `nick`, `guest: true`, `iat` y `exp` a 30 días. Se firma con `JWT_SECRET`.
 - El cliente lo guarda en `localStorage` y lo manda en el header `Authorization: Bearer ...`, o como query param `?token=` en los WebSocket (el navegador no permite headers en `new WebSocket`).
 - No hay contraseñas, ni refresh tokens, ni sesiones en base de datos.
@@ -947,6 +950,8 @@ El audio debe ser CC0 o de producción propia. Se inicializa después de la prim
 - `test_scoring.py`: tabla de valores exacta para que el puntaje no se rompa al refactorizar.
 - `test_questions_service.py`: que nunca se repita una pregunta dentro de una partida, que respete la dificultad, y que no explote si no hay preguntas suficientes.
 - `test_constraints_*.py`: **un test por regla de la base**, contra un Postgres real y exigiendo el constraint que corresponde. Nada de SQLite: no tiene `jsonb`, ni índices parciales, ni `CHECK` con regex.
+- `test_nicks.py` y `test_tokens.py`: la seguridad sin HTTP. La lista de palabras prohibidas se recorre entera, y del token se prueba lo que importa: que lo firmado se lee, y que lo tocado, lo vencido y lo firmado por otro no.
+- `test_auth_api.py`: `POST /auth/guest` con `httpx` contra la base real, incluida la reutilización del usuario cuando el token es válido y el rechazo cuando no lo es.
 - `test_schema_matches_models.py`: guardia contra el drift entre los modelos y la migración. Hace falta porque `alembic check` **no compara los `CHECK`** (los deja pasar agregados, cambiados, renombrados o borrados).
 - `test_rooms_api.py` y `test_arcade_ws.py`: con `httpx` y el cliente de test de FastAPI, incluyendo WebSocket.
 - `test_room_ws.py`: partida completa entre dos clientes simulados, con desconexión y reconexión dentro de la ventana de gracia.

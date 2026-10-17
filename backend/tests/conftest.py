@@ -13,9 +13,10 @@ verdad (ningún test lo hace).
 """
 
 import asyncio
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 
+import httpx
 import pytest
 import sqlalchemy as sa
 from alembic import command
@@ -28,7 +29,9 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
+from app.api.deps import get_session
 from app.config import settings
+from app.main import app
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 TEST_DATABASE_NAME = "trivia_test"
@@ -96,3 +99,32 @@ async def session(connection: AsyncConnection) -> AsyncIterator[AsyncSession]:
         expire_on_commit=False,
     ) as session:
         yield session
+
+
+def _sesion_del_test(
+    session: AsyncSession,
+) -> Callable[[], AsyncIterator[AsyncSession]]:
+    """La dependencia de reemplazo: devuelve la sesión del test y no la cierra."""
+
+    async def _sesion() -> AsyncIterator[AsyncSession]:
+        yield session
+
+    return _sesion
+
+
+@pytest.fixture
+async def client(session: AsyncSession) -> AsyncIterator[httpx.AsyncClient]:
+    """La API real con una sola cosa cambiada: la sesión de base.
+
+    Se reemplaza `get_session` por la sesión del test, así el pedido entra en la
+    misma transacción y el rollback del final deshace lo que escribió el endpoint.
+    Sin esto, los tests de API ensuciarían la base y dependerían del orden.
+    """
+    app.dependency_overrides[get_session] = _sesion_del_test(session)
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as cliente:
+            yield cliente
+    finally:
+        app.dependency_overrides.clear()
