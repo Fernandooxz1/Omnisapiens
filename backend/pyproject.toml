@@ -30,3 +30,10 @@ dev = [
 # Sin esto ruff ve la carpeta alembic/ y trata al paquete `alembic` como
 # código propio, mezclándolo con app.* en el bloque de imports locales.
 known-third-party = ["alembic"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Un solo event loop para toda la sesión: si las fixtures corrieran en el loop
+# de sesión y los tests en uno por test, asyncpg fallaría con loops cruzados.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"

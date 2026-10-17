@@ -24,6 +24,15 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def _database_url() -> str:
+    """La URL de la CLI sale de .env. Los tests la pisan para migrar trivia_test.
+
+    Es el único punto donde se inyecta otra base (con `set_main_option` desde
+    conftest.py); `alembic.ini` no tiene `sqlalchemy.url` a propósito.
+    """
+    return config.get_main_option("sqlalchemy.url") or settings.database_url
+
+
 def do_run_migrations(connection) -> None:
     context.configure(
         connection=connection,
@@ -40,7 +49,7 @@ def do_run_migrations(connection) -> None:
 async def run_async_migrations() -> None:
     # NullPool: Alembic es un proceso corto, no tiene sentido dejar conexiones
     # vivas después de migrar.
-    engine = create_async_engine(settings.database_url, poolclass=pool.NullPool)
+    engine = create_async_engine(_database_url(), poolclass=pool.NullPool)
     async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await engine.dispose()
