@@ -3,45 +3,40 @@
 > Memoria de sesión. Corto a propósito: se poda. El agente lo lee al empezar y lo actualiza al avanzar.
 
 ## Dónde estamos
-Fase 0 (esqueleto). La API arranca y lee configuración; falta conectarla a Postgres y Redis.
+Motor de juego y selector de preguntas hechos y testeados (117 tests). Falta **toda la capa de datos**: modelos, Alembic y repositorios.
+
+Diseño acordado: **`/home/fernando/.opencode/plan/omnisapiens-capa-de-datos.md`**. Fija el esquema, las decisiones irreversibles y el orden de implementación. Los 3 puntos ⚠️ quedaron **confirmados**: fila de `matches` al arrancar (3.2), desempate del ranking por quién alcanzó antes el puntaje (decisión 7) y `UNIQUE` parcial de `nick` (decisión 6).
 
 ## Hecho
-- [x] Repo + config base (`.gitignore`, `.editorconfig`, `AGENTS.md`)
-- [x] `docker-compose.yml` (Postgres 16 + Redis 7) levantando
-- [x] `backend/.env.example` + `.env` real
-- [x] Proyecto Python con uv (`pyproject.toml` + `.venv`, CPython 3.12)
-- [x] `backend/app/main.py`: app FastAPI con `GET /` (probada en `/docs`)
-- [x] `backend/app/config.py`: `settings` con las 9 variables tipadas
-- [x] `backend/app/db.py`: engine async + session factory (probado con `select 1`)
-- [x] `backend/app/redis.py`: cliente async (`decode_responses`)
-- [x] `Makefile`: `up/down/api/migrate/test/lint/fmt`
-- [x] `make lint` en verde (ruff + mypy), `app/__init__.py` agregado
-- [x] `lifespan` en `main.py` + `GET /health` con router propio (probado con Redis caído)
+- [x] Repo, `.gitignore`, `.editorconfig`, `AGENTS.md`, `docker-compose.yml` (Postgres 16 + Redis 7)
+- [x] Proyecto uv con CPython 3.12: `pyproject.toml`, `.venv`, `.env.example` + `.env` real
+- [x] `app/config.py`, `app/db.py`, `app/redis.py` y `/health` con lifespan y router (probado con Redis caído)
+- [x] `Makefile`: `up/down/api/migrate/test/lint/fmt`; ruff y mypy en verde
 - [x] `app/game/`: motor puro con invariantes (`answers`, `scoring`, `arcade_engine`, `match_engine`)
-- [x] `tests/` del motor: 117 tests en verde; `make lint` limpio
-- [x] Commit `8eebea9`: motor, config, db, redis, `/health`, Makefile
-- [ ] `app/services/questions.py`: selector puro con `Random` inyectado (sin commitear)
+- [x] `app/services/questions.py`: selector puro, `Random` inyectado, estrategia observable
+- [x] Commits `8eebea9` (motor y base) y `fe77e4c` (selector)
 
-## Próximos pasos (en orden)
-- [ ] `app/game/protocols.py`: dataclasses de los mensajes WS
-- [ ] `models/` + Alembic: tablas del plan, migración inicial
-- [ ] Repositorio de preguntas: candidatas desde Postgres + visto en Redis
-- [ ] `api/deps.py` con `get_session`
-- [ ] `POST /auth/guest` + JWT de invitado
-- [ ] Importador de preguntas CSV/JSON (`services/importer.py` + `cli.py`)
-- [ ] `runtime/` de salas + `ws/room_ws.py`
-- [ ] Arcade sobre WS + ranking en Redis
-- [ ] `README.md` + CI + commit de Fase 0
+## Próximos pasos (en orden, según el plan de capa de datos)
+- [x] Confirmar los 3 puntos ⚠️ del plan
+- [x] `models/base.py`: `MetaData` con convención de nombres + `DeclarativeBase`
+- [ ] `models/user.py`: primera tabla, para fijar el patrón (uuid, timestamps, checks)
+- [ ] Alembic async + migración inicial; `alembic check` limpio
+- [ ] Fixtures de test contra Postgres real, con rollback por test
+- [ ] `api/deps.py` (`get_session`) + `POST /auth/guest` con JWT y filtro de nicks
+- [ ] Repositorio de preguntas (`RoundQuestion`, sin la respuesta correcta) + vistos en Redis
+- [ ] Importador CSV/JSON + `cli.py` + 60 preguntas semilla
+- [ ] `game/protocols.py` + `RoomStore` en memoria con lock por sala
+- [ ] `ws/room_ws.py`: lobby, rondas, desempate, gracia de 20 s, revancha
+- [ ] Arcade sobre WS + ranking + corte semanal en `America/Argentina/Buenos_Aires`
 
 ## Después (fases del plan)
-- Fase 1: auth invitado + importador de preguntas + admin + 60 preguntas
-- Fase 2: salas y presencia
-- Fase 3: partida 1v1 completa
-- Fase 4: arcade y ranking
+- Fase 1: admin de preguntas y CI
+- Fases 2-4: salas, partida 1v1 completa, arcade y ranking
+- Fase 6: PWA, e2e y documentación
 
 ## Notas
 - El frontend lo hará otra persona: acá solo se toca `backend/`.
-- Cada paso se prueba (curl o navegador) antes de seguir.
-- Comentarios con criterio senior (regla 13) y no leer `mvp-plan.md` entero.
-- El motor (`app/game/`) no depende de FastAPI, Postgres ni Redis: se escribe y se prueba antes que las capas de arriba.
+- Cada paso se prueba (test, curl o navegador) antes de seguir.
+- Comentarios con criterio senior (regla 13). No leer `docs/mvp-plan.md` entero: consultarlo por fragmento.
+- El motor (`app/game/`) no depende de FastAPI, Postgres ni Redis, y no pregunta la hora: el tiempo y el azar se inyectan.
 - ruff 0.17 trae un preset estricto (814 reglas); el lock fija la versión, así que CI se comporta igual.
