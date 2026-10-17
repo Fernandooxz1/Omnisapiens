@@ -70,3 +70,13 @@ def _bearer(authorization: str) -> str:
 
 
 OptionalUserDep = Annotated[User | None, Depends(get_optional_user)]
+
+
+async def get_current_user(usuario: OptionalUserDep) -> User:
+    """La variante obligatoria: sin token válido el pedido no llega al endpoint."""
+    if usuario is None:
+        raise ApiError(401, "AUTH_REQUIRED", "Se necesita un token válido.")
+    return usuario
+
+
+CurrentUserDep = Annotated[User, Depends(get_current_user)]

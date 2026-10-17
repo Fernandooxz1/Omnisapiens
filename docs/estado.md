@@ -4,11 +4,11 @@
 
 ## Dónde estamos
 
-Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la primera capa HTTP y el importador de preguntas están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **326 tests en ~3 s** contra Postgres y Redis reales.
+Backend en `backend/` (proyecto uv con CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). Motor de juego, selector de preguntas, banco de preguntas (Postgres + Redis), capa de datos, la primera capa HTTP y el importador de preguntas están hechos y testeados: 7 modelos, migraciones `0001`–`0003`, **341 tests en ~15 s** contra Postgres y Redis reales.
 
-**Todavía no hay WebSocket.** Lo que sigue es `GET /me` + `PATCH /me` para que el token sirva de algo.
+**Todavía no hay WebSocket.** El token ya sirve de algo: `/me` está hecho (leer perfil con `last_seen_at`, cambiar nick y baja lógica). Lo que sigue son las salas: `POST /rooms` + `GET /rooms/{code}`.
 
-**Pausa acá:** el importador + CLI + 60 semilla quedaron cerrados y verificados (60 publicadas en la base, 326 tests, ruff/mypy/`check-schema` en verde). Los archivos nuevos están sin commitear: `app/services/importer.py`, `app/cli.py`, `seeds/questions.csv`, `tests/test_importer.py`, más el `Makefile`.
+**Pausa acá:** `/me` quedó cerrado y verificado (341 tests, ruff/format/mypy en verde). El importador ya está commiteado; los archivos de este paso (`routers/me.py`, `schemas/users.py`, `services/users.py`, `deps.py`, `main.py`, `schemas/auth.py`, `tests/test_me_api.py`) están sin commitear.
 
 Diseño acordado, leer antes de tocar datos o auth: **`docs/capa-de-datos.md`**. Los 4 puntos ⚠️ están **confirmados** y aplicados: fila de `matches` al arrancar, desempate del ranking por quién alcanzó antes el puntaje, `UNIQUE` parcial de `nick` y host de la sala (`rooms.host_user_id`).
 
@@ -24,15 +24,16 @@ Diseño acordado, leer antes de tocar datos o auth: **`docs/capa-de-datos.md`**.
 - [x] Importador (`services/importer.py`): parseo CSV/JSON + validación puros (un motivo por fila) y carga a Postgres con `ON CONFLICT (content_hash) DO NOTHING`; informe de importadas/duplicadas/rechazadas
 - [x] `app/cli.py` (`import-questions`, `seed`) + `make seed` / `make import FILE=...` + 60 semilla publicadas (`seeds/questions.csv`, 10 por categoría) + `test_importer.py`
 - [x] `docs/mvp-plan.md` alineado: §5.4, §8 (tablas), §12 (auth y códigos de error), §14 (desempate), §6 (árbol), §13 (import/semilla) y §18 (tests)
+- [x] `GET /me` (perfil + pisa `last_seen_at`), `PATCH /me` (nick, reemite token) y `DELETE /me` (baja lógica) con `get_current_user`; `UserOut`/`AuthOut`/`NickUpdate` en `schemas/users.py`
 
 ## Próximos pasos
 
-- [ ] `GET /me` y `PATCH /me` (con `get_current_user`, la versión obligatoria de la dependencia) y `DELETE /me` (borrado lógico)
 - [ ] `POST /rooms` + `GET /rooms/{code}` (el host ya tiene dónde guardarse)
 - [ ] Pendiente de Fase 0: `README.md` con los cinco comandos de la sección 23
 - [ ] `game/protocols.py` y `RoomStore` en memoria con lock por sala
 - [ ] `ws/room_ws.py`: lobby, rondas, desempate, gracia de 20 s, revancha
 - [ ] Arcade sobre WS + ranking + corte semanal en `America/Argentina/Buenos_Aires`
+- [ ] `GET /me`: sumar mejor marca y últimas partidas cuando exista el ranking (Fase 4)
 - [ ] Página mínima para probar dos pestañas (la API sola ya se prueba con el smoke test de `/tmp`, fuera del repo)
 
 ## Después
@@ -69,3 +70,9 @@ Diseño acordado, leer antes de tocar datos o auth: **`docs/capa-de-datos.md`**.
 - `import_rows` frena el duplicado **dentro del mismo archivo** en Python (diccionario de hashes): dos filas iguales en un solo `INSERT` no las cubre el `ON CONFLICT`, que solo ve lo ya cargado.
 - La CLI commitea a mano: `session_factory` no tiene el commit automático de `get_session` ("el borde del pedido es el borde de la transacción", pero acá no hay pedido).
 - El importador repite en Python los `CHECK` (categoría, dificultad, 1–300) y suma las reglas que la base no puede expresar (opciones no vacías y distintas, comparadas con `casefold`): así el informe trae la fila y el motivo, en vez de reventar con un `IntegrityError` sin contexto.
+- `get_current_user` **envuelve** a `get_optional_user` en vez de repetir la lectura del token: un solo camino de auth, y `POST /auth/guest` sigue usando la opcional.
+- `rename_user` NO hace un SELECT previo: el único parcial de `users` es el árbitro, y entre chequear y escribir hay una carrera. Atrapa `IntegrityError` y hace `rollback` (mismo patrón que `create_guest`); el costo es que en los tests eso descarta lo escrito en la transacción del test, así que un PATCH rechazado se verifica por status, no por fila.
+- `PATCH /me` reemite el token: el pase lleva el `nick` adentro y dejarlo viejo sería entregarle al cliente un pase que miente (aunque hoy la identidad se resuelva por `sub` contra la base).
+- `DELETE /me` es baja lógica (`deleted_at`) y responde 204: el mismo dep que lee el token rechaza al usuario borrado (401) y el único parcial libera el nick sin borrar la fila.
+- `GET /me` pisa `last_seen_at`: hasta este paso la columna se escribía una sola vez al crear el usuario y nunca más.
+- El perfil y el pase viven en `schemas/users.py` (`UserOut`, `AuthOut`, `NickUpdate`); `auth.py` los reimporta para que `/me` no dependa de un módulo de alta.

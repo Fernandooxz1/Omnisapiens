@@ -4,7 +4,8 @@ from fastapi import APIRouter
 
 from app.api.deps import OptionalUserDep, SessionDep
 from app.api.errors import ApiError
-from app.schemas.auth import GuestRequest, GuestResponse, UserOut
+from app.schemas.auth import GuestRequest
+from app.schemas.users import AuthOut, UserOut
 from app.security.nicks import NickRejected
 from app.security.tokens import create_guest_token
 from app.services.users import NickTaken, create_guest
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/guest", status_code=201)
 async def guest(
     body: GuestRequest, session: SessionDep, usuario: OptionalUserDep
-) -> GuestResponse:
+) -> AuthOut:
     """Alta de invitado.
 
     Con un token válido no da de alta a nadie: devuelve el mismo usuario con un
@@ -30,7 +31,7 @@ async def guest(
         except NickTaken:
             raise ApiError(409, "NICK_TAKEN", "Ese nick ya está en uso.") from None
 
-    return GuestResponse(
+    return AuthOut(
         user=UserOut.model_validate(usuario),
         token=create_guest_token(usuario.id, usuario.nick),
     )

@@ -1,5 +1,7 @@
 """Altas de usuario. Hoy, la única que existe es la del invitado."""
 
+from datetime import UTC, datetime
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,3 +41,21 @@ async def create_guest(session: AsyncSession, nick: str | None) -> User:
             return usuario
 
     raise NickTaken
+
+
+async def rename_user(session: AsyncSession, usuario: User, nick: str) -> User:
+    """Cambia el nick. El único parcial de la base es el árbitro, no un SELECT previo:
+    entre chequear y escribir hay una carrera que solo el constraint cierra."""
+    usuario.nick = clean_nick(nick)
+    try:
+        await session.flush()
+    except IntegrityError:
+        await session.rollback()
+        raise NickTaken from None
+    return usuario
+
+
+async def soft_delete_user(session: AsyncSession, usuario: User) -> None:
+    """Baja lógica: la fila queda, el token deja de servir y el único parcial libera el nick."""
+    usuario.deleted_at = datetime.now(UTC)
+    await session.flush()
