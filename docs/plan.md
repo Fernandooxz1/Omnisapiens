@@ -159,7 +159,7 @@ Componentes, tokens y reglas visuales: `docs/diseno.md`.
 | Fase | Entregable | Estado |
 |---|---|---|
 | 0 Esqueleto | monorepo, compose, CI, `/health`, inicio con tokens | ✅ backend |
-| 1 Identidad y contenido | invitado + token, nicks, import, panel, 72 semilla | ✅ backend |
+| 1 Identidad y contenido | invitado + token, nicks, import, panel, 120 semilla | ✅ backend |
 | 2 Salas y presencia | dos navegadores por código, sala llena, host cae, expira | ✅ backend |
 | 3 Partida online | rondas cronometradas, revelación, puntajes, desempate, gracia, revancha | ✅ backend |
 | 4 Arcade y ranking | 3 vidas, progresión, corte semanal, récord personal | ✅ backend |

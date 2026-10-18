@@ -71,3 +71,51 @@ entertainment,4,¿Qué banda grabó el álbum The Dark Side of the Moon?,Led Zep
 entertainment,5,¿Qué película ganó el Óscar a mejor película en 2020 y fue la primera de habla no inglesa en lograrlo?,Roma,Parásitos,1917,El irlandés,B,"Parásitos, del coreano Bong Joon-ho.",manual,cine;premios
 sports,4,¿En qué país se jugó el primer Mundial de fútbol?,Brasil,Uruguay,Argentina,Italia,B,Uruguay 1930 fue la primera Copa del Mundo.,manual,fútbol;mundial
 sports,5,"¿Qué selección ganó la primera Eurocopa, en 1960?",Yugoslavia,Unión Soviética,España,Italia,B,La Unión Soviética le ganó 2-1 a Yugoslavia en París.,manual,fútbol;eurocopa
+geography,3,¿Cuál es la capital de Nueva Zelanda?,Auckland,Wellington,Christchurch,Queenstown,B,Wellington es la capital desde 1865; Auckland es la ciudad más poblada.,manual,capitales;oceanía
+geography,3,¿Qué estrecho separa Europa de África?,Bósforo,Dardanelos,Gibraltar,Mesina,C,El estrecho de Gibraltar une el Atlántico con el Mediterráneo.,manual,estrechos;europa
+geography,4,¿Cuál es el país más extenso de África?,Sudán,Argelia,Libia,República Democrática del Congo,B,"Argelia supera los 2,3 millones de km².",manual,áfrica;países
+geography,4,¿Cuál es el río más largo de Europa?,Danubio,Rin,Volga,Dniéper,C,El Volga recorre unos 3.500 km dentro de Rusia.,manual,ríos;europa
+geography,4,¿Cuál es el río más largo de Asia?,Mekong,Ganges,Obi,Yangtsé,D,El Yangtsé recorre unos 6.300 km en China.,manual,ríos;asia
+geography,5,¿Cuál es el volcán más alto del mundo?,Llullaillaco,Chimborazo,Ojos del Salado,Kilimanjaro,C,"El Ojos del Salado, en los Andes, supera los 6.800 m.",manual,volcanes;américa
+geography,5,¿Cuál es la capital de Bután?,Katmandú,Daca,Colombo,Timbu,D,Timbu es la capital de Bután.,manual,capitales;asia
+geography,5,¿Cuál es el país sin salida al mar más extenso del mundo?,Mongolia,Kazajistán,Chad,Bolivia,B,"Kazajistán supera los 2,7 millones de km².",manual,países;récords
+history,3,¿Quién fue el primer emperador de Roma?,Julio César,Augusto,Nerón,Trajano,B,Augusto gobernó desde el 27 a. C.,manual,roma;emperadores
+history,3,¿Quién fue el último zar de Rusia?,Alejandro III,Pedro el Grande,Pablo I,Nicolás II,D,Nicolás II abdicó en 1917 y fue ejecutado en 1918.,manual,rusia;monarquía
+history,4,¿En qué año se firmó la Carta Magna inglesa?,1066,1215,1314,1415,B,Los nobles impusieron la Carta Magna a Juan sin Tierra en 1215.,manual,inglaterra;edad media
+history,4,¿Qué guerra enfrentó a Atenas y Esparta?,La guerra de Troya,Las guerras médicas,La guerra del Peloponeso,La guerra de las Galias,C,Terminó con la derrota de Atenas en el 404 a. C.,manual,grecia;antigüedad
+history,4,¿Qué emperador mogol mandó construir el Taj Mahal?,Akbar,Shah Jahan,Babur,Aurangzeb,B,Shah Jahan lo construyó como mausoleo para su esposa.,manual,india;arquitectura
+history,5,¿Qué faraón mandó construir la Gran Pirámide de Guiza?,Kefrén,Keops,Menkaura,Tutankamón,B,La pirámide de Keops es la única de las siete maravillas antiguas que se conserva.,manual,egipto;antigüedad
+history,5,¿Quién completó la primera vuelta al mundo?,Fernando de Magallanes,Cristóbal Colón,Vasco da Gama,Juan Sebastián Elcano,D,Elcano tomó el mando tras la muerte de Magallanes y regresó en 1522.,manual,navegación;siglo xvi
+history,5,¿Qué emperador bizantino ordenó compilar el Corpus Iuris Civilis?,Constantino,Teodosio,Justiniano,Heraclio,C,Justiniano reunió la legislación romana en el siglo VI.,manual,bizancio;derecho
+science,3,¿Qué organelo produce la mayor parte del ATP de la célula?,El núcleo,El ribosoma,La mitocondria,El aparato de Golgi,C,La mitocondria obtiene energía mediante la respiración celular.,manual,células;biología
+science,3,¿Qué gas es el más abundante en la atmósfera terrestre?,Oxígeno,Nitrógeno,Dióxido de carbono,Argón,B,El nitrógeno representa cerca del 78 % del aire.,manual,atmósfera;gases
+science,4,¿Qué elemento químico tiene el símbolo W?,Wolframio,Estaño,Zinc,Yodo,A,"W viene de wolfram, el nombre alemán del tungsteno.",manual,química;elementos
+science,4,¿Qué mide un año luz?,Tiempo,Luminosidad,Velocidad,Distancia,D,Es la distancia que recorre la luz en un año.,manual,astronomía;unidades
+science,4,¿Qué planeta gira sobre su eje en sentido contrario a la mayoría?,Marte,Venus,Júpiter,Mercurio,B,Venus rota en sentido retrógrado y su día dura más que su año.,manual,espacio;planetas
+science,5,¿Quién formuló el principio de incertidumbre?,Niels Bohr,Max Planck,Erwin Schrödinger,Werner Heisenberg,D,Heisenberg lo publicó en 1927.,manual,física;cuántica
+science,5,¿Qué ley de la termodinámica introduce la entropía?,La primera,La segunda,La tercera,La ley cero,B,La segunda ley afirma que la entropía de un sistema aislado no disminuye.,manual,física;termodinámica
+science,5,¿Cuál es el elemento más electronegativo?,Oxígeno,Cloro,Flúor,Nitrógeno,C,El flúor encabeza la escala de electronegatividad.,manual,química;elementos
+art,3,¿Quién pintó Las meninas?,Francisco de Goya,Diego Velázquez,El Greco,Bartolomé Esteban Murillo,B,Velázquez la pintó en 1656.,manual,pintura;barroco
+art,3,¿Quién escribió Orgullo y prejuicio?,Charlotte Brontë,Mary Shelley,Jane Austen,Virginia Woolf,C,Se publicó en 1813.,manual,literatura;novela
+art,4,¿Quién pintó La ronda nocturna?,Johannes Vermeer,Rembrandt,Frans Hals,Peter Paul Rubens,B,Rembrandt la terminó en 1642.,manual,pintura;barroco
+art,4,¿Quién pintó La joven de la perla?,Rembrandt,Jan van Eyck,Pieter Bruegel el Viejo,Johannes Vermeer,D,Vermeer la pintó hacia 1665.,manual,pintura;barroco
+art,4,¿Quién compuso la ópera La traviata?,Giacomo Puccini,Gioachino Rossini,Giuseppe Verdi,Richard Wagner,C,Se estrenó en Venecia en 1853.,manual,música;ópera
+art,5,¿Quién pintó El jardín de las delicias?,Pieter Bruegel el Viejo,El Greco,Alberto Durero,El Bosco,D,El tríptico se conserva en el Museo del Prado.,manual,pintura;renacimiento
+art,5,¿Quién compuso El anillo del nibelungo?,Giuseppe Verdi,Richard Wagner,Richard Strauss,Johannes Brahms,B,Es un ciclo de cuatro óperas basado en la mitología germánica.,manual,música;ópera
+art,5,¿Quién escribió Pedro Páramo?,Gabriel García Márquez,Carlos Fuentes,Juan Rulfo,Octavio Paz,C,Rulfo la publicó en 1955.,manual,literatura;latinoamérica
+entertainment,3,¿Qué película argentina ganó el Óscar a mejor película extranjera?,Relatos salvajes,El secreto de sus ojos,El hijo de la novia,Nueve reinas,B,Ganó en la ceremonia de 2010.,manual,cine;argentina
+entertainment,3,¿Qué actor interpretó a Vito Corleone en El Padrino?,Al Pacino,Robert De Niro,Marlon Brando,James Caan,C,Brando ganó el Óscar por ese papel en 1973.,manual,cine;actores
+entertainment,4,¿Quién compuso la banda sonora de El Señor de los Anillos?,Hans Zimmer,Howard Shore,John Williams,Ennio Morricone,B,Shore compuso la música de las tres películas.,manual,cine;música
+entertainment,4,¿Qué película de Hayao Miyazaki ganó el Óscar a mejor película animada?,Mi vecino Totoro,La princesa Mononoke,El castillo ambulante,El viaje de Chihiro,D,Ganó el Óscar en 2003.,manual,cine;animación
+entertainment,4,¿Quién dirigió Los siete samuráis?,Yasujirō Ozu,Kenji Mizoguchi,Akira Kurosawa,Hayao Miyazaki,C,Se estrenó en 1954.,manual,cine;japón
+entertainment,5,"¿Quién dirigió Metrópolis, de 1927?",F. W. Murnau,Fritz Lang,Robert Wiene,Georg Wilhelm Pabst,B,Es una de las grandes obras del expresionismo alemán.,manual,cine;expresionismo
+entertainment,5,¿Qué película de Ingmar Bergman incluye una partida de ajedrez con la muerte?,Persona,Fresas salvajes,El séptimo sello,El manantial de la doncella,C,Se estrenó en 1957.,manual,cine;suecia
+entertainment,5,¿Qué álbum de Pink Floyd sigue a un músico que se aísla detrás de un muro?,Wish You Were Here,Animals,Meddle,The Wall,D,Se publicó en 1979.,manual,música;rock
+sports,3,¿Cuántos puntos vale un try en el rugby union?,3,5,4,7,B,La conversión posterior suma dos puntos más.,manual,rugby;reglas
+sports,3,¿Quién fue el primer argentino campeón mundial de Fórmula 1?,Carlos Reutemann,Juan Manuel Fangio,José Froilán González,Oscar Gálvez,B,Fangio ganó su primer título en 1951.,manual,fórmula 1;argentina
+sports,4,¿En qué deporte se compite por la Copa Stanley?,Béisbol,Fútbol americano,Hockey sobre hielo,Lacrosse,C,Es el trofeo de la NHL desde 1927.,manual,hockey;trofeos
+sports,4,¿Qué selección ganó más veces la Copa Davis?,Australia,Suecia,Estados Unidos,España,C,Estados Unidos lidera con más de treinta títulos.,manual,tenis;copas
+sports,4,"¿Qué selección ganó el primer Mundial de rugby, en 1987?",Australia,Nueva Zelanda,Francia,Sudáfrica,B,Los All Blacks vencieron a Francia en la final.,manual,rugby;mundial
+sports,5,"¿Qué selección ganó el primer Mundial de básquetbol, en 1950?",Estados Unidos,Brasil,Argentina,Unión Soviética,C,Se disputó en Buenos Aires y Argentina fue el primer campeón.,manual,básquetbol;mundial
+sports,5,¿Quién fue el primer tenista en ganar los cuatro torneos de Grand Slam en un mismo año?,Rod Laver,Björn Borg,Roger Federer,Don Budge,D,Budge lo logró en 1938; Laver lo repitió en 1962 y 1969.,manual,tenis;récords
+sports,5,"¿Qué selección ganó el primer Mundial de fútbol femenino, en 1991?",Noruega,Estados Unidos,Alemania,China,B,Se jugó en China y Estados Unidos venció a Noruega en la final.,manual,fútbol;mundial

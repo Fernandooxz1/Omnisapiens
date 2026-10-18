@@ -127,7 +127,7 @@ Los tres campos van juntos: sin corridas en el período, los tres son `null`.
                "correct_index": 2, "explanation": "...", "source": null,
                "status": "draft", "media_type": "none", "media_url": null,
                "tags": [], "created_at": "...", "updated_at": "..." } ],
-  "page": 1, "page_size": 20, "total": 72, "pages": 4 }
+  "page": 1, "page_size": 20, "total": 120, "pages": 6 }
 ```
 
 Es la **única** vista que trae `correct_index`. Categoría desconocida → `422 VALIDATION_ERROR`;

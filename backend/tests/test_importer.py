@@ -6,6 +6,7 @@ usan la `session` del conftest, así la carga entra en la transacción del test.
 """
 
 import hashlib
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -235,7 +236,7 @@ async def test_importing_the_seed_file_loads_all_the_questions(
 ) -> None:
     report = await importer.import_file(session, SEED_FILE, status="published")
 
-    assert report.imported == 72
+    assert report.imported == 120
     assert report.rejected == []
     assert report.duplicated == 0
 
@@ -245,6 +246,24 @@ async def test_importing_the_seed_file_loads_all_the_questions(
     assert categorias == set(CATEGORIES)
 
 
+async def test_the_seed_file_keeps_medium_and_hard_questions_in_every_category(
+    session: AsyncSession,
+) -> None:
+    await importer.import_file(session, SEED_FILE, status="published")
+
+    filas = await session.execute(select(Question.category, Question.difficulty))
+    counts = Counter((categoria, dificultad) for categoria, dificultad in filas)
+
+    for categoria in CATEGORIES:
+        for dificultad in (3, 4, 5):
+            assert counts[(categoria, dificultad)] >= 3, (
+                f"{categoria} tiene solo {counts[(categoria, dificultad)]} "
+                f"preguntas de dificultad {dificultad}"
+            )
+        duras = counts[(categoria, 4)] + counts[(categoria, 5)]
+        assert duras >= 6, f"{categoria} tiene solo {duras} preguntas difíciles"
+
+
 async def test_running_the_seed_twice_imports_nothing_the_second_time(
     session: AsyncSession,
 ) -> None:
@@ -252,4 +271,4 @@ async def test_running_the_seed_twice_imports_nothing_the_second_time(
     segunda = await importer.import_file(session, SEED_FILE, status="published")
 
     assert segunda.imported == 0
-    assert segunda.duplicated == 72
+    assert segunda.duplicated == 120
