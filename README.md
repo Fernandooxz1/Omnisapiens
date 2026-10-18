@@ -85,14 +85,18 @@ Errores siempre `{"error": {"code", "message"}}`.
 - El servidor es **autoritativo**: la respuesta correcta no viaja antes de contestar y las
   opciones se barajan al servir.
 - El token del WS viaja en `?token=` (el navegador no deja headers); no loguearlo.
-- El **backend no se toca** desde el frontend. Si falta un contrato, se pide.
+- Cada rol (frontend, backend) trabaja solo en su carpeta; si falta un contrato, se anota en
+  `docs/api.md` y se implementa del lado que corresponde.
 
 ## Documentación
 
 | Archivo | Qué es |
 |---|---|
-| `AGENTS.md` | Rol y reglas de trabajo para el agente |
+| `AGENTS.md` | Router: qué brief lee cada rol y reglas del árbol |
+| `docs/frontend.md` | Brief del rol frontend (SvelteKit) |
+| `docs/backend.md` | Brief del rol backend (FastAPI) |
 | `docs/tareas.md` | Cola volátil de tareas del frontend |
+| `docs/tareas-backend.md` | Cola volátil de tareas del backend |
 | `docs/plan.md` | Producto, reglas del juego, pantallas y roadmap |
 | `docs/api.md` | Contrato HTTP + WebSocket |
 | `docs/diseno.md` | Sistema visual, componentes y accesibilidad |
