@@ -8,17 +8,19 @@
 		hint?: string;
 		/** Muestra el badge verde de validación a la derecha. */
 		valid?: boolean;
+		/** Falla del campo: reemplaza al hint y marca el pozo. */
+		error?: string;
 		value: string;
 		/** Lo que va delante del campo, dentro del pozo (el avatar). */
 		prefix?: Snippet;
 	}
 
-	let { id, label, hint, valid = false, value = $bindable(), prefix }: Props = $props();
+	let { id, label, hint, valid = false, error, value = $bindable(), prefix }: Props = $props();
 </script>
 
 <div class="field">
 	<label class="field__label" for={id}>{label}</label>
-	<div class="field__well">
+	<div class="field__well" class:field__well--bad={!!error}>
 		{#if prefix}{@render prefix()}{/if}
 		<input
 			{id}
@@ -28,11 +30,15 @@
 			autocomplete="off"
 			spellcheck="false"
 		/>
-		{#if valid}
+		{#if valid && !error}
 			<span class="field__ok">
 				<Icon name="check" size={18} />
 			</span>
 		{/if}
 	</div>
-	{#if hint}<p class="field__hint">{hint}</p>{/if}
+	{#if error}
+		<p class="field__error" role="alert">{error}</p>
+	{:else if hint}
+		<p class="field__hint">{hint}</p>
+	{/if}
 </div>

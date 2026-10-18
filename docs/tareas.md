@@ -5,12 +5,10 @@
 
 ## Ahora
 
-- [ ] **Cliente HTTP + sesión**: `POST /auth/guest`, token en `sessionStorage`, `GET /me`, y el
-      nick del inicio atado a esa sesión (obligatorio antes de entrar a partida).
+- [ ] Cliente WS (`ws.ts`) con reconexión y heartbeat.
 
 ## Después
 
-- [ ] Cliente WS (`ws.ts`) con reconexión y heartbeat.
 - [ ] Conectar la partida al servidor: reemplazar `src/lib/demo/` por el estado real (ronda,
       `ends_at`, revelación de 2,5 s) y borrar la carpeta demo.
 - [ ] Crear/unirse a sala y lobby con código gigante.
