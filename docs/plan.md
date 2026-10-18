@@ -20,6 +20,8 @@ El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en R
 
 La página de prueba vive en `frontend/dev/` y se sirve con `make web` en `http://localhost:5173` (el API sigue en `:8000`; CORS ya permite ese origen). Es de desarrollo, no el producto: una pantalla con login de invitado, sala 1v1, revancha, arcade, ranking y log crudo de mensajes. Verificada con Chromium en dos pestañas.
 
+Pendientes conocidos de la página (no bloquean, es de prueba): no reconecta sola al recargar, el marcador local queda en `0-0` tras reconectar hasta el próximo resultado, y duplicar la pestaña puede compartir la sesión.
+
 ### Hecho
 
 - [x] Base, `models/` (7 tablas), Alembic `0001`–`0003` y guardia de schema.

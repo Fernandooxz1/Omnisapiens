@@ -32,6 +32,18 @@ Abrí `http://localhost:5173`. Para el 1v1 hacen falta **dos pestañas con nicks
 distintos** (no dupliques la pestaña: las dos compartirían la sesión). La página
 muestra el log crudo de los mensajes WebSocket y no es el frontend del producto.
 
+### Notas de la página de prueba
+
+- Es **solo para desarrollo**: no reemplaza al frontend SvelteKit ni invierte en estilos.
+- La sesión va en `sessionStorage`. Si duplicás la pestaña, el navegador puede copiarla
+  y las dos serían el mismo jugador: abrí una pestaña nueva y entrá a la URL.
+- **No reconecta sola al recargar**: la sala se retoma entrando de nuevo con el código;
+  el arcade no (una corrida cortada queda `playing` y el barrendero la invalida).
+- Al reconectar a mitad de partida, el marcador local vuelve a `0-0` hasta el próximo
+  resultado: `room_state` no lleva puntajes.
+- `players` en `room_state` incluye sillas desconectadas, así que `2/2` puede adelantarse
+  unos segundos; el servidor igual rechaza `start` con `NOT_READY`.
+
 ## Comandos
 
 | Comando | Qué hace |
