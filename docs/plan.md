@@ -4,10 +4,10 @@ Trivia online. Backend: FastAPI + Python (proyecto `uv`, CPython 3.12), PostgreS
 Redis 7 por `docker compose`, WebSocket. Frontend: SvelteKit + TypeScript (lo hace otra
 persona; acá solo se toca `backend/`).
 
-> **Documento único.** Arriba, el **estado de sesión** (una pantalla: se lee al
-> empezar y se poda en cada paso). Después, el **plan de implementación del MVP**; al
-> final, el **Anexo A** (capa de datos y servicios) y el **Anexo B** (trampas y
-> decisiones ya tomadas). Se consulta por fragmento (grep o `read` con
+> **Documento único.** Arriba el **estado de sesión** (una pantalla: se lee al empezar y
+> se poda en cada paso). Después la **spec viva del MVP** (reglas, protocolo, API,
+> diseño) y al final los anexos: **A** (capa de datos y servicios) y **B** (trampas y
+> decisiones ya tomadas). Se consulta por fragmento (`grep` o `read` con
 > `offset`/`limit`): no hace falta leerlo entero.
 
 ## Estado de sesión
@@ -16,11 +16,9 @@ persona; acá solo se toca `backend/`).
 
 Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). **Jugable y administrable**: HTTP, banco de preguntas e importador (CLI y HTTP), panel de admin con `X-Admin-Token`, motores puros, sala viva con WS, barrendero periódico, arcade con WS, persistencia y **ranking en Postgres**. 7 tablas, migraciones `0001`–`0003`, **543 tests en ~21 s**, cobertura **93 %**.
 
-El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en Redis. El panel de preguntas tiene sus dos endpoints (§13.4) y `ADMIN_TOKEN` en `config.py`. El plan del MVP está abajo en este archivo y el diseño de datos en el **Anexo A**: se consultan por fragmento (`grep` o `read` con `offset`/`limit`), no hace falta leerlos enteros. Verificación estándar antes de commitear: `make up` una vez y `make lint` + `make cov`. El panel se prueba a mano con los `curl` del `README.md`.
+El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A6), no en Redis. El plan del MVP está abajo y el diseño de datos en el **Anexo A**. Verificación estándar antes de commitear: `make up` una vez y `make lint` + `make cov`. El panel se prueba a mano con los `curl` del `README.md`.
 
-La página de prueba vive en `frontend/dev/` (`index.html` + `app.js` + `style.css`) y se sirve con `make web` en `http://localhost:5173` (el API sigue en `:8000`; CORS ya permite ese origen). Es de desarrollo, no el producto: una pantalla con login de invitado, sala 1v1, revancha, arcade, ranking, **sección de admin** (token guardado en `localStorage`) y log crudo de mensajes. Verificada con Chromium.
-
-Pendientes conocidos de la página (no bloquean, es de prueba): no reconecta sola al recargar, el marcador local queda en `0-0` tras reconectar hasta el próximo resultado, y duplicar la pestaña puede compartir la sesión.
+La página de prueba vive en `frontend/dev/` (`index.html` + `app.js` + `style.css`) y se sirve con `make web` en `http://localhost:5173` (el API sigue en `:8000`; CORS ya permite ese origen). Es de desarrollo, no el producto: login de invitado, sala 1v1, revancha, arcade, ranking, **sección de admin** (token en `localStorage`) y log crudo de mensajes. No reconecta sola al recargar, el marcador local queda en `0-0` tras reconectar, y duplicar la pestaña puede compartir la sesión.
 
 ### Hecho
 
@@ -30,10 +28,10 @@ Pendientes conocidos de la página (no bloquean, es de prueba): no reconecta sol
 - [x] Sala 1v1: `runtime/room.py`, `room_manager` y `ws/room_ws.py` con presencia, gracia y revancha.
 - [x] Arcade: `arcade_session`, `ws/arcade_ws`, persistencia (`arcade_runs`/`arcade_answers`) y ranking.
 - [x] `GET /me` con marcas (`all_time`/`week`) e historial de arcade y 1v1 (`services/profile.py`), tope 10 y solo `finished`.
-- [x] Barrendero periódico (`REAPER_INTERVAL_SECONDS=60`) con lo vivo en memoria excluido (`runtime/live.py` y `RoomStore.live()`), cancelado limpio en el shutdown.
+- [x] Barrendero periódico (`REAPER_INTERVAL_SECONDS=60`) con lo vivo en memoria excluido, cancelado limpio en el shutdown.
 - [x] Auditoría H-01..H-25, README y calidad (ruff/mypy/cobertura/CI).
-- [x] Página de prueba (`frontend/dev/`, `make web`): dos pestañas, sala + revancha, arcade y ranking.
-- [x] Admin Fase 1: `GET /admin/questions` paginado y `POST /admin/questions/import` (multipart), con `X-Admin-Token`; `ADMIN_TOKEN` de vuelta en `config.py`.
+- [x] Página de prueba (`frontend/dev/`): dos pestañas, sala + revancha, arcade y ranking.
+- [x] Admin Fase 1: `GET /admin/questions` paginado y `POST /admin/questions/import` (multipart), con `X-Admin-Token`.
 - [x] Sección de admin en la página de prueba: token, listado con filtros y paginación, y subida de CSV/JSON con el informe.
 
 ### Próximos pasos
@@ -44,1387 +42,718 @@ Pendientes conocidos de la página (no bloquean, es de prueba): no reconecta sol
 - [ ] Fase 5 (visual; el frontend lo hace otra persona): componentes, íconos SVG, sonidos y teclado.
 - [ ] Fase 6: PWA, e2e (Playwright) y documentación.
 - [ ] Repasar `docs/observaciones.md` por pendientes P3 sin cerrar.
-- [ ] Cerrar §20: repasar los 7 puntos de la "definición de terminado" del MVP.
+- [ ] Cerrar §20: repasar la "definición de terminado" del MVP.
 
-> **Trampas y decisiones que no se re-descubren: Anexo B**, al final. Consultarlo
-> por `grep` cuando el paso en curso lo pida (auth, tests, reloj, outbox,
-> persistencia, ranking).
-
----
-
-# Plan de implementación del MVP
-
-> Pensado para que un agente o un desarrollador pueda empezar a construir sin preguntar nada más. La **capa de datos y servicios** está detallada en el Anexo A, al final.
-> Idioma de la interfaz: **español**. Idioma del código, nombres de tablas, endpoints y variables: **inglés**.
-> Todo el MVP corre **local** en la máquina del dueño. No hay presupuesto de infraestructura.
+> **Trampas y decisiones que no se re-descubren: Anexo B**, al final. Consultarlo por
+> `grep` cuando el paso en curso lo pida (auth, tests, reloj, outbox, persistencia, ranking).
 
 ---
 
-## 0. Resumen ejecutivo
+# Spec viva del MVP
 
-Es un juego de trivia online de preguntas con 4 opciones. Tiene **dos modos**:
+> Contrato del producto: lo que el código ya cumple y lo que debe seguir cumpliendo.
+> El *porqué* de cada decisión vive en el código, en los tests y en el Anexo B.
 
-1. **Sala privada 1v1 por código.** Dos personas se conectan, se ve una pregunta a la vez, ambos responden de forma simultánea, y gana el que más puntos junta.
-2. **Arcade (flash).** Un jugador solo responde preguntas cada vez más difíciles, con cada vez menos tiempo, hasta quedarse sin vidas. Genera un puntaje que compite contra un ranking global y uno semanal.
+**Dos modos.** (1) **Sala privada 1v1 por código**: dos jugadores, pregunta a la vez,
+ambos responden simultáneo, gana quien más puntos junta. (2) **Arcade**: un jugador solo,
+dificultad y tiempo progresivos hasta quedarse sin vidas; ranking global y semanal.
 
-El backend es **autoritativo**: la respuesta correcta nunca se envía al navegador antes de que el jugador conteste. El transporte en tiempo real es **WebSocket**. La estética apunta a un juego de mesa/plástico: colores planos, bordes gruesos y sombras duras. Nada de gradientes decorativos, nada de emojis, nada de componentes genéricos.
+**Fuera del MVP:** matchmaking público o salas abiertas; salas de más de 2; modo por
+turnos; preguntas con imagen/audio/video (campos listos, sin usar); cuentas reales;
+chat, amigos, notificaciones, bots; monetización; despliegue en la nube (queda preparado).
 
----
+**Escala:** 100–200 concurrentes, una instancia, sin sharding ni colas distribuidas.
+**Autoridad:** el servidor decide todo; la respuesta correcta nunca viaja antes de
+contestar; los puntajes se calculan en el servidor con su propio reloj.
+**Idioma:** interfaz en español; código, tablas, endpoints y variables en inglés.
 
-## 1. Objetivos
+## Arquitectura
 
-- Tener un MVP jugable y divertido de trivia con dos modos: sala privada 1v1 y arcade.
-- Que el código esté separado en capas de forma que agregar después "adiviná la canción" o "adiviná la película" no obligue a reescribir nada: el modelo de preguntas ya contempla media (imagen/audio) aunque el MVP no la use.
-- Que el sistema sea escalable en el diseño pero simple en la ejecución: una sola instancia del backend alcanza para el MVP, y está preparado para escalar horizontalmente vía Redis Pub/Sub sin cambiar el modelo.
-- Aprender. El proyecto es de aprendizaje personal: la prioridad es que sea claro, testeable y divertido. No hay objetivo de monetización.
+Navegador (SvelteKit, PWA) ⇄ HTTP/JSON + WS/JSON ⇄ API FastAPI, con motor de juego en
+memoria y autoritativo. Postgres guarda usuarios, preguntas e historial; Redis guarda
+caché, estado vivo, rate limiting y el historial de vistas del arcade. Una sola
+instancia alcanza; el estado vivo es uno por proceso (`room_store`, `engine`,
+`redis_client`) y escala a multi-instancia cambiando la implementación de `RoomStore`
+por una sobre Redis Pub/Sub, sin tocar a quien la usa.
 
-## 2. Fuera de alcance del MVP
+Principios: el motor es **código puro** (sin base, Redis ni red; `now_ms`, `sleep` y
+`rng` se inyectan); un modo, un flujo; **cero estado de partida en la base mientras la
+partida ocurre** (solo la fila de `matches` al arrancar y el bloque al terminar, cero
+escrituras por ronda).
 
-- Matchmaking público, salas abiertas o partidas con desconocidos.
-- Salas de más de 2 jugadores.
-- Modo por turnos con ruleta y coronas.
-- Preguntas con imagen, audio o video (solo se dejan los campos preparados).
-- Cuentas reales con login social o email.
-- Chat de sala, amigos, invitaciones, notificaciones.
-- Bots de relleno.
-- Anuncios, pagos o cosméticos.
-- Despliegue en la nube y dominio propio. Se deja todo listo para hacerlo, pero el MVP corre en local.
-- Panel de administración completo de preguntas.
-
----
-
-## 3. Decisiones cerradas
-
-| Área | Decisión |
-|---|---|
-| Backend | Python 3.12 + FastAPI |
-| Frontend | SvelteKit + TypeScript |
-| Transporte en tiempo real | WebSocket propio con mensajes JSON |
-| Autoridad del juego | Servidor autoritativo (nunca se manda la respuesta correcta antes de contestar) |
-| Base de datos | PostgreSQL |
-| Caché y estado de salas | Redis |
-| Salas | 1v1, privadas, entrada por código de 6 caracteres |
-| Bucle del modo online | Rondas simultáneas (ambos responden la misma pregunta a la vez) |
-| Estructura de partida online | Configurable por el host: 3, 5 o 7 preguntas y 10, 20 o 30 segundos por pregunta |
-| Arcade | 3 vidas, dificultad y tiempo progresivos |
-| Categorías | 6 categorías clásicas, sorteadas al azar por pregunta |
-| Banco de preguntas | Propias, generadas con asistencia de IA y curadas a mano; import por CSV/JSON |
-| Acceso | Invitado primero, sin registro. Cuenta opcional queda para más adelante |
-| Ranking arcade | Global histórico + semanal + mejor marca personal |
-| i18n | Solo español, pero con todas las cadenas en un archivo de traducción desde el día uno |
-| Abandono | El jugador desconectado tiene 20 segundos de gracia. Si no vuelve, la partida termina y gana el que quedó |
-| Revancha | Incluida: botón que arranca una partida nueva en la misma sala |
-| Chat | No hay, en ninguna forma |
-| Bots | No hay |
-| Sonido | Efectos cortos sí (acierto, error, tic tac, revelación, victoria, derrota). Música no |
-| Monorepo | Sí, un solo repositorio |
-| Assets | Dentro del repositorio, en `frontend/static/assets/` |
-| Monetización | Ninguna en el MVP. Como muchísimo, publicidad mucho más adelante |
-| Escala objetivo | Baja: dimensionado para no más de 100–200 jugadores concurrentes. Sin sobre-ingeniería |
-| CI/CD | GitHub Actions. El dueño tiene cuenta de GitHub |
-| Observabilidad | Logs estructurados en el MVP. Sentry queda preparado pero desactivado |
-| Hosting | Fuera de alcance. Contenedores listos para desplegar cuando se decida |
-
----
-
-## 4. Supuestos por defecto
-
-Estos puntos no fueron definidos explícitamente y se resuelven así. Si el dueño del proyecto dice lo contrario, se cambia el plan.
-
-1. **PostgreSQL y Redis corren en Docker Compose local.** Nada de servicios en la nube en el MVP.
-2. **Entornos:** solo `local` ahora. La configuración se escribe desde el día uno con variables de entorno para que `staging` y `prod` funcionen después sin tocar código.
-3. **Región futura de despliegue:** São Paulo (`GRU`) por latencia desde Argentina. Irrelevante en el MVP.
-4. **Reconexión:** 20 segundos de gracia, con la partida congelada y un aviso visible al rival.
-5. **Reacciones rápidas:** no se implementan. Si más adelante se quieren, se agregan como mensajes de WebSocket nuevos.
-6. **Nick:** máximo 16 caracteres, se limpia y se filtra contra una lista corta de palabras prohibidas.
-7. **Legal:** se incluyen páginas de términos y privacidad mínimas, más un endpoint de borrado de datos.
-8. **Testing:** `pytest` para el motor de juego y la API, Playwright para una partida completa end-to-end.
-9. **Escala:** se diseña para 100–200 conexiones concurrentes. No se hace particionado, ni sharding, ni colas distribuidas.
-10. **Admin de preguntas:** comando de import por línea de comandos más una pantalla de listado protegida por token. No hay editor visual.
-11. **Fuentes:** se autoalojan en `frontend/static/fonts/` para no depender de Google Fonts en tiempo de ejecución.
-12. **Zona horaria del ranking semanal:** `America/Argentina/Buenos_Aires`, semana que empieza el lunes a las 00:00.
-
----
-
-## 5. Arquitectura
+## Estructura
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  Navegador (SvelteKit + TypeScript, PWA)                     │
-│  - Pantallas, estado de UI, animaciones, sonido              │
-│  - No conoce ninguna respuesta correcta antes de contestar   │
-└───────────────┬──────────────────────────┬───────────────────┘
-                │ HTTP (JSON)              │ WebSocket (JSON)
-                ▼                          ▼
-┌──────────────────────────────────────────────────────────────┐
-│  API — FastAPI (una o más instancias)                        │
-│  - REST: sesión, salas, ranking, contenido, admin            │
-│  - WS: /ws/room/{code} y /ws/arcade                          │
-│  - Motor de juego en memoria, autoritativo                   │
-│  - Temporizadores con el reloj del servidor                  │
-└───────────────┬──────────────────────────┬───────────────────┘
-                │                          │
-                ▼                          ▼
-┌────────────────────────┐   ┌─────────────────────────────────┐
-│  PostgreSQL            │   │  Redis                          │
-│  - usuarios            │   │  - estado de sala y presencia   │
-│  - preguntas           │   │  - Pub/Sub entre instancias     │
-│  - partidas y rondas   │   │  - ranking (sorted sets)        │
-│  - corridas de arcade  │   │  - rate limiting                │
-│  - mejor marca         │   │  - historial de preguntas vistas│
-└────────────────────────┘   └─────────────────────────────────┘
+backend/    app/{main,config,db,redis,cli,logging_config}.py
+            app/models/  app/schemas/  app/security/  app/game/ (motor puro)
+            app/runtime/ (estado vivo)  app/services/  app/api/  app/ws/  app/i18n/
+            alembic/versions/  seeds/questions.csv  tests/
+frontend/   lo de otra persona (dev/ tiene la página de prueba)
+docs/       plan.md  observaciones.md
 ```
 
-### Principios
+## Entorno local
 
-1. **El servidor decide todo.** El cliente pide, el servidor resuelve y notifica. El cliente nunca calcula puntajes ni decide si una respuesta es correcta.
-2. **El motor de juego es código puro.** Las reglas viven en funciones sin acceso a base de datos, Redis ni red. Eso las hace testeables al 100% y reusables por los dos modos.
-3. **Un modo, un flujo.** Online y arcade comparten el motor pero tienen flujos separados.
-4. **Nada de estado de partida en la base de datos mientras la partida ocurre.** El estado vivo está en memoria y en Redis. De la partida se escribe solo el historial, y en dos momentos: la fila de `matches` **al arrancar** (con `status = playing`, para que `void` sea alcanzable si el proceso muere en el medio) y, al terminar, el `UPDATE` de esa fila más sus rondas en bloque. Cero escrituras por ronda.
-5. **Escalado por Pub/Sub.** Cada instancia del backend atiende sus conexiones y publica los cambios de sala en Redis. Cualquier instancia puede reconstruir una sala desde Redis. Con una sola instancia todo funciona igual.
+`docker compose` levanta `db` (postgres:16-alpine) y `cache` (redis:7-alpine). Variables
+en `backend/.env` (ver `.env.example`): `ENV`, `LOG_LEVEL`, `DATABASE_URL`, `REDIS_URL`,
+`JWT_SECRET`, `JWT_TTL_DAYS`, `CORS_ORIGINS`, `ADMIN_TOKEN`, `RECONNECT_GRACE_SECONDS`,
+`ROOM_IDLE_TIMEOUT_SECONDS`, `STALE_MATCH_MINUTES`, `WS_IDLE_TIMEOUT_SECONDS`,
+`REAPER_INTERVAL_SECONDS`, `RATE_LIMIT_*`.
 
----
+Comandos (`Makefile`): `make up|down`, `api` (:8000), `web` (:5173), `migrate`, `seed`,
+`import FILE=...`, `test`, `cov` (gate de cobertura), `lint`, `check-schema`.
 
-## 6. Estructura del monorepo
+## Reglas del juego
 
-```
-trivia/
-├── README.md
-├── .editorconfig
-├── .gitignore
-├── docker-compose.yml
-├── Makefile
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-├── backend/                          # Backend FastAPI
-│   ├── pyproject.toml
-│   ├── Dockerfile
-│   ├── alembic.ini
-│   ├── alembic/
-│   │   ├── env.py
-│   │   └── versions/
-│   ├── app/
-│   │   ├── main.py               # app FastAPI, CORS, routers, lifespan
-│   │   ├── config.py             # pydantic-settings, todo por variables de entorno
-│   │   ├── db.py                 # engine async, session factory
-│   │   ├── redis.py              # pool de Redis
-│   │   ├── cli.py                # comandos: import-questions, seed, create-admin
-│   │   ├── models/               # SQLAlchemy 2.0
-│   │   │   ├── base.py           # MetaData con convención de nombres
-│   │   │   ├── user.py
-│   │   │   ├── question.py
-│   │   │   ├── match.py          # rooms + matches + match_rounds (comparten el config)
-│   │   │   └── arcade.py
-│   │   ├── schemas/              # Pydantic v2 de entrada y salida
-│   │   ├── security/
-│   │   │   ├── tokens.py         # JWT de invitado
-│   │   │   └── nicks.py          # normalización y filtro
-│   │   ├── game/                 # MOTOR PURO, sin I/O
-│   │   │   ├── constants.py
-│   │   │   ├── match_engine.py
-│   │   │   ├── arcade_engine.py
-│   │   │   ├── scoring.py
-│   │   │   ├── timers.py
-│   │   │   └── protocols.py      # dataclasses de los mensajes
-│   │   ├── runtime/              # ESTADO VIVO
-│   │   │   ├── room.py
-│   │   │   ├── room_manager.py
-│   │   │   ├── arcade_session.py
-│   │   │   └── pubsub.py
-│   │   ├── services/
-│   │   │   ├── questions.py      # selección, sin repetición (puro)
-│   │   │   ├── question_bank.py  # candidatas de Postgres y vistas en Redis
-│   │   │   ├── users.py          # alta del invitado
-│   │   │   ├── leaderboard.py
-│   │   │   ├── rooms.py
-│   │   │   ├── reaper.py         # barrendero: vencidos en cada intervalo
-│   │   │   └── importer.py       # CSV/JSON
-│   │   ├── api/
-│   │   │   ├── deps.py           # dependencias: sesión, usuario, admin
-│   │   │   └── routers/
-│   │   │       ├── auth.py
-│   │   │       ├── me.py
-│   │   │       ├── rooms.py
-│   │   │       ├── leaderboard.py
-│   │   │       ├── admin.py
-│   │   │       └── health.py
-│   │   ├── ws/
-│   │   │   ├── room_ws.py
-│   │   │   ├── arcade_ws.py
-│   │   │   └── connection.py     # conexión con heartbeat y cierre limpio
-│   │   └── i18n/
-│   │       └── es.json
-│   └── tests/
-│       ├── conftest.py           # Postgres real (trivia_test) y rollback por test
-│       ├── factories.py          # una fila válida por tabla, con overrides
-│       ├── constraints.py        # acepta() / rechaza(motivo)
-│       ├── test_match_engine.py
-│       ├── test_arcade_engine.py
-│       ├── test_scoring.py
-│       ├── test_questions_service.py
-│       ├── test_constraints_users.py
-│       ├── test_constraints_questions.py
-│       ├── test_constraints_match.py
-│       ├── test_constraints_arcade.py
-│       ├── test_schema_matches_models.py
-│       ├── test_rooms_api.py
-│       ├── test_room_ws.py
-│       └── test_arcade_ws.py
-├── frontend/                         # Frontend SvelteKit
-│   ├── package.json
-│   ├── svelte.config.js
-│   ├── vite.config.ts
-│   ├── tsconfig.json
-│   ├── Dockerfile
-│   ├── static/
-│   │   ├── manifest.webmanifest
-│   │   ├── fonts/
-│   │   ├── assets/
-│   │   │   ├── icons/           # SVG propios: logo, 6 categorías, vidas, reloj, trofeo
-│   │   │   └── sfx/             # efectos cortos
-│   │   └── favicon
-│   ├── e2e/
-│   │   └── match.spec.ts
-│   └── src/
-│       ├── app.html
-│       ├── app.css              # tokens + reset + utilidades
-│       ├── routes/
-│       │   ├── +layout.svelte
-│       │   ├── +page.svelte               # inicio: elegir modo
-│       │   ├── play/+page.svelte          # crear o unirse a sala
-│       │   ├── room/[code]/+page.svelte   # lobby + partida online
-│       │   ├── arcade/+page.svelte        # partida individual
-│       │   ├── ranking/+page.svelte       # global + semanal
-│       │   └── admin/preguntas/+page.svelte
-│       └── lib/
-│           ├── api/client.ts              # fetch tipado al backend
-│           ├── api/ws.ts                  # cliente WebSocket con reconexión
-│           ├── game/types.ts              # tipos de los mensajes
-│           ├── stores/session.ts
-│           ├── stores/match.ts
-│           ├── stores/arcade.ts
-│           ├── i18n/es.ts
-│           ├── i18n/index.ts
-│           ├── audio/sfx.ts
-│           ├── components/
-│           │   ├── Button.svelte
-│           │   ├── AnswerTile.svelte
-│           │   ├── CategoryBadge.svelte
-│           │   ├── TimerRing.svelte
-│           │   ├── PlayerPanel.svelte
-│           │   ├── Scoreboard.svelte
-│           │   ├── CodeInput.svelte
-│           │   ├── NickInput.svelte
-│           │   ├── Modal.svelte
-│           │   ├── Toast.svelte
-│           │   └── LifeStrip.svelte
-│           └── design/tokens.ts
-└── docs/
-    └── plan.md
-```
-
----
-
-## 7. Entorno local
-
-### `docker-compose.yml`
-
-```yaml
-services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: trivia
-      POSTGRES_PASSWORD: trivia
-      POSTGRES_DB: trivia
-    ports:
-      - "5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U trivia"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  cache:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "6379:6379"
-    volumes:
-      - cache_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-volumes:
-  db_data:
-  cache_data:
-```
-
-### Variables de entorno (`backend/.env`)
-
-```
-ENV=local
-LOG_LEVEL=INFO
-DATABASE_URL=postgresql+asyncpg://trivia:trivia@localhost:5432/trivia
-REDIS_URL=redis://localhost:6379/0
-JWT_SECRET=dev-secret-de-32-bytes-o-mas-cambiar
-JWT_TTL_DAYS=30
-CORS_ORIGINS=http://localhost:5173
-RECONNECT_GRACE_SECONDS=20
-ROOM_IDLE_TIMEOUT_SECONDS=600
-STALE_MATCH_MINUTES=15
-WS_IDLE_TIMEOUT_SECONDS=45
-RATE_LIMIT_GUEST_PER_MINUTE=10
-RATE_LIMIT_ROOM_PER_MINUTE=60
-```
-
-### Comandos
-
-```
-make up            # levanta postgres y redis
-make down          # los baja
-make api           # uvicorn con reload en :8000
-make web           # vite dev en :5173
-make migrate       # alembic upgrade head
-make seed          # carga preguntas de ejemplo
-make import FILE=...   # importa un CSV de preguntas
-make test          # pytest
-make e2e           # playwright
-make lint          # ruff + mypy + svelte-check
-```
-
-### Dependencias del backend (`pyproject.toml`)
-
-- `fastapi`
-- `uvicorn[standard]`
-- `sqlalchemy[asyncio]`
-- `asyncpg`
-- `alembic`
-- `pydantic` y `pydantic-settings`
-- `redis` (cliente con soporte asyncio)
-- `pyjwt`
-- `python-multipart`
-- `orjson`
-- Desarrollo: `pytest`, `pytest-asyncio`, `httpx`, `ruff`, `mypy`
-
-### Dependencias del frontend
-
-- `svelte` 5, `@sveltejs/kit` 2, `vite`, `typescript`
-- `@vite-pwa/sveltekit` para el manifest y el service worker
-- `@playwright/test` en desarrollo
-- **No se usa ninguna librería de componentes de UI.** Los componentes se escriben a mano con CSS propio y variables de diseño. Tampoco se usa Tailwind: Svelte ya tiene CSS con alcance por componente.
-
----
-
-## 8. Modelo de datos
-
-PostgreSQL. Todo `snake_case`. UUID como clave primaria. Timestamps `timestamptz` en UTC.
-
-La letra chica —constraints con nombre propio, índices parciales, `CHECK` que replican las reglas del motor— está en el **Anexo A**. Acá queda el mapa de las tablas; cuando el plan y el anexo difieran, manda el anexo.
-
-### `users`
-
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | uuid PK | |
-| `nick` | varchar(16) | único **entre vivos y sin distinguir mayúsculas**: el índice es funcional sobre `lower(nick)` y parcial (`WHERE deleted_at IS NULL`). Con mayúsculas, `Ana` y `ana` convivían como dos usuarios y en una sala el nick es la única identificación; parcial, un usuario borrado lógico libera su nick |
-| `is_guest` | boolean | default `true` |
-| `email` | varchar(255) | nulo en MVP |
-| `provider` | varchar(32) | nulo en MVP |
-| `created_at` | timestamptz | |
-| `last_seen_at` | timestamptz | |
-| `deleted_at` | timestamptz | borrado lógico para el endpoint de borrado |
-
-### `questions`
-
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | uuid PK | |
-| `category` | varchar(24) | `geography`, `history`, `science`, `art`, `entertainment`, `sports` |
-| `difficulty` | smallint | 1 a 5 |
-| `language` | varchar(8) | `es` |
-| `prompt` | text | el enunciado |
-| `options` | jsonb | array de exactamente 4 strings |
-| `correct_index` | smallint | 0 a 3 |
-| `explanation` | text | opcional, se muestra al revelar |
-| `source` | text | procedencia, útil si se generó con IA |
-| `status` | varchar(16) | `draft`, `published`, `archived` |
-| `content_hash` | varchar(64) | hash normalizado del enunciado, para detectar duplicados |
-| `media_type` | varchar(16) | **preparado para el futuro**: `none`, `image`, `audio` |
-| `media_url` | text | **preparado para el futuro** |
-| `tags` | text[] | |
-| `created_at`, `updated_at` | timestamptz | |
-
-Índices: `(status, category, difficulty)`, único en `content_hash`.
-
-### `rooms`
-
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | uuid PK | |
-| `host_user_id` | uuid FK | quien creó la sala. El host es el creador, no "el primero que entra": la fila vive más que las conexiones, así que una reconexión no cambia de dueño la sala. Índice de FK |
-| `code` | varchar(6) | único, sin caracteres ambiguos (sin `0`, `1`, `I`, `O`). varchar y no char: char rellena con espacios y vuelve sutiles las comparaciones |
-| `config` | jsonb | `{"rounds": 5, "seconds": 20}`, con `CHECK` de forma y de valores permitidos |
-| `status` | varchar(16) | `waiting`, `playing`, `finished`, `expired` |
-| `created_at`, `expires_at` | timestamptz | |
-
-El host es el único que elige la config y manda `start`, así que su identidad tiene que sobrevivir a la conexión: por eso está en la fila y no en la memoria del proceso. El `POST /rooms` la escribe en el mismo momento en que nace el código de sala.
-
-### `matches`
-
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | uuid PK | |
-| `room_id` | uuid FK | nulo si la sala se purgó (`ON DELETE SET NULL`): el historial sobrevive |
-| `player_a_id`, `player_b_id` | uuid FK | |
-| `config` | jsonb | copia de la configuración usada, validada igual que la de `rooms` |
-| `status` | varchar(16) | `playing`, `finished`, `abandoned`, `void` |
-| `winner_id` | uuid | nulo en empate o anulada; si no, tiene que ser uno de los dos jugadores |
-| `score_a`, `score_b` | integer | copia derivada del historial de rondas; las escribe solo el motor |
-| `started_at`, `ended_at` | timestamptz | |
-
-La fila se crea **al arrancar** la partida con `status = playing` y sin `ended_at`. Un barrendero (al arrancar y en cada intervalo) marca como `void` toda partida que siga en `playing` más vieja que N minutos.
-
-### `match_rounds`
-
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | uuid PK | |
-| `match_id` | uuid FK | `ON DELETE CASCADE`: las rondas no tienen vida propia |
-| `round_index` | smallint | 0-based; único junto con `match_id` |
-| `question_id` | uuid FK | nulo si la pregunta se purgó (`ON DELETE SET NULL`) |
-| `correct_index`, `difficulty`, `seconds` | smallint | copia de lo que se mostró: con estos tres la fila se puede auditar y recalcular años después |
-| `a_choice`, `b_choice` | smallint | nulo si no contestó a tiempo |
-| `a_ms`, `b_ms` | integer | milisegundos desde que se abrió la ronda; nulo si no hubo elección |
-| `a_correct`, `b_correct` | boolean | no se derivan de `(choice, correct_index)`: fuera de la ventana hasta el acierto cuenta mal |
-| `a_points`, `b_points` | integer | |
-| `a_rejected`, `b_rejected` | varchar(24) | motivo del descarte (`outside_window`) o nulo |
-
-Los nombres espejan `RoundRecord` del motor, sin traducir.
-
-### `arcade_runs`
-
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | uuid PK | |
-| `user_id` | uuid FK | |
-| `score` | integer | |
-| `correct_count` | integer | |
-| `max_difficulty` | smallint | |
-| `longest_streak` | integer | nunca mayor que `correct_count` |
-| `status` | varchar(16) | `playing`, `finished`, `invalid`. `invalid` es el estado que saca una corrida del ranking |
-| `started_at`, `ended_at` | timestamptz | `ended_at` es nulo si y solo si está `playing` |
-
-Índices: los tres del ranking (`(user_id, score desc)`, `(score desc)`, `(ended_at)`) son **parciales**, todos con `WHERE status = 'finished'`: una corrida en curso o dudosa no ocupa lugar en el índice.
-
-### `arcade_answers`
-
-Una fila por ronda, `ON DELETE CASCADE` desde la corrida y único `(run_id, round_index)`: `question_id` (nulo si se purgó), `difficulty`, `seconds`, `correct_index`, `chosen_index` (nulo si no contestó), `is_correct`, `ms` (nunca nulo: mide la ventana agotada), `points` y `rejected` (nulo o `outside_window`).
-
-### Migraciones
-
-Alembic con una migración inicial que crea todo. Nada de `create_all` en código de aplicación.
-
----
-
-## 9. Reglas del juego
-
-### 9.1 Constantes
+### Constantes
 
 ```
 CATEGORIES = geography, history, science, art, entertainment, sports
-DIFFICULTY_MIN = 1
-DIFFICULTY_MAX = 5
+DIFFICULTY_MIN = 1 ; DIFFICULTY_MAX = 5
 
 ONLINE_ROUNDS_OPTIONS = [3, 5, 7]      # default 5
 ONLINE_SECONDS_OPTIONS = [10, 20, 30]  # default 20
 ONLINE_BASE_POINTS = 100
 ONLINE_TIME_BONUS_MAX = 50
+MAX_TIEBREAK_ROUNDS = 3
 
 ARCADE_LIVES = 3
-ARCADE_SECONDS_START = 20
-ARCADE_SECONDS_FLOOR = 5
-ARCADE_SECONDS_STEP_EVERY = 3          # cada 3 aciertos, un segundo menos
-ARCADE_DIFFICULTY_TIERS = [0, 4, 10, 18, 28]  # aciertos necesarios para dificultad 1..5
-ARCADE_STREAK_BONUS_STEP = 10
-ARCADE_STREAK_BONUS_MAX = 50
+ARCADE_SECONDS_START = 20 ; ARCADE_SECONDS_FLOOR = 5 ; ARCADE_SECONDS_STEP_EVERY = 3
+ARCADE_DIFFICULTY_TIERS = [0, 4, 10, 18, 28]   # aciertos necesarios para dificultad 1..5
+ARCADE_STREAK_BONUS_STEP = 10 ; ARCADE_STREAK_BONUS_MAX = 50
 
-RECONNECT_GRACE_SECONDS = 20
-ROOM_IDLE_TIMEOUT_SECONDS = 600
+RECONNECT_GRACE_SECONDS = 20 ; ROOM_IDLE_TIMEOUT_SECONDS = 600
 ROOM_CODE_LENGTH = 6
 ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # sin O, 0, I, 1
 ```
 
-### 9.2 Modo online (sala privada 1v1)
+### Online (1v1)
 
-**Lobby**
+- **Lobby:** el host crea la sala (`POST /rooms`, estado `waiting`) y comparte el código;
+  los dos abren el WS. Con los dos conectados, el host manda `start`. Una sala `waiting`
+  sin arrancar expira a los 10 minutos.
+- **Ronda:** se elige una pregunta publicada no usada en la partida, categoría al azar,
+  dificultad por tramo (rondas 0–1 → 1–2, 2–3 → 2–3, 4–5 → 3–4, 6+ → 4–5). Se manda
+  `round_start` con `ends_at`. La ronda se resuelve cuando **los dos** contestaron o al
+  vencer el plazo, lo primero. `round_result` trae la correcta, qué eligió cada uno,
+  ms, puntos y el marcador. No contestar = incorrecta, cero puntos.
+- **Puntaje de ronda:** solo si acertó → `BASE + round(TIME_BONUS_MAX * ratio)`, con
+  `ratio = clamp(1 - ms / (seconds * 1000), 0, 1)`. Con 20 s: acertar en 1 s da 148;
+  al límite, 100.
+- **Fin:** gana el que más puntos tiene. Empate → **rondas de desempate** a mitad de
+  tiempo y dificultad 4–5, hasta `MAX_TIEBREAK_ROUNDS = 3`; agotado el tope, empate
+  final (`winner_id` nulo). `match_end` trae ganador, puntajes y resumen ronda a ronda.
+- **Abandono:** al desconectarse un jugador se pausa el reloj, el rival ve el aviso y
+  corre una gracia de 20 s; si vuelve, sigue desde el mismo estado; si no, gana el que
+  quedó y la partida queda `abandoned`. Si se van los dos, `void` (no cuenta).
+- **Revancha:** al terminar, cuando los dos la piden, arranca una partida nueva en la
+  misma sala con la misma config y preguntas nuevas; si uno no la pide, la sala vuelve a
+  `waiting` y el host puede arrancar de nuevo con el mismo código.
 
-1. El host crea la sala desde `POST /rooms` y recibe un código de 6 caracteres. La sala queda en estado `waiting`.
-2. El host comparte el código. El invitado entra y ambos abren `WS /ws/room/{code}`.
-3. Cuando los dos están conectados, el host puede arrancar. El invitado también ve el estado de "esperando al host".
-4. Si la sala queda `waiting` más de 10 minutos sin arrancar, expira.
+### Arcade
 
-**Ronda**
+- Arranca con 3 vidas, dificultad 1, racha 0, puntaje 0 y 20 s por pregunta.
+- Dificultad por aciertos acumulados: 0–3 → 1, 4–9 → 2, 10–17 → 3, 18–27 → 4, 28+ → 5.
+- Segundos: 20 al inicio, −1 cada 3 aciertos, piso 5.
+- `puntos = BASE + round(TIME_BONUS_MAX * ratio) + min(STREAK_BONUS_STEP * streak, MAX)`,
+  con `streak` = aciertos consecutivos **antes** de esta pregunta.
+- Un error (o no contestar) descuenta vida; a 0 vidas termina. `arcade_end` trae puntaje,
+  aciertos, dificultad máxima, mejor racha y la posición en ranking global y semanal.
+- Anti-trampa: puntajes y tiempos siempre del servidor; una corrida con tiempos
+  imposibles se marca `invalid` y no entra al ranking.
 
-1. El servidor elige una pregunta publicada que no haya salido en la partida, de categoría aleatoria entre las 6, y de dificultad cercana al promedio que va subiendo con el índice de ronda. Tabla de dificultad por ronda: rondas 0–1 → dificultad 1–2, rondas 2–3 → 2–3, rondas 4–5 → 3–4, ronda 6+ → 4–5.
-2. Envía a ambos jugadores, al mismo tiempo, un mensaje `round_start` con el índice de ronda, el enunciado, las 4 opciones, la categoría, la dificultad, el número de ronda y `ends_at` (instante de finalización según el reloj del servidor).
-3. Cada jugador envía `answer` con el índice elegido. El servidor registra el tiempo usando su propio reloj, no el del cliente.
-4. La ronda se resuelve cuando **los dos** contestaron, o cuando vence `ends_at`. Lo que ocurra primero.
-5. Al resolver, el servidor calcula puntos y envía `round_result` a los dos con: la opción correcta, qué eligió cada uno, si acertó, los milisegundos, los puntos de la ronda, la explicación si existe, y el marcador acumulado.
-6. Si un jugador no contesta, se cuenta como incorrecta y no suma.
+### Selección de preguntas (`services/questions.py`)
 
-**Puntaje de ronda**
+- Solo `published` y `language = 'es'`; nunca se repite dentro de la misma partida o corrida.
+- En el arcade, además, se evitan las últimas 50 vistas por ese usuario (sorted set de
+  Redis `arcade:seen:{user_id}`, 24 h). La sala no necesita esa memoria: su estado ya
+  sabe qué salió.
+- Si Redis no contesta, **la partida sigue sin historial** (se loguea); lo peor es repetir
+  una pregunta. Si no hay preguntas suficientes, se permite repetir como último recurso.
+- **La respuesta correcta no viaja con la pregunta**: `RoundQuestion` (al cliente) no
+  tiene `correct_index`; vive en `LoadedQuestion`, del lado del servidor.
+- Se busca por categoría y dificultad, se descartan las usadas y se elige al azar; vacío →
+  ±1 de dificultad → sin categoría. Las opciones se **barajan al servir** y `correct_index`
+  se remapea en la misma copia (la pregunta guardada no se toca).
 
-```
-ratio = clamp(1 - ms / (seconds * 1000), 0, 1)
-puntos = BASE + round(TIME_BONUS_MAX * ratio)   # solo si acertó
-```
+## Protocolo WebSocket
 
-Ejemplo con 20 segundos: acertar en 1 segundo da 148 puntos; acertar al límite da 100.
+Sobre único: `{"t": "tipo", "id": "opcional", "d": {}}`. Todo tiempo absoluto es epoch
+en ms UTC y lo genera el servidor.
 
-**Fin de la partida**
+### Salas: `WS /ws/room/{code}?token=...`
 
-- Terminadas todas las rondas, gana el que más puntos tiene.
-- Si hay empate, se juega **una ronda de desempate** con la mitad del tiempo configurado y una pregunta de dificultad 4 o 5. Se repite hasta que haya un ganador o hasta agotar `MAX_TIEBREAK_ROUNDS = 3`; agotado el tope, la partida termina en **empate** (`winner_id` nulo).
-- El servidor envía `match_end` con el ganador, los puntajes, y el resumen ronda por ronda.
+Cliente → Servidor: `hello {}`, `start {}` (solo host, con 2 jugadores), `answer
+{"round","choice"}`, `rematch {}`, `ping {}`.
 
-**Abandono y desconexión**
-
-- Si un jugador se desconecta durante la partida, el otro ve un aviso claro: "Tu rival se desconectó, esperando reconexión".
-- El reloj de la ronda se pausa. Arranca una ventana de 20 segundos.
-- Si vuelve dentro de la ventana, la partida continúa desde el mismo estado.
-- Si no vuelve, la partida termina con el jugador presente como ganador y la partida queda registrada como `abandoned`.
-- Si se desconectan los dos, la partida queda como `void` y no cuenta para nadie.
-
-**Revancha**
-
-- Al terminar, ambos ven un botón de revancha. Cuando los dos lo aprietan, el servidor crea una partida nueva con la misma configuración en la misma sala y reparte preguntas nuevas.
-- Si uno no aprieta, la sala vuelve a `waiting` y el host puede volver a jugar con el mismo código.
-
-### 9.3 Modo arcade
-
-**Corrida**
-
-1. El jugador arranca desde `WS /ws/arcade`. El servidor crea una corrida en `playing`.
-2. Arranca con 3 vidas, dificultad 1, racha 0, puntaje 0 y 20 segundos por pregunta.
-3. Se envía `arcade_question` con el enunciado, las opciones, la categoría, la dificultad, los segundos disponibles, el número de aciertos y las vidas restantes.
-
-**Progresión**
-
-| Aciertos acumulados | Dificultad de la siguiente pregunta |
-|---|---|
-| 0 – 3 | 1 |
-| 4 – 9 | 2 |
-| 10 – 17 | 3 |
-| 18 – 27 | 4 |
-| 28+ | 5 |
-
-| Segundos por pregunta | Condición |
-|---|---|
-| 20 | inicio |
-| 19 | 3 aciertos |
-| 18 | 6 aciertos |
-| … | cada 3 aciertos baja 1 segundo |
-| 5 | piso, no baja más |
-
-**Puntaje**
-
-```
-puntos = BASE + round(TIME_BONUS_MAX * ratio) + min(STREAK_BONUS_STEP * streak, STREAK_BONUS_MAX)
-```
-
-donde `streak` es la cantidad de aciertos consecutivos **antes** de esta pregunta.
-
-**Fin**
-
-- Un error descuenta una vida. Si quedan vidas, sigue. Si llega a 0, la corrida termina.
-- Una pregunta sin contestar se cuenta como error.
-- Al terminar, el servidor guarda el puntaje y envía `arcade_end` con puntaje, aciertos, dificultad máxima, mejor racha, y la posición en el ranking global y semanal.
-- El anti-trampa mínimo: los puntajes por pregunta se calculan siempre en el servidor con el reloj del servidor, y una corrida con tiempos imposibles (por ejemplo, respuestas de 0 ms repetidas) se marca como `invalid` y no entra al ranking.
-
-### 9.4 Selección de preguntas (`services/questions.py`)
-
-Reglas comunes:
-
-- Solo se usan preguntas con `status = 'published'` y `language = 'es'`.
-- Nunca se repite una pregunta dentro de la misma partida o corrida.
-- En el arcade, además se evita repetir las últimas 50 preguntas que vio ese usuario, en un conjunto ordenado de Redis (`arcade:seen:{user_id}`, ordenado por cuándo se vieron, con caducidad de 24 horas). La sala no necesita esa memoria: el estado de la partida ya sabe qué preguntas salieron.
-- **Si Redis no contesta, la partida sigue sin historial.** Se registra la advertencia y lo peor que pasa es repetir una pregunta: una caché caída no puede tumbar una partida que se podría jugar.
-- **La respuesta correcta no viaja con la pregunta.** `RoundQuestion` (lo que se manda al cliente) no tiene campo `correct_index`: el índice se carga aparte, en `LoadedQuestion`, y solo lo ve el servidor.
-- Estrategia de selección: se busca por categoría y dificultad en la base, se descartan las usadas en esta partida, y se elige al azar. Si el resultado queda vacío, se amplía el rango de dificultad en ±1 y, si sigue vacío, se ignora la categoría.
-- **Si no hay preguntas suficientes, la partida no debe romperse.** Se permite repetir como último recurso y se registra una advertencia en los logs.
-
----
-
-## 10. Protocolo WebSocket
-
-Un solo formato de sobre para todo:
-
-```json
-{ "t": "tipo_de_mensaje", "id": "opcional-para-correlacionar", "d": { } }
-```
-
-- `t`: tipo de mensaje.
-- `id`: opcional, para emparejar pedido y respuesta.
-- `d`: datos.
-
-Todos los tiempos absolutos se expresan como **milisegundos desde epoch en UTC**, y siempre los genera el servidor.
-
-### 10.1 Salas: `WS /ws/room/{code}?token=...`
-
-**Cliente → Servidor**
-
-| `t` | `d` | Descripción |
-|---|---|---|
-| `hello` | `{}` | Handshake inicial. El servidor responde con `room_state`. |
-| `start` | `{}` | Solo el host. Arranca la partida si hay 2 jugadores. |
-| `answer` | `{"round": 0, "choice": 2}` | Respuesta del jugador. |
-| `rematch` | `{}` | Pide revancha. |
-| `ping` | `{}` | Heartbeat. |
-
-**Servidor → Cliente**
-
-| `t` | `d` | Descripción |
-|---|---|---|
-| `room_state` | `{"code","status","config","you":{"id","nick"},"players":[...],"match_id"}` | Estado completo de la sala. Se manda al entrar y cada vez que cambia. |
-| `match_start` | `{"match_id","config","rounds_total"}` | Arranca la partida. |
-| `round_start` | `{"round","question_id","prompt","options":["a","b","c","d"],"category","difficulty","ends_at","total_seconds"}` | **Sin la respuesta correcta.** |
-| `opponent_answered` | `{"round"}` | El rival ya contestó. No revela qué eligió. |
-| `round_result` | `{"round","correct_index","explanation","you":{"choice","ms","points","correct"},"opponent":{"choice","ms","points","correct"},"scores":{"you","opponent"}}` | Revelación. |
-| `reconnect_pending` | `{"seconds_left"}` | El rival se desconectó. |
-| `opponent_returned` | `{}` | El rival volvió. |
-| `match_end` | `{"winner":"you\|opponent\|tie","scores":{...},"rounds":[...],"reason":"completed\|abandoned"}` | Fin de partida. |
-| `rematch_waiting` | `{}` | El rival ya pidió revancha. |
-| `error` | `{"code","message"}` | Errores. |
-| `pong` | `{}` | Respuesta al ping. |
-
-### 10.2 Arcade: `WS /ws/arcade?token=...`
-
-**Cliente → Servidor**
+Servidor → Cliente:
 
 | `t` | `d` |
 |---|---|
-| `start` | `{}` |
-| `answer` | `{"round": 3, "choice": 1}` |
-| `ping` | `{}` |
+| `room_state` | `{"code","status","config","you":{"id","nick"},"players":[...],"match_id"}` — al entrar y en cada cambio |
+| `match_start` | `{"match_id","config","rounds_total"}` |
+| `round_start` | `{"round","question_id","prompt","options":[...],"category","difficulty","ends_at","total_seconds"}` — **sin la correcta** |
+| `opponent_answered` | `{"round"}` (no revela qué eligió) |
+| `round_result` | `{"round","correct_index","explanation","you":{"choice","ms","points","correct"},"opponent":{...},"scores":{"you","opponent"}}` |
+| `reconnect_pending` | `{"seconds_left"}` |
+| `opponent_returned` | `{}` |
+| `match_end` | `{"winner":"you\|opponent\|tie","scores":{...},"rounds":[...],"reason":"completed\|abandoned"}` |
+| `rematch_waiting` | `{}` |
+| `error` | `{"code","message"}` |
+| `pong` | `{}` |
 
-**Servidor → Cliente**
+### Arcade: `WS /ws/arcade?token=...`
+
+Cliente → Servidor: `start {}`, `answer {"round","choice"}`, `ping {}`.
 
 | `t` | `d` |
 |---|---|
 | `arcade_start` | `{"run_id","lives","seconds"}` |
 | `arcade_question` | `{"round","prompt","options","category","difficulty","seconds","ends_at","score","lives","streak","correct_count"}` |
-| `arcade_result` | `{"round","correct_index","explanation","you":{"choice","ms","points","correct"},"score","lives","streak","correct_count"}` |
+| `arcade_result` | `{"round","correct_index","explanation","you":{...},"score","lives","streak","correct_count"}` |
 | `arcade_end` | `{"run_id","score","correct_count","max_difficulty","longest_streak","rank_global","rank_weekly","personal_best","is_new_best"}` |
-| `error` | `{"code","message"}` |
-| `pong` | `{}` |
+| `error` / `pong` | `{"code","message"}` / `{}` |
 
-### 10.3 Comportamiento del cliente WebSocket
+### Cliente
 
-- Reconexión automática con retroceso exponencial: 0.5s, 1s, 2s, 4s, hasta 10s máximo.
-- Al reconectar dentro de la ventana de gracia, manda `hello` y el servidor devuelve el estado completo, incluyendo la ronda en curso con su `ends_at` original.
-- El cliente **nunca** decide el resultado de una ronda. Solo dibuja lo que el servidor manda.
-- Heartbeat cada 15 segundos con `ping`/`pong`. Si no llega `pong` en 10 segundos, se considera caída la conexión.
+Reconexión con backoff 0.5s→10s; al reconectar manda `hello` y recibe el estado completo
+(incluida la ronda en curso con su `ends_at` original). Heartbeat cada 15 s; sin `pong`
+en 10 s se considera caída. El cliente **nunca** decide el resultado de una ronda.
 
----
+## API HTTP
 
-## 11. API HTTP
-
-Todas las respuestas en JSON. Los errores siguen el formato `{"error": {"code": "...", "message": "..."}}`.
-
-### Sesión
+Errores: `{"error": {"code": "...", "message": "..."}}`.
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| `POST` | `/auth/guest` | Body `{"nick": "opcional"}`. Crea o reutiliza un usuario invitado y devuelve `{"user": {...}, "token": "..."}`. |
-| `GET` | `/me` | Usuario actual, su mejor marca y sus últimas partidas. |
-| `PATCH` | `/me` | Cambiar el nick. |
-| `DELETE` | `/me` | Borrado lógico de datos. |
+| `POST` | `/auth/guest` | Body `{"nick"?: str}`. Crea o reutiliza invitado → `{"user","token"}`. |
+| `GET` | `/me` | Perfil, mejor marca, últimas partidas. |
+| `PATCH` | `/me` | Cambia el nick → token fresco. |
+| `DELETE` | `/me` | Baja lógica (204). |
+| `POST` | `/rooms` | Body `{"rounds":5,"seconds":20}` → `{"code","config"}`. |
+| `GET` | `/rooms/{code}` | Vista previa: `code`, `config`, `status`, `host_nick`, `expires_at`, `players`. |
+| `GET` | `/leaderboard/arcade?period=all\|week&limit=50` | Posición, nick, puntaje, fecha. |
+| `GET` | `/leaderboard/arcade/me` | Posición y mejor marca en ambos períodos. |
+| `GET` | `/admin/questions?status=&category=&difficulty=&q=&page=&page_size=` | Listado paginado, `X-Admin-Token` (§13.4). |
+| `POST` | `/admin/questions/import` | CSV/JSON multipart + informe, `X-Admin-Token` (§13.4). |
+| `GET` | `/health` | Estado de la API, la base y Redis (503 si algo falla). |
+| `WS` | `/ws/room/{code}` y `/ws/arcade` | Tiempo real. |
 
-### Salas
+## Autenticación
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| `POST` | `/rooms` | Crea la sala. Body `{"rounds": 5, "seconds": 20}`. Devuelve `{"code": "K7M2QP", "config": {...}}`. |
-| `GET` | `/rooms/{code}` | Vista previa: devuelve `code`, `config`, `status`, `host_nick` y `expires_at` (normaliza el código a mayúsculas). La cantidad de jugadores se suma cuando exista la presencia por WebSocket. |
+- Invitado primero: `POST /auth/guest` da de alta con `is_guest = true` y nick generado
+  si no se manda. Con un token válido **no** crea a nadie: devuelve el mismo usuario y
+  token fresco, e **ignora el nick del body** (la identidad la manda el token).
+- Códigos: `AUTH_REQUIRED` (401), `NICK_TAKEN` (409), `NICK_FORBIDDEN`/`NICK_LENGTH`
+  (400), `ROOM_NOT_FOUND` (404), `VALIDATION_ERROR` (422). El nick se limpia y valida en
+  `security/nicks.py` (1–16, lista corta de palabras prohibidas).
+- `GET /me` agrega `best` (`all_time`/`week`), `arcade_runs` y `matches` (hasta 10, solo
+  `finished`); los puntajes del 1v1 vienen desde el punto de vista del jugador. La
+  posición del ranking vive solo en `/leaderboard/arcade/me`. `GET` refresca
+  `last_seen_at` como mucho una vez por minuto.
+- JWT HS256 con `sub`, `nick`, `guest`, `iat`, `exp` (30 días), firmado con `JWT_SECRET`.
+  Se lee con `algorithms=[ALGORITHM]` explícito y se atrapa `jwt.PyJWTError` entero. Sin
+  contraseñas ni refresh ni sesiones en base.
+- `Authorization: Bearer ...` en HTTP; `?token=` en los WS (el navegador no deja headers).
+- CORS desde `CORS_ORIGINS` (el frontend vive en otro puerto).
 
-### Ranking
+## Banco de preguntas
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| `GET` | `/leaderboard/arcade?period=all\|week&limit=50` | Lista con posición, nick, puntaje y fecha. |
-| `GET` | `/leaderboard/arcade/me` | Posición y mejor marca del usuario actual, en ambos períodos. |
-
-### Contenido y admin
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| `GET` | `/admin/questions?status=&category=&difficulty=&q=&page=&page_size=` | Listado paginado. Requiere `X-Admin-Token`. Contrato en §13.4. |
-| `POST` | `/admin/questions/import` | Importa un CSV o JSON (multipart) y devuelve un informe. Requiere `X-Admin-Token`. Contrato en §13.4. |
-| `GET` | `/health` | Estado de la API, la base y Redis. |
-
-### WebSocket
-
-| Ruta | Descripción |
-|---|---|
-| `/ws/room/{code}?token=...` | Sala privada. |
-| `/ws/arcade?token=...` | Arcade. |
-
----
-
-## 12. Autenticación
-
-- **Invitado primero.** `POST /auth/guest` crea un `users` con `is_guest = true` y un nick generado si no se manda uno (por ejemplo `Jugador4821`). Con un token válido en el header **no** da de alta a nadie: devuelve el mismo usuario con un token fresco, e ignora el nick que venga en el body (la identidad la manda el token).
-- **Códigos de error** que devuelve hoy: `AUTH_REQUIRED` (401), `NICK_TAKEN` (409), `NICK_FORBIDDEN` y `NICK_LENGTH` (400), `ROOM_NOT_FOUND` (404), `VALIDATION_ERROR` (422, forma del body). El formato es el de §11: `{"error": {"code", "message"}}`.
-- **El nick se limpia y se valida** en `security/nicks.py` (espacios de sobra, 1–16 caracteres, lista corta de palabras prohibidas que no ve leet ni homoglifos). El mismo módulo sirve para el `PATCH /me`.
-- **`/me`**: `GET` devuelve el perfil y refresca `last_seen_at` como mucho una vez por minuto; `PATCH` cambia el nick (mismos códigos `NICK_*`) y devuelve un token fresco (el viejo lleva el nick viejo); `DELETE` es baja lógica (204) y a partir de ahí el token da 401 y el nick queda libre.
-  - El `GET` agrega `best` (`all_time` y `week`, dos enteros o `null`), `arcade_runs` y `matches` (hasta 10 cada uno, solo `finished`). Las dos listas son independientes: los campos de una corrida y de un 1v1 no se parecen. Los puntajes de la partida vienen ya puestos desde el punto de vista del jugador (`my_score`, `opponent_score`, `opponent_nick`, `result` = `win`/`loss`/`draw`). La posición en el ranking **no** se repite acá: vive en `/leaderboard/arcade/me`.
-- **CORS:** los orígenes salen de `CORS_ORIGINS` y el frontend corre en otro puerto (`5173`), así que el navegador exige el middleware para poder llamar a la API.
-- El token es un **JWT HS256** con `sub` (id del usuario), `nick`, `guest: true`, `iat` y `exp` a 30 días. Se firma con `JWT_SECRET`.
-- El cliente lo guarda en `localStorage` y lo manda en el header `Authorization: Bearer ...`, o como query param `?token=` en los WebSocket (el navegador no permite headers en `new WebSocket`).
-- No hay contraseñas, ni refresh tokens, ni sesiones en base de datos.
-- El token vencido o inválido en una sala devuelve `error` con código `AUTH_REQUIRED` y el cliente manda al usuario al inicio.
-- La cuenta opcional (Google, email) queda fuera, pero el modelo `users` ya tiene `email` y `provider` para cuando se agregue.
-
----
-
-## 13. Banco de preguntas
-
-### 13.1 Formato de importación (CSV)
-
-Primera línea de encabezado, exactamente estas columnas:
+**Import CSV** — encabezado con estas columnas exactas:
 
 ```
 category,difficulty,prompt,option_a,option_b,option_c,option_d,correct,explanation,source,tags
-geography,2,¿Cuál es el río más largo de Sudamérica?,Paraná,Amazonas,Orinoco,Magdalena,B,El Amazonas recorre unos 6.400 km,manual,mundo;ríos
 ```
 
-Reglas de validación:
+Validación: categoría entre las 6; dificultad 1–5; `prompt` no vacío ≤ 300; las 4 opciones
+no vacías y distintas; `correct` en `A`–`D`; `content_hash` = SHA-256 del enunciado
+normalizado (NFKD sin diacríticos, minúsculas, sin signos, espacios colapsados). El hash
+duplicado se omite y se informa. Informe: importadas, duplicadas y rechazadas con motivo.
+El import JSON acepta un array con las mismas claves.
 
-- `category` debe ser una de las 6.
-- `difficulty` entre 1 y 5.
-- `prompt` no vacío, máximo 300 caracteres.
-- Las 4 opciones no vacías y distintas entre sí.
-- `correct` en `A`, `B`, `C` o `D`.
-- `content_hash` calculado como SHA-256 del enunciado normalizado (minúsculas, sin signos, sin espacios repetidos).
-- Filas con `content_hash` ya existente se omiten y se informan como duplicadas.
-- El informe final dice: cuántas se importaron, cuántas se omitieron y por qué.
+`make seed` carga `backend/seeds/questions.csv` (60, 10 por categoría) y las deja
+**`published`**; el importador usa `draft` por defecto (§13.2) y `--status` lo cambia.
 
-El import por JSON acepta un array de objetos con las mismas claves.
+**Curación:** las preguntas generadas con IA entran `draft`; un humano las pasa a
+`published`. Objetivo recomendado: 20 por categoría y dificultad (600), por tramos.
 
-`make seed` carga `backend/seeds/questions.csv` (60 preguntas, 10 por categoría) y las deja **`published`**: son curadas a mano, no la salida de un generador que haya que revisar. El importador en sí usa `draft` por defecto, como pide §13.2; `make import FILE=...` acepta `--status` para cambiarlo.
+**Futuro (media):** `media_type`/`media_url` ya soportan imagen/audio; el motor no cambia
+(sigue siendo elegir 1 de 4); solo se agrega subir archivos y que la tarjeta sepa
+renderizar.
 
-### 13.2 Curación
+### Panel de administración (`api/routers/admin.py`)
 
-- Las preguntas generadas con IA entran como `draft`.
-- Un humano las revisa y las pasa a `published`.
-- Para el MVP se recomienda un mínimo de **20 preguntas por categoría y por dificultad**, es decir 6 × 5 × 20 = 600 preguntas. Se puede arrancar con menos y escalar por tramos: primero dificultad 1 a 3, después 4 y 5.
-- El campo `source` guarda la procedencia, y `explanation` se muestra al revelar la respuesta.
+`X-Admin-Token` igual al `ADMIN_TOKEN` del `.env`, comparado con `compare_digest`; la
+dependencia cuelga del router `/admin` entero, así una ruta nueva nace protegida. Token
+ausente e inválido dan el mismo 401 `ADMIN_REQUIRED`.
 
-### 13.3 Preparado para el futuro
+- `GET /admin/questions` — filtros `status`, `category`, `difficulty`, `q` (substring,
+  mayúsculas ignoradas, tildes **no**) y `page`/`page_size` (20 por defecto, tope 100).
+  Devuelve `{items, page, page_size, total, pages}`; cada `item` **sí** trae
+  `correct_index` (es la vista de curación). Orden `created_at DESC, id DESC`. Categoría
+  desconocida: 422; página de más: 200 con lista vacía.
+- `POST /admin/questions/import` — multipart `file` (CSV/JSON según extensión) y `status`
+  opcional (`draft` por defecto). Mismo informe que la CLI: `{total, imported,
+  duplicated, rejected:[{row, reason}]}`. Errores de archivo: 400 `IMPORT_FORMAT`.
 
-Cuando se agregue "adiviná la canción" o "adiviná la película", el cambio es:
+## Ranking
 
-- Nueva categoría de contenido y nuevos tipos de pregunta, cosa que ya soportan `media_type` y `media_url`.
-- El motor de juego no cambia: sigue siendo elegir 1 de 4 opciones.
-- Lo único que se agrega es subir archivos a `static/assets/media/` o a un bucket, y que la tarjeta de pregunta sepa renderizar un reproductor de audio o una imagen.
-
-### 13.4 Panel de administración (implementado)
-
-Vive en `backend/app/api/routers/admin.py`. Los dos endpoints piden el header
-`X-Admin-Token` igual al `ADMIN_TOKEN` del `.env`; la dependencia cuelga del router
-`/admin` entero, así que una ruta nueva nace protegida.
-
-**`GET /admin/questions`** — filtros `status`, `category`, `difficulty`, `q`
-(substring, mayúsculas ignoradas, tildes **no**) y paginación `page`/`page_size`
-(20 por defecto, tope 100). Devuelve `{items, page, page_size, total, pages}`; cada
-`item` trae el `correct_index` —es la vista de curación, no la de juego— y el orden
-es `created_at DESC, id DESC`. Categoría desconocida: 422 `VALIDATION_ERROR`. Pasarse
-de página: 200 con la lista vacía.
-
-**`POST /admin/questions/import`** — multipart con `file` (CSV o JSON; el formato
-sale de la extensión) y `status` opcional (`draft` por defecto, `published` para que
-entren al banco). Devuelve el mismo informe que la CLI:
-`{total, imported, duplicated, rejected: [{row, reason}]}`. Los errores de archivo
-(extensión, encabezado, JSON roto, bytes no UTF-8) son 400 `IMPORT_FORMAT` con el
-motivo; los de fila siguen yendo en `rejected`. El cuerpo está acotado a 1 MB por el
-middleware (unas 6.000 preguntas por carga).
-
----
-
-## 14. Ranking
-
-- **Global histórico:** por cada usuario, su mejor `score` de todas las corridas válidas. Ordenado descendente. El empate se resuelve por **el momento más temprano en que ese jugador alcanzó ese puntaje**: quien llegó antes al mismo número va primero. (No por `MAX(ended_at)`, que significa "el que jugó por última vez hace más tiempo va primero": arbitrario y se mueve solo.)
-- **Semanal:** mismo criterio pero solo corridas terminadas desde el lunes 00:00 en `America/Argentina/Buenos_Aires`. Se puede materializar en un sorted set de Redis, pero para el MVP un `SELECT` alcanza y es más simple de entender.
-- **Mejor marca personal:** máximo de las corridas del usuario.
-- El ranking se refresca al abrir la pantalla. No hay push en vivo en el MVP.
-
-Consulta base. El `DISTINCT ON` elige, por usuario, su corrida de mayor puntaje y, entre las que empatan, la más temprana; después reordena esa lista:
+- **Global:** por usuario, su mejor `score` de corridas `finished`; empate resuelto por el
+  **momento más temprano en que alcanzó ese puntaje**, y a igualdad de todo, por
+  `user_id` (para que la posición no baile).
+- **Semanal:** mismo criterio desde el lunes 00:00 en `America/Argentina/Buenos_Aires`
+  (`zoneinfo`, comparado como `timestamptz`).
+- **Mejor marca personal:** máximo de sus corridas. Se refresca al abrir la pantalla (sin
+  push). En Postgres (A3.5), no en Redis.
 
 ```sql
 SELECT * FROM (
-  SELECT DISTINCT ON (u.id)
-         u.id, u.nick, r.score AS best, r.ended_at AS achieved_at
-  FROM arcade_runs r
-  JOIN users u ON u.id = r.user_id
-  WHERE r.status = 'finished'
-    AND u.deleted_at IS NULL
-    -- AND r.ended_at >= :since   -- solo en el ranking semanal
+  SELECT DISTINCT ON (u.id) u.id, u.nick, r.score AS best, r.ended_at AS achieved_at
+  FROM arcade_runs r JOIN users u ON u.id = r.user_id
+  WHERE r.status = 'finished' AND u.deleted_at IS NULL
+    -- AND r.ended_at >= :since   -- solo en el semanal
   ORDER BY u.id, r.score DESC, r.ended_at ASC
 ) AS mejor
 ORDER BY best DESC, achieved_at ASC
 LIMIT :limit;
 ```
 
----
+## Sistema de diseño (frontend)
 
-## 15. Sistema de diseño
-
-### 15.1 Reglas duras
-
-Estas reglas no se negocian. Son lo que separa el juego de "una app genérica generada por IA".
-
-1. **Cero gradientes decorativos.** Ningún `linear-gradient` ni `radial-gradient` en fondos, botones o tarjetas. Solo colores planos.
-2. **Cero emojis en la interfaz.** Todos los íconos son SVG propios.
-3. **Sombras duras.** `box-shadow: 4px 4px 0 0 var(--ink)`, sin desenfoque. Se prohibe `blur`.
-4. **Bordes gruesos.** `border: 2.5px solid var(--ink)` en todo elemento interactivo.
-5. **Toda superficie interactiva se puede presionar.** Al hacer clic se desplaza 3 px hacia abajo y a la derecha, y su sombra se reduce a 1 px. Eso da la sensación de chapa plástica.
-6. **Nada de `border-radius` de 20 px en todo.** Radios contenidos: 10 px en botones, 14 px en tarjetas, y `999px` solamente en los badges de categoría.
-7. **La tipografía se elige, no se hereda.** Nada de la fuente por defecto del sistema.
-8. **El color de categoría manda.** El badge y el acierto usan el color de la categoría para que el ojo lo lea de un golpe.
-9. **Cero animaciones de entrada por scroll.** La animación se usa para feedback de acción, no para decorar.
-10. **Accesibilidad mínima obligatoria.** Foco visible con contorno del color de marca, contraste AA en texto, y todo jugable con teclado: números `1` a `4` para responder y `Enter` para confirmar.
-
-### 15.2 Tokens
+**Reglas duras (no se negocian):** cero gradientes decorativos; cero emojis (íconos SVG
+propios); sombras duras `4px 4px 0 0 var(--ink)` sin blur; bordes `2.5px solid var(--ink)`
+en todo interactivo; toda superficie presionable baja 3 px al hacer clic y reduce la
+sombra a 1 px; radios contenidos (10 px botones, 14 px tarjetas, `999px` solo badges); la
+tipografía se elige, no se hereda; el color de categoría manda en badge y acierto; cero
+animaciones de entrada por scroll (animar solo feedback); accesibilidad mínima: foco
+visible, contraste AA y todo jugable con teclado (`1`–`4` responde, `Enter` confirma).
 
 ```css
 :root {
-  /* Tinta y papel */
-  --ink:        #101828;
-  --ink-2:      #344054;
-  --ink-3:      #667085;
-  --paper:      #FCF8F0;
-  --paper-2:    #F2EADF;
-  --white:      #FFFFFF;
-
-  /* Semánticos */
-  --correct:      #2FA36B;
-  --correct-dark: #1E7A4D;
-  --wrong:        #E14B4B;
-  --wrong-dark:   #A32F2F;
-  --brand:        #2F6BFF;
-  --brand-dark:   #1E4FD1;
-  --gold:         #D99B1C;
-
-  /* Categorías: un color plano saturado por cada una */
-  --cat-geography:     #2E9E5B;
-  --cat-history:       #C77B2E;
-  --cat-science:       #2A6FD6;
-  --cat-art:           #8A4FD3;
-  --cat-entertainment: #E0498F;
-  --cat-sports:        #1E9E9E;
-
-  /* Formas */
-  --r-sm: 10px;
-  --r-md: 14px;
-  --r-full: 999px;
-  --border-w: 2.5px;
-  --shadow-hard: 4px 4px 0 0 var(--ink);
-  --shadow-press: 1px 1px 0 0 var(--ink);
-
-  /* Espaciado: escala de 4 */
-  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
-  --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
-
-  /* Tipografía */
+  --ink: #101828; --ink-2: #344054; --ink-3: #667085;
+  --paper: #FCF8F0; --paper-2: #F2EADF; --white: #FFFFFF;
+  --correct: #2FA36B; --correct-dark: #1E7A4D;
+  --wrong: #E14B4B; --wrong-dark: #A32F2F;
+  --brand: #2F6BFF; --brand-dark: #1E4FD1; --gold: #D99B1C;
+  --cat-geography: #2E9E5B; --cat-history: #C77B2E; --cat-science: #2A6FD6;
+  --cat-art: #8A4FD3; --cat-entertainment: #E0498F; --cat-sports: #1E9E9E;
+  --r-sm: 10px; --r-md: 14px; --r-full: 999px; --border-w: 2.5px;
+  --shadow-hard: 4px 4px 0 0 var(--ink); --shadow-press: 1px 1px 0 0 var(--ink);
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
   --font-display: "Bricolage Grotesque", system-ui, sans-serif;
   --font-ui: "Instrument Sans", system-ui, sans-serif;
 }
 ```
 
-Tipografías autoalojadas en `frontend/static/fonts/` en formato `woff2`, con `font-display: swap`. La display se usa en títulos, marcadores y números grandes, siempre en peso 800. La de UI se usa en todo el texto común.
-
-### 15.3 Componentes
-
-| Componente | Qué es |
-|---|---|
-| `Button` | Variantes `primary`, `secondary`, `ghost`, `danger`. Tamaños `md` y `lg`. Siempre con borde grueso y sombra dura. |
-| `AnswerTile` | La opción de respuesta. Estados: `idle`, `selected`, `correct`, `wrong`, `disabled`. Es el componente más importante de la pantalla de juego. Alto mínimo 64 px en móvil, texto grande, y una tecla numérica visible en un extremo. |
-| `CategoryBadge` | Badge pill con el color de la categoría, el ícono propio y el nombre. |
-| `TimerRing` | Aro de cuenta regresiva. Cambia a color de alerta en los últimos 5 segundos y hace un pulso por segundo. |
-| `PlayerPanel` | Nombre, marcador y estado del jugador (`respondiendo`, `esperando`, `desconectado`). |
-| `Scoreboard` | Marcador entre los dos jugadores, con el que va ganando destacado. |
-| `CodeInput` | Campo de 6 casillas para el código de sala, navegable con teclado, sin caracteres ambiguos. |
-| `NickInput` | Campo de nick con contador y validación. |
-| `Modal` | Confirmaciones y ajustes. Fondo oscuro plano, sin blur. |
-| `Toast` | Avisos breves. |
-| `LifeStrip` | Vidas del arcade con iconos SVG. |
-
-### 15.4 Sonido
-
-Efectos cortos en `static/assets/sfx/`, en formato `.mp3` o `.ogg` y de menos de 60 KB:
-
-`tick`, `reveal`, `correct`, `wrong`, `match_start`, `match_win`, `match_lose`, `best_score`.
-
-El audio debe ser CC0 o de producción propia. Se inicializa después de la primera interacción del usuario, y hay un interruptor de silencio persistido en `localStorage`.
-
-### 15.5 Pantallas
-
-1. **Inicio** — marca propia, dos botones grandes: "Jugar con un amigo" y "Arcade". Debajo, un enlace de ranking y el nick actual.
-2. **Jugar** — dos bloques: "Crear sala" con la elección de rondas y segundos, y "Unirme con un código".
-3. **Lobby** — código gigante y copiable, los dos jugadores, y el botón de arrancar para el host.
-4. **Partida** — la pantalla principal. Arriba el marcador y el temporizador, al medio la pregunta, abajo las 4 opciones. Al responder, la opción elegida se marca y se muestra "esperando al rival".
-5. **Revelación** — dentro de la misma pantalla: la correcta se pinta, la incorrecta se pinta, y aparece el puntaje ganado con una animación breve.
-6. **Fin de partida** — ganador, marcador, resumen ronda por ronda, y botón de revancha.
-7. **Arcade** — misma pantalla de juego pero con vidas, racha y puntaje acumulado, y sin rival.
-8. **Fin de arcade** — puntaje, si es nuevo récord, posición en el ranking global y semanal, y botón de volver a jugar.
-9. **Ranking** — pestañas "Global" y "Semanal", con la lista y la fila propia destacada.
-10. **Admin de preguntas** — listado con filtros, y carga de archivo.
-
----
-
-## 16. Frontend
-
-### 16.1 Responsive
-
-- Diseño **mobile first**, vertical, pensado para jugar con una mano.
-- Ancho máximo de contenido: 480 px, centrado, en cualquier pantalla.
-- Sin scroll en la pantalla de partida: la pregunta y las 4 opciones entran en el viewport.
-- Áreas táctiles de 44 px como mínimo.
-- En escritorio, la misma columna centrada, con las teclas `1`–`4` activas.
-
-### 16.2 Estado
-
-- `sessionStore`: usuario, token, nick, sonido. Persistido en `localStorage`.
-- `matchStore`: máquina de estados del modo online. Estados: `idle`, `connecting`, `lobby`, `playing`, `revealing`, `ended`, `opponent_away`.
-- `arcadeStore`: máquina de estados del arcade. Estados: `idle`, `connecting`, `answering`, `revealing`, `ended`.
-- `ws.ts`: cliente de WebSocket con reconexión, heartbeat, y un `EventTarget` propio o stores derivados para que la UI se suscriba.
-- Toda la lógica de puntaje es de solo lectura en el cliente. Si el cliente tiene que mostrar puntos, los muestra porque el servidor se los mandó.
-
-### 16.3 PWA
-
-- `manifest.webmanifest` con nombre, íconos de 192 y 512 px, `display: standalone`, `theme_color` igual a `--ink` y `background_color` igual a `--paper`.
-- Service worker generado por `@vite-pwa/sveltekit` en modo `generateSW`, con `navigateFallback`.
-- El juego **no** funciona offline. El service worker solo cachea el app shell y los assets estáticos.
-
----
-
-## 17. i18n
-
-- Un archivo `frontend/src/lib/i18n/es.ts` con todas las cadenas, y un `index.ts` que exporta una función `t(clave, params)`.
-- En el backend, `backend/app/i18n/es.json` para los mensajes de error que se muestran al usuario.
-- **Regla:** ninguna cadena visible se escribe directamente en un componente.
-- Solo se carga `es`. La estructura queda lista para agregar `en` y `pt` más adelante.
-- Los textos de las preguntas viven en la base de datos con su campo `language`.
-
----
-
-## 18. Testing
-
-### Backend
-
-- `test_match_engine.py` y `test_arcade_engine.py`: pruebas puras del motor. Casos obligatorios: acierto rápido, acierto al límite, error, sin respuesta, empate y desempate, progresión de dificultad y de tiempo, corte por vidas.
-- `test_scoring.py`: tabla de valores exacta para que el puntaje no se rompa al refactorizar.
-- `test_questions_service.py`: que nunca se repita una pregunta dentro de una partida, que respete la dificultad, y que no explote si no hay preguntas suficientes.
-- `test_constraints_*.py`: **un test por regla de la base**, contra un Postgres real y exigiendo el constraint que corresponde. Nada de SQLite: no tiene `jsonb`, ni índices parciales, ni `CHECK` con regex.
-- `test_nicks.py` y `test_tokens.py`: la seguridad sin HTTP. La lista de palabras prohibidas se recorre entera, y del token se prueba lo que importa: que lo firmado se lee, y que lo tocado, lo vencido y lo firmado por otro no.
-- `test_auth_api.py`: `POST /auth/guest` con `httpx` contra la base real, incluida la reutilización del usuario cuando el token es válido y el rechazo cuando no lo es.
-- `test_question_bank.py`: candidatas contra Postgres real, el tipo que va al cliente sin la respuesta, las vistas contra Redis real (caducidad y tope de 50) y el camino de degradación con un Redis que no contesta.
-- `test_importer.py`: el parseo y la validación sin base (un caso por motivo de rechazo, y que el hash normalice tildes y signos) y la carga contra Postgres real: duplicado por `content_hash`, idempotencia, y que el archivo de semilla cargue las 60 repartidas entre las 6 categorías.
-- `test_schema_matches_models.py`: guardia contra el drift entre los modelos y la migración. Hace falta porque `alembic check` **no compara los `CHECK`** (los deja pasar agregados, cambiados, renombrados o borrados).
-- `test_rooms_api.py` y `test_arcade_ws.py`: con `httpx` y el cliente de test de FastAPI, incluyendo WebSocket.
-- `test_room_ws.py`: partida completa entre dos clientes simulados, con desconexión y reconexión dentro de la ventana de gracia.
-
-### Frontend
-
-- `svelte-check` sin errores en CI.
-- Playwright: una partida completa con dos contextos de navegador. Crear sala, unirse con el código, jugar 3 rondas, ver el ganador, pedir revancha.
-- Playwright: un arcade completo hasta perder las 3 vidas y verificar que el puntaje aparece en el ranking.
-
-### CI
-
-`.github/workflows/ci.yml`, en cada push y pull request:
-
-1. Levanta Postgres y Redis como servicios.
-2. Backend: `ruff`, `mypy`, `pytest`.
-3. Frontend: `npm ci`, `svelte-check`, `npm run build`.
-4. Playwright contra un entorno local levantado en el mismo job.
-
----
-
-## 19. Roadmap por fases
-
-Cada fase termina en algo que se puede abrir en el navegador y mirar. No se pasa a la siguiente sin cumplir los criterios.
-
-### Fase 0 — Esqueleto del proyecto
-
-**Entregable:** monorepo con backend y frontend levantando, base y caché en Docker, CI corriendo.
-
-**Criterios de aceptación**
-- `make up && make migrate && make api` deja la API en `:8000` y `GET /health` devuelve `{"api":"ok","db":"ok","redis":"ok"}`.
-- `make web` abre SvelteKit en `:5173` con la pantalla de inicio usando los tokens de diseño.
-- El workflow de CI pasa en verde con `ruff`, `mypy`, `svelte-check` y build.
-- `README.md` con las instrucciones exactas para levantar el proyecto desde cero.
-
-### Fase 1 — Identidad y contenido
-
-**Entregable:** un usuario invitado puede existir, y hay preguntas cargadas.
-
-**Criterios de aceptación**
-- `POST /auth/guest` devuelve usuario y token, y el token sirve para pegarle a `GET /me`.
-- El nick se valida y se filtran palabras prohibidas.
-- `make import FILE=preguntas.csv` carga preguntas y devuelve un informe con importadas, duplicadas y rechazadas.
-- Una pantalla de admin lista las preguntas con filtros y permite cargar un archivo.
-- Como mínimo 60 preguntas de ejemplo cargadas, repartidas entre las 6 categorías.
-
-### Fase 2 — Salas y presencia
-
-**Entregable:** dos navegadores se encuentran en una sala por código.
-
-**Criterios de aceptación**
-- `POST /rooms` devuelve un código de 6 caracteres sin caracteres ambiguos.
-- Dos navegadores distintos abren `/room/{code}` y ambos se ven en la lista de jugadores en tiempo real.
-- Si un tercero entra, se le informa que la sala está llena.
-- Si el host cierra la pestaña, el invitado lo ve reflejado.
-- Una sala sin arrancar expira a los 10 minutos y el código se libera.
-
-### Fase 3 — Partida online completa
-
-**Entregable:** el juego funciona de punta a punta.
-
-**Criterios de aceptación**
-- El host elige rondas y segundos, y arranca.
-- Las preguntas llegan sin la respuesta correcta en el payload (verificado en los tests).
-- Al contestar los dos o al vencer el tiempo, se revela el resultado con la opción correcta, los puntos y el marcador.
-- El puntaje coincide exactamente con la fórmula, verificado por test.
-- Al terminar se muestra el ganador con el resumen ronda por ronda.
-- El empate dispara el desempate con la mitad del tiempo.
-- Matar la conexión de un jugador y volver dentro de 20 segundos retoma la partida en el mismo estado.
-- No volver en 20 segundos termina la partida y declara ganador al que quedó.
-- El botón de revancha arranca una partida nueva con preguntas nuevas.
-
-### Fase 4 — Arcade y ranking
-
-**Entregable:** el modo individual con récord.
-
-**Criterios de aceptación**
-- Una corrida arranca con 3 vidas, 20 segundos y dificultad 1.
-- El tiempo baja a medida que se acierta, hasta el piso de 5 segundos, verificado por test.
-- La dificultad sube por tramos, verificado por test.
-- Un error descuenta vida y reinicia la racha.
-- Al quedarse sin vidas, se guarda el puntaje y se informa la posición en ambos rankings.
-- `GET /leaderboard/arcade?period=all` y `period=week` devuelven las listas correctas, y la semana corta el lunes en horario de Argentina.
-- Un nuevo récord personal se celebra de forma distinta en la pantalla de fin.
-
-### Fase 5 — Identidad visual y pulido
-
-**Entregable:** el juego se ve y se siente como un juego, no como una app.
-
-**Criterios de aceptación**
-- Los 9 componentes de la sección 15.3 están implementados y en uso, sin excepciones.
-- Ningún archivo del frontend contiene `linear-gradient`, `radial-gradient`, `filter: blur`, ni un emoji.
-- Todos los íconos son SVG propios, incluidos los 6 de categoría.
-- Los efectos de sonido suenan en acierto, error, revelación, tic tac, victoria y derrota, con interruptor de silencio.
-- La pantalla de partida no genera scroll en un viewport de 360 × 640.
-- El match se puede jugar entero con el teclado.
-- `npm run build` no supera los 250 KB de JavaScript comprimido en la pantalla de juego.
-
-### Fase 6 — PWA, pruebas de extremo a extremo y documentación
-
-**Entregable:** el MVP terminado y documentado.
-
-**Criterios de aceptación**
-- La app es instalable desde el navegador y abre en modo standalone.
-- Playwright corre las dos pruebas de extremo a extremo en CI y pasan.
-- `docs/plan.md` refleja el juego terminado y coincide con el código (producto, reglas y capa de datos en el Anexo A).
-- El README explica cómo cargar preguntas nuevas y cómo agregar una categoría.
-
-### Fase 7 (opcional, posterior) — Preparado para publicar
-
-**Entregable:** contenedores listos y notas de despliegue.
-
-**Criterios de aceptación**
-- `docker compose -f docker-compose.prod.yml up` levanta API, web, base y caché en la máquina local, y el juego es jugable en `http://localhost`.
-- `docs/deploy.md` describe las opciones gratuitas o de bajo costo evaluadas, con sus límites, y los pasos para publicar.
-- Si se quiere mostrar el juego a otras personas sin gastar nada, se documenta el uso de un túnel (por ejemplo Cloudflare Tunnel) apuntando a la instancia local.
-
----
-
-## 20. Definición de terminado del MVP
-
-El MVP está terminado cuando se cumplen todos estos puntos a la vez:
-
-1. Dos personas en navegadores distintos juegan una partida 1v1 completa entrando por un código, con rondas cronometradas, revelación de resultados, marcador y ganador.
-2. Existe empate resuelto por desempate, hay revancha, y hay manejo de desconexión con 20 segundos de gracia.
-3. Una persona juega el arcade, ve subir la dificultad, ve bajar el tiempo, pierde las 3 vidas, y su puntaje aparece en el ranking global y en el semanal.
-4. No existe ninguna forma de que el cliente conozca la respuesta correcta antes de responder, y todos los puntajes se calculan en el servidor.
-5. Hay al menos 60 preguntas cargadas por el importador, repartidas entre las 6 categorías.
-6. El CI pasa en verde, incluidas las pruebas de extremo a extremo.
-7. La interfaz no tiene ningún gradiente decorativo, ningún emoji y ningún componente genérico, y todos los íconos son SVG propios.
-8. Levantar el proyecto desde cero toma a lo sumo cinco comandos documentados en el README.
-
----
-
-## 21. Notas sobre despliegue (fuera del MVP)
-
-No forma parte del MVP, pero queda preparado y documentado.
-
-- El backend y el frontend tienen `Dockerfile` desde la Fase 0, para que publicar después no implique reescribir nada.
-- Toda la configuración entra por variables de entorno, así que no hay que tocar código para desplegar.
-- El estado de las salas vive en memoria más Redis, y la sincronización entre instancias por Pub/Sub, así que escalar horizontalmente no requiere cambios de modelo.
-- **Advertencia honesta:** Fly.io ya no ofrece un plan gratuito real para cuentas nuevas. Las alternativas a evaluar cuando se decida publicar, por orden de conveniencia, son: exponer la instancia local por un túnel sin costo, un servicio gratuito con suspensión por inactividad, o una capa gratuita de largo plazo de algún proveedor de nube. Ninguna es ideal para tiempo real, y por eso el despliegue está deliberadamente fuera del alcance.
-- El dominio propio también queda para más adelante. No es un requisito de nada.
-
----
-
-## 22. Riesgos y cómo se mitigan
-
-| Riesgo | Impacto | Mitigación |
+Fuentes autoalojadas en `frontend/static/fonts/` (woff2, `swap`); display en título,
+marcador y números grandes, peso 800; UI en el texto común.
+
+**Componentes:** `Button` (primary/secondary/ghost/danger; md/lg), `AnswerTile` (idle/
+selected/correct/wrong/disabled; alto ≥ 64 px móvil, tecla numérica visible), `CategoryBadge`,
+`TimerRing` (alerta y pulso en los últimos 5 s), `PlayerPanel`, `Scoreboard`, `CodeInput`
+(6 casillas), `NickInput`, `Modal` (fondo plano, sin blur), `Toast`, `LifeStrip`.
+**Sin librería de UI ni Tailwind**: CSS propio con variables.
+
+**Sonido:** `tick`, `reveal`, `correct`, `wrong`, `match_start`, `match_win`, `match_lose`,
+`best_score` en `static/assets/sfx/` (mp3/ogg, < 60 KB, CC0). Se inicializa tras la
+primera interacción; interruptor de silencio persistido.
+
+**Pantallas:** inicio (dos botones), jugar (crear/unirse), lobby (código gigante),
+partida, revelación, fin (ganador + resumen + revancha), arcade, fin de arcade, ranking
+(global/semanal) y admin de preguntas.
+
+**Frontend:** mobile first, columna máx. 480 px, sin scroll en partida, táctiles ≥ 44 px;
+stores `sessionStore`/`matchStore`/`arcadeStore` con máquinas de estados; `ws.ts` con
+reconexión y heartbeat. **PWA:** manifest + service worker (`generateSW`), cachea app
+shell; el juego **no** funciona offline. **i18n:** todas las cadenas en `es.ts` y
+`app/i18n/es.json`; ninguna cadena visible en un componente.
+
+## Testing
+
+- Motores puros: acierto rápido, al límite, error, sin respuesta, empate y desempate,
+  progresión de dificultad y tiempo, corte por vidas. Tabla exacta de puntajes.
+- `test_questions_service.py`: nunca se repite en una partida, respeta la dificultad, no
+  explota sin preguntas. `hasattr` vigila que `RoundQuestion` no filtre `correct_index`.
+- `test_constraints_*.py`: **un test por regla de la base**, contra Postgres real exigiendo
+  el constraint (nada de SQLite). `test_schema_matches_models.py` es la guardia contra el
+  drift modelos↔migración (Alembic no compara `CHECK`).
+- `test_nicks.py`/`test_tokens.py` (seguridad sin HTTP), `test_auth_api.py`, `test_importer.py`,
+  `test_question_bank.py`, `test_rooms_api.py`, `test_room_ws.py` (partida completa con
+  desconexión y reconexión) y `test_arcade_ws.py`.
+- Frontend (otra persona): `svelte-check`, y Playwright para una partida 1v1 completa y un
+  arcade hasta el final. **CI** (`.github/workflows/ci.yml`): Postgres y Redis como
+  services, `ruff`, `mypy`, `pytest` (con cobertura).
+
+## Fases (roadmap)
+
+| Fase | Entregable | Estado |
 |---|---|---|
-| No hay suficientes preguntas y las partidas repiten | El juego se vuelve aburrido | Cargar la base por tramos con el importador, y que el motor tolere el faltante sin romperse |
-| El temporizador depende del reloj del cliente | Trampa y sensación de injusticia | Todos los tiempos los calcula el servidor y el cliente solo dibuja |
-| Diferencias de latencia en la red | El rival parece contestar antes | El puntaje premia un rango amplio y el tiempo medido es el del servidor, no el del navegador |
-| El estado de las salas en memoria se pierde al reiniciar | Partidas colgadas | Todo cambio de sala se publica en Redis y cualquier instancia puede reconstruir la sala |
-| Complejidad de SvelteKit para quien viene de Java | Retraso del proyecto | El proyecto se limita a un SPA sin SSR; el plan evita deliberadamente funcionalidades avanzadas de SvelteKit |
-| Python es nuevo para el dueño | Código frágil | Backend tipado con `mypy`, motor de juego en funciones puras y bien testeadas, y cobertura alta en la lógica de puntaje |
-| El diseño se vuelve "genérico" al crecer | Perder identidad | Las 10 reglas duras de la sección 15.1, y el criterio de la Fase 5 que las verifica de forma explícita |
+| 0 Esqueleto | monorepo, compose, CI, `/health`, inicio con tokens | ✅ |
+| 1 Identidad y contenido | invitado + token, nicks, import, panel, 60 semilla | ✅ (falta curación) |
+| 2 Salas y presencia | dos navegadores por código, sala llena, host cae, expira | ✅ backend |
+| 3 Partida online | rondas cronometradas, revelación, puntajes, desempate, gracia, revancha | ✅ backend |
+| 4 Arcade y ranking | 3 vidas, progresión, corte semanal, récord personal | ✅ backend |
+| 5 Identidad visual | 9 componentes, SVG propios, sonido, teclado, sin scroll, ≤250 KB JS | frontend |
+| 6 PWA, e2e y docs | instalable, Playwright en CI, plan y README al día | frontend |
+| 7 (opcional) Publicar | `docker-compose.prod.yml`, `docs/deploy.md` | pendiente |
+
+## Definición de terminado del MVP (§20)
+
+1. Dos navegadores juegan un 1v1 completo entrando por código: rondas cronometradas,
+   revelación, marcador y ganador.
+2. Hay desempate, revancha y desconexión con 20 s de gracia.
+3. El arcade sube dificultad, baja tiempo, pierde las 3 vidas y entra al ranking global y
+   semanal.
+4. El cliente no puede conocer la respuesta antes de contestar y todo puntaje sale del servidor.
+5. ≥ 60 preguntas cargadas por el importador, repartidas entre las 6 categorías.
+6. El CI pasa en verde, incluidas las e2e.
+7. La interfaz no tiene gradientes decorativos ni emojis, y todos los íconos son SVG propios.
+8. Levantar el proyecto desde cero toma a lo sumo cinco comandos documentados.
+
+## Riesgos y despliegue
+
+| Riesgo | Mitigación |
+|---|---|
+| Faltan preguntas y las partidas repiten | banco por tramos con el importador; el motor tolera el faltante |
+| Reloj del cliente como trampa | todos los tiempos son del servidor; el cliente solo dibuja |
+| El estado vivo en memoria se pierde al reiniciar | cada cambio de sala se publica en Redis (multi-instancia sin cambiar el modelo) |
+| El diseño se vuelve genérico al crecer | las reglas duras de diseño y el criterio de la Fase 5 |
+
+Deploy (fuera del MVP): `Dockerfile` desde la Fase 0, toda la config por variables de
+entorno, estado de sala en memoria + Redis con Pub/Sub para escalar horizontalmente.
 
 ---
 
-## 23. Primer paso concreto para el agente implementador
-
-1. Crear el monorepo con la estructura de la sección 6.
-2. Escribir `docker-compose.yml`, `Makefile`, `.env.example` y `.gitignore`.
-3. Levantar el backend mínimo con `GET /health` y el frontend mínimo con la pantalla de inicio usando los tokens de la sección 15.2.
-4. Escribir el `README.md` con los cinco comandos para levantar el proyecto.
-5. Recién después, empezar la Fase 1.
-
-No adelantar fases. Cada fase se prueba en el navegador antes de seguir.
 # Anexo A — Capa de datos y servicios
 
-> Diseño de la capa de datos y servicios, plegado acá desde el viejo documento suelto.
-> Escrito antes de implementar `models/`, Alembic, repositorios y WebSocket, para no
-> refactorizar después: acá están las decisiones caras de cambiar.
-> Estado: **acordado y aplicado**. Los cuatro puntos marcados con ⚠️ (sección A8) están
-> confirmados e implementados en las migraciones `0001`–`0003`.
+> Escrito antes de implementar `models/`, Alembic y WS. Estado: **acordado y aplicado**
+> en las migraciones `0001`–`0003` (los ⚠️ de A7, confirmados).
 
 ## A1. Principios
 
-1. **Postgres es la fuente de verdad** de usuarios, preguntas e historial. Redis es caché y estado vivo: si se cae, el juego se degrada, no se rompe.
-2. **Cero migraciones descartables.** Lo irreversible se decide ahora; lo cosmético se decide cuando haga falta.
-3. **El tipo de retorno previene el bug**, no la disciplina del programador. Ejemplo: es imposible armar el mensaje de ronda con un objeto que incluya la respuesta correcta.
-4. **Nada de SQLite en tests.** No soporta `jsonb`, ni índices parciales, ni `CHECK` con regex: daría confianza falsa justo en lo que estamos diseñando.
-5. **Ningún estado inválido persistible**: toda regla que pueda vivir en un `CHECK` o en un índice único, vive ahí y no solo en Python.
+1. **Postgres es la fuente de verdad**; Redis es caché y estado vivo: si cae, el juego se
+   degrada, no se rompe.
+2. **Cero migraciones descartables**: lo irreversible se decide ahora.
+3. **El tipo previene el bug**, no la disciplina (ej.: es imposible armar la ronda con la
+   respuesta correcta).
+4. **Nada de SQLite en tests** (no tiene `jsonb`, índices parciales ni `CHECK` con regex).
+5. **Ningún estado inválido persistible**: toda regla que entre en un `CHECK` o un índice
+   único vive ahí, no solo en Python.
 
 ## A2. Decisiones irreversibles
 
-| # | Decisión | Por qué ahora |
-|---|---|---|
-| 1 | `MetaData(naming_convention=...)` desde la primera migración | Sin esto los constraints quedan anónimos y cada `drop_constraint` posterior es adivinanza. Retrofittearlo obliga a una migración de churn sobre todas las tablas |
-| 2 | Enums como `varchar` + `CHECK`, no `ENUM` nativo | Agregar una categoría es un `ALTER` de un check, no un `ALTER TYPE`; y queda grepeable en la migración |
-| 3 | `questions.options` como `jsonb` array de 4 | Es lo que el plan pide. El `CHECK` valida forma y largo; que las opciones no estén vacías ni repetidas se valida en Python (Postgres no admite subconsultas en un `CHECK`) |
-| 4 | `match_rounds` guarda `correct_index`, `difficulty` y `seconds` | Con esos campos cada fila es autosuficiente: se puede auditar y recomputar un puntaje histórico. Agregar columnas después es fácil; rellenar las viejas es imposible |
-| 5 | Hash de deduplicación con normalización congelada | `content_hash = sha256(texto normalizado)`. Si el algoritmo cambia, todos los hashes existentes quedan inválidos y entran duplicados. Se define una vez, con tests de vectores fijos |
-| 6 | Índice único **parcial** de `nick`: `UNIQUE (nick) WHERE deleted_at IS NULL` | Con un único global, un usuario con borrado lógico bloquea su nick para siempre |
-| 7 | Regla de desempate del ranking definida ahora | ⚠️ Propuesta: mejor puntaje `DESC`, y empate resuelto por **el momento más temprano en que ese jugador alcanzó ese puntaje**. El SQL del plan ordena por `MAX(ended_at) ASC`, que significa "quien jugó por última vez hace más tiempo va primero": arbitrario e inestable |
+| Decisión | Por qué ahora |
+|---|---|
+| `MetaData(naming_convention=...)` desde la primera migración | sin esto los constraints quedan anónimos y cada `drop_constraint` es adivinanza |
+| Enums como `varchar` + `CHECK`, no `ENUM` nativo | agregar una categoría es un `ALTER` de un check, y queda grepeable |
+| `questions.options` como `jsonb` array de 4 | el `CHECK` valida forma y largo; "no vacías ni repetidas" va en Python (Postgres no admite subconsultas en `CHECK`) |
+| `match_rounds` guarda `correct_index`, `difficulty` y `seconds` | cada fila es autosuficiente: auditar y recomputar años después. Agregar columnas después es fácil; rellenarlas, imposible |
+| `content_hash` con normalización congelada | si el algoritmo cambia, los hashes viejos quedan inválidos y entran duplicados: se define una vez, con vectores fijos |
+| Índice único **parcial** de `nick` (`WHERE deleted_at IS NULL`) | con un único global, el borrado lógico bloquea el nick para siempre |
+| Desempate del ranking definido ahora | mejor puntaje `DESC`, empate por el **momento más temprano** en que se alcanzó (no `MAX(ended_at)`, que es arbitrario e inestable) |
 
-## A3. Decisiones de arquitectura
+## A3. Arquitectura
 
-**A3.1 El tipo impide filtrar la respuesta correcta.** El repositorio devuelve dos formas distintas:
-
-- `RoundQuestion`: id, enunciado, opciones, categoría, dificultad. **Sin** índice correcto.
-- `GraderQuestion`: lo anterior más `correct_index` y explicación.
-
-La capa de WebSocket solo puede construir `round_start` con la primera. Filtrar la respuesta correcta exige pedir explícitamente la segunda, así que el error deja de ser un descuido posible. Test: el diccionario del mensaje no contiene la clave.
-
-**A3.2 La partida se escribe en dos momentos, no en cada ronda.** ⚠️ Me aparto del plan ("la base se escribe al terminar"):
-
-- Al arrancar: `INSERT` de la fila de `matches` con `status = playing`.
-- Al terminar: `UPDATE` del match + `INSERT` en bloque de `match_rounds`.
-
-Motivo: el estado `void` del plan necesita una fila que exista. Si solo se escribe al final, un proceso que muere en medio no deja rastro y `void` es inalcanzable. Sigue habiendo cero escrituras por ronda. Un barrendero (al arrancar y en cada intervalo) marca como `void` toda partida `playing` más vieja que N minutos, salvo la que el proceso tiene viva.
-
-**A3.3 `score_a` / `score_b` son una copia derivada.** Se guardan para listados rápidos, y el único que los escribe es el motor, que los deriva del historial de rondas. Una sola verdad, una sola copia.
-
-**A3.4 `matches` con `player_a_id` / `player_b_id`, no tabla de jugadores.** Como pide el plan. "Mis últimas partidas" queda como `OR` entre dos índices: suficiente para 1v1 fijo. Cambiar a una tabla de jugadores es posible pero no gratis, y solo hace falta si alguna vez se juega de a más de dos.
-
-**A3.5 Ranking en Postgres, no en Redis.** Menos sincronización, menos bugs. Los sorted sets de Redis quedan para cuando se mida que hace falta.
-
-**A3.6 La interfaz del estado de sala se define ahora, la implementación después.** Es la pieza con más chance de reescritura. Se define un protocolo `RoomStore` y una implementación en memoria con `asyncio.Lock` por sala. Multi-instancia = nueva implementación de la misma interfaz, sin tocar a quien la usa.
-
-**A3.7 Redis caído no rompe el arcade.** Errores de Redis se atrapan y se loguean (mismo criterio que `/health`): el arcade degrada a repetir preguntas y el ranking sigue funcionando.
+- **A3.1 El tipo impide filtrar la respuesta.** `RoundQuestion` (sin índice correcto) y
+  `GraderQuestion` (con `correct_index` y explicación). El WS solo puede construir
+  `round_start` con la primera; filtrarla exige pedir la segunda. Test: el dict no tiene la clave.
+- **A3.2 La partida se escribe en dos momentos.** `INSERT` de `matches` con `status =
+  playing` al arrancar y `UPDATE` + `INSERT` en bloque de `match_rounds` al terminar. El
+  estado `void` necesita una fila que exista; cero escrituras por ronda. El barrendero
+  marca `void` toda partida `playing` más vieja que N minutos, salvo la que el proceso tiene viva.
+- **A3.3 `score_a`/`score_b` son copia derivada,** escritas solo por el motor desde el
+  historial de rondas (una verdad, una copia).
+- **A3.4 `matches` con `player_a_id`/`player_b_id`,** no tabla de jugadores (suficiente
+  para 1v1; "mis partidas" es un `OR` entre dos índices).
+- **A3.5 Ranking en Postgres, no Redis** (menos sincronización, menos bugs).
+- **A3.6 `RoomStore` es un protocolo** con implementación en memoria y `asyncio.Lock` por
+  sala; multi-instancia = otra implementación, sin tocar a quien la usa.
+- **A3.7 Redis caído no rompe el arcade**: se atrapa y loguea; degrada a repetir preguntas
+  y el ranking sigue funcionando.
 
 ## A4. Esquema
 
-Convenciones: todo `snake_case`, PK `uuid` nativa con `default=uuid.uuid4` (en Python, no en la base), timestamps `timestamptz` en UTC con `server_default=now()`.
+Convenciones: `snake_case`; PK `uuid` con `default=uuid.uuid4` en Python; timestamps
+`timestamptz` UTC con `server_default=now()`.
 
 | Tabla | Integridad | Índices |
 |---|---|---|
-| `users` | PK uuid; `nick` 1–16 sin espacios sobrantes; `email`/`provider` nulos en MVP; `deleted_at` para borrado lógico | único parcial de `nick` entre vivos |
-| `questions` | PK uuid; `category` en 6 valores; `difficulty` 1–5; `prompt` ≤ 300; `options` jsonb array de 4; `correct_index` 0–3; `status` draft/published/archived; `content_hash` único; `media_type` none/image/audio con la regla "si no es none, `media_url` no es nulo" | `(status, category, difficulty)`; único en `content_hash` |
-| `rooms` | PK uuid; `host_user_id` FK a `users` (el creador es el host; la fila vive más que las conexiones); `code` char(6) único, con `CHECK` del alfabeto sin caracteres ambiguos; `config` jsonb; `status` waiting/playing/finished/expired | `(status, expires_at)`; `host_user_id` |
-| `matches` | PK uuid; FK a `rooms` y a los dos jugadores; `config` jsonb; `status` playing/finished/abandoned/void; `winner_id` nulo en empate y en void; `score_a`/`score_b` ≥ 0 | `(status, started_at)`, `player_a_id`, `player_b_id` |
-| `match_rounds` | PK uuid; FK a `matches` `ON DELETE CASCADE`; único `(match_id, round_index)`; elecciones 0–3 o nulas; `ms` ≥ 0; `points` ≥ 0; + `correct_index`, `difficulty`, `seconds` | FKs |
-| `arcade_runs` | PK uuid; FK a `users`; `score`, `correct_count`, `max_difficulty`, `longest_streak`; `status` playing/finished/invalid | `(user_id, score DESC)`, `(ended_at)`, `(score DESC)`, los tres parciales `WHERE status = 'finished'` |
-| `arcade_answers` | PK uuid; FK a `arcade_runs` `ON DELETE CASCADE`; único `(run_id, round_index)`; `chosen_index` nulo si no contestó; `is_correct`, `ms`, `points` | FKs |
+| `users` | PK uuid; `nick` 1–16; `email`/`provider` nulos; `deleted_at` para borrado lógico | único parcial de `nick` entre vivos (funcional sobre `lower(nick)`) |
+| `questions` | `category` en 6; `difficulty` 1–5; `prompt` ≤ 300; `options` jsonb de 4; `correct_index` 0–3; `status` draft/published/archived; `content_hash` único; `media_type` none/image/audio con "si no es none, `media_url` no es nulo" | `(status, category, difficulty)`; único en `content_hash` |
+| `rooms` | `host_user_id` FK (**el creador es el host**); `code` varchar(6) único con `CHECK` del alfabeto; `config` jsonb; `status` waiting/playing/finished/expired | `(status, expires_at)`; `host_user_id` |
+| `matches` | FK a `rooms` (`SET NULL`) y a los dos jugadores; `config` jsonb; `status` playing/finished/abandoned/void; `winner_id` nulo en empate/void; scores ≥ 0 | `(status, started_at)`, `player_a_id`, `player_b_id` |
+| `match_rounds` | FK `CASCADE`; único `(match_id, round_index)`; elecciones 0–3 o nulas; `ms` ≥ 0; `points` ≥ 0; + `correct_index`, `difficulty`, `seconds` | FKs |
+| `arcade_runs` | FK a `users`; `score`, `correct_count`, `max_difficulty`, `longest_streak` (≤ `correct_count`); `status` playing/finished/invalid; `ended_at` nulo ⇔ `playing` | `(user_id, score DESC)`, `(score DESC)`, `(ended_at)`, los tres **parciales** `WHERE status='finished'` |
+| `arcade_answers` | FK `CASCADE`; único `(run_id, round_index)`; `chosen_index` nulo si no contestó; `is_correct`, `ms`, `points`, `rejected` | FKs |
 
-Detalles que quedan fijados:
+Notas que quedan fijadas:
 
-- **`config` jsonb** con forma `{"rounds": n, "seconds": s}`. Se serializa desde y se parsea hacia la misma clase `MatchConfig` del motor, así el formato no puede divergir entre el motor y la base.
-- **Anti-trampa**: `status = invalid` existe en el esquema; el umbral concreto (cantidad de respuestas imposibles) queda como constante a definir en `game/constants.py`.
-- **Corte semanal**: lunes 00:00 en `America/Argentina/Buenos_Aires`, calculado con `zoneinfo` y comparado como `timestamptz`.
-- **`last_seen_at`** se actualiza al crear sesión y al terminar una partida, no en cada request.
-- **Sin revocación de tokens**: el JWT de invitado no se puede invalidar antes de su vencimiento. Consecuencia aceptada del diseño sin sesiones en base.
+- `config` jsonb con forma `{"rounds": n, "seconds": s}`, serializado desde la misma clase
+  `MatchConfig` del motor: el formato no puede divergir.
+- `match_rounds` copia `correct_index`/`difficulty`/`seconds` (fila auditable) y guarda
+  `a_correct`/`b_correct` explícitos: fuera de la ventana hasta el acierto cuenta mal, no
+  se derivan de `(choice, correct_index)`.
+- `status = invalid` existe para el anti-trampa; el umbral concreto es una constante en
+  `game/constants.py`.
+- Corte semanal: lunes 00:00 local con `zoneinfo`, comparado como `timestamptz`.
+- `last_seen_at` se toca al crear sesión y al terminar una partida, no en cada request.
+- **Sin revocación de tokens** (consecuencia aceptada del diseño sin sesiones).
 
 ## A5. Migraciones y tests
 
-- `alembic/env.py` **async** sobre el engine de asyncpg, con `compare_type=True` y `compare_server_default=True` para que autogenerate no ignore cambios de tipo o de default.
-- **Una migración inicial** que crea todo. Nunca `create_all` en código de aplicación.
-- **`alembic check` en CI**: falla si los modelos y las migraciones se desincronizaron. Es el guardarraíl contra "funciona en mi máquina porque yo tenía la tabla".
-- Tests contra Postgres real, base `trivia_test`, migraciones una vez por sesión, cada test dentro de una transacción que se revierte. `pytest-asyncio` en modo `auto`.
-- Los tests de constraints son explícitos: se intenta insertar el dato inválido y se exige el error. Es la única forma de saber que el `CHECK` está donde creemos.
+- `alembic/env.py` **async** sobre asyncpg, con `compare_type` y `compare_server_default`.
+- **Una migración inicial** que crea todo; nunca `create_all` en runtime. `alembic check`
+  en CI falla si los modelos y las migraciones se desincronizaron.
+- Tests contra Postgres real (`trivia_test`), migraciones por sesión, cada test en una
+  transacción que se revierte, `pytest-asyncio` en modo `auto`. Constraints explícitos:
+  se inserta el dato inválido y se exige el error.
+- Redis de tests en otra base (`:6379/1` vs `/0`): un `FLUSHDB` no toca el juego.
 
-## A6. Orden de implementación
+## A6. Lo que NO se hace
 
-Cada paso termina con su verificación y no se pisa con el siguiente.
+Nada de `create_all` en runtime ni migraciones al arrancar la API; nada de estado de
+partida en Postgres mientras la partida ocurre (salvo la fila del match); nada de SQLite
+en tests; nada de estado vivo solo en Redis sin la interfaz `RoomStore`; nada de ranking
+por sorted sets de Redis en el MVP.
 
-| # | Paso | Verificación |
-|---|---|---|
-| 1 | `models/`: las 7 tablas, `MetaData` con convención, enums, checks | `mypy` limpio y autogenerate produce lo esperado |
-| 2 | `alembic.ini`, `env.py` async y migración inicial revisada a mano | `upgrade head` sobre base limpia y `alembic check` sin diferencias |
-| 3 | Fixtures de test con Postgres real y rollback por test | Un test por constraint, exigiendo el rechazo |
-| 4 | `api/deps.py` con `get_session`; `POST /auth/guest` + JWT + filtro de nicks | Endpoints con `httpx`: nick duplicado resuelto, palabra prohibida rechazada |
-| 5 | Repositorio de preguntas: candidatas desde Postgres (`RoundQuestion`), vistos desde Redis con degradación | Una partida de 7 rondas nunca repite; el payload no filtra el índice |
-| 6 | Importador CSV/JSON + `cli.py` + 60 preguntas semilla | Informe de importadas/duplicadas/rechazadas y vectores fijos del hash |
-| 7 | `game/protocols.py` (mensajes WS) y `RoomStore` en memoria con lock por sala | Tests de la máquina de estados de la sala |
-| 8 | `ws/room_ws.py`: lobby, presencia, arranque, rondas con el motor, desempate, gracia de 20 s, revancha | Partida completa entre dos clientes simulados, con desconexión y reconexión |
-| 9 | Arcade sobre WS + ranking + `leaderboard` con corte semanal | Test del lunes 00:00 local y de la regla de desempate |
-| 10 | Admin, README y CI completo | CI en verde de punta a punta |
+## A7. Puntos confirmados al arrancar
 
-## A7. Lo que NO se hace
+1. ⚠️ Fila de `matches` al arrancar (A3.2) para que `void` sea alcanzable.
+2. ⚠️ Desempate del ranking por el momento más temprano del mejor puntaje.
+3. ⚠️ Índice único parcial de `nick` para reusar tras el borrado lógico.
+4. ⚠️ El host es **quien creó la sala** (`rooms.host_user_id`), no "el primero que entra":
+   la fila vive más que las conexiones y el host es el único que elige config y manda `start`.
 
-- Nada de `create_all` en runtime, ni migraciones automáticas al arrancar la API.
-- Nada de estado de partida en Postgres mientras la partida ocurre (salvo la fila del match).
-- Nada de SQLite en tests.
-- Nada de escribir el estado vivo solo en Redis sin la interfaz `RoomStore` de por medio.
-- Nada de ranking por sorted sets de Redis en el MVP.
-
-## A8. Puntos a confirmar al arrancar
-
-1. ⚠️ Fila de `matches` al arrancar (A3.2) en vez de solo al terminar, para que `void` sea alcanzable.
-2. ⚠️ Desempate del ranking por el momento más temprano en que se alcanzó el mejor puntaje (decisión A7).
-3. ⚠️ Índice único parcial de `nick` para permitir reuso tras el borrado lógico (decisión A6).
-4. ⚠️ (confirmado 2026-10-17) El host de la sala es **quien la creó**, y se guarda en `rooms.host_user_id` (FK a `users` + índice). Una columna en la fila y no estado en memoria: la sala vive más que las conexiones, y el host es el único que elige la config y manda `start`.
-
-## A9. Relación con el plan general
-
-El **§9 del plan** sigue mandando en el producto, las reglas del juego y el protocolo de mensajes. Este anexo solo fija la capa de datos y servicios, y en los cuatro puntos marcados ⚠️ (sección A8) propone un cambio respecto del plan. Ya están confirmados y reflejados en el plan (secciones §8 y §14).
+El §Reglas sigue mandando en el producto y el protocolo; este anexo fija la capa de datos.
 
 ---
 
-## Anexo B. Decisiones tomadas y trampas (no re-descubrir)
+# Anexo B — Decisiones y trampas (no re-descubrir)
 
-> Memoria del proyecto: lo que ya costó un bug y no hay que volver a descubrir.
-> Vive acá, y no en el estado de sesión, para que el arranque quepa en una
-> pantalla. Se consulta por `grep` cuando el paso en curso lo pida.
+> Memoria del proyecto: lo que ya costó un bug. Se consulta por `grep` cuando el paso lo
+> pida. Formato: una línea por decisión, con el porqué cuando no es obvio.
 
-- Molde de modelo: `Mapped[X]` decide el NOT NULL; `uuid4` en Python; `DateTime(timezone=True)` + `server_default=now()`; todo constraint con nombre propio; único parcial para el borrado lógico.
-- Los valores permitidos de cada `CHECK` salen de `game/constants.py` y de los enums de `game/*_engine.py`: motor y base no pueden divergir sin que la migración lo delate.
-- Un `CHECK` que evalúa a `NULL` **no viola nada**: para claves ausentes de un `jsonb`, `IS NOT DISTINCT FROM`, nunca `=`.
-- Sin `relationship()` en los modelos, el ORM no deduce el orden de los INSERT: en los tests lo ordena `acepta()` (un flush por tabla); el día que el repositorio inserte filas relacionadas, va a tener el mismo problema.
-- Alembic **nunca compara `CHECK`**: esas migraciones se escriben a mano y por eso existe la guardia de schema. Las FK sí las detecta, y un cambio en la **expresión de un índice** también (`remove_index` + `add_index`, con el `postgresql_where` intacto).
-- La verificación de una migración no es "mirar el archivo": se comparan inventarios de `pg_constraint`/`pg_indexes` de la base migrada contra el DDL de los modelos.
+**Modelos y esquema**
+
+- `Mapped[X]` decide el NOT NULL; `uuid4` en Python; `DateTime(timezone=True)` +
+  `server_default=now()`; todo constraint con nombre propio; único parcial para el borrado lógico.
+- Los valores de cada `CHECK` salen de `game/constants.py` y de los enums de los motores:
+  motor y base no pueden divergir sin que la migración lo delate.
+- Un `CHECK` que evalúa a `NULL` **no viola nada**: para claves ausentes de un `jsonb`,
+  `IS NOT DISTINCT FROM`, nunca `=`.
+- Sin `relationship()` en los modelos, el ORM no deduce el orden de los INSERT: en los
+  tests lo ordena `acepta()` (un flush por tabla). El día que el repositorio inserte filas
+  relacionadas, tendrá el mismo problema.
+- Alembic **nunca compara `CHECK`**: esas migraciones van a mano, y por eso existe la
+  guardia de schema. Las FK y la expresión de un índice sí las detecta.
+- Verificar una migración no es "mirar el archivo": se comparan inventarios de
+  `pg_constraint`/`pg_indexes` de la base migrada contra el DDL de los modelos.
+- Una migración que agrega una columna `NOT NULL` sin default sobre una tabla con filas
+  falla a propósito: en `0002` no hay host que inventarle a una sala vieja.
+- El único de `nick` es funcional sobre `lower(nick)` y parcial: `Ana` y `ana` son el mismo
+  nombre y el borrado lógico lo libera. La guardia de schema compara texto de Postgres
+  contra texto de Postgres, así que un índice funcional no la rompe.
+- El código de sala se genera con `secrets` (no `random`): es la llave de la sala. La
+  colisión la arbitra el único de `code` con reintento, patrón que comparte con el nick.
+- El `server_default` no puebla el atributo en Python tras el `flush` (sin `eager_defaults`):
+  por eso `POST /rooms` devuelve solo `code`/`config` y el status se lee en el `GET`.
+- La URL de la base **no** está en `alembic.ini`: sale de `.env` por `app.config.settings`.
+
+**Persistencia y commit**
+
+- **H-05**: `get_session` commitea al cerrar el `yield`, pero FastAPI cierra eso **después**
+  de emitir la respuesta: no protege al cliente. Los endpoints de escritura
+  (`/auth/guest`, `POST /rooms`, `PATCH`/`DELETE /me`) commitean ellos antes de responder;
+  `get_session` queda de red de seguridad. "El borde del pedido es el borde de la
+  transacción" era falso.
+- La CLI y el `room_manager` commitean a mano: no hay pedido, no heredan el commit de
+  `get_session`. Si la escritura del manager falla, el estado en memoria vuelve atrás.
+- La partida se escribe en dos momentos (A3.2) y `_persist` mira "la partida pasó a
+  `playing`" en vez de "arrancó de cero": el rematch reusa el mismo bloque que `start`.
+- El arcade igual: `INSERT` con `status` explícito al arrancar y `UPDATE` + **todas** las
+  `arcade_answers` en el mismo commit al terminar. Si falla al arrancar → `RUN_NOT_STARTED`
+  y el `rollback` deja la sesión limpia; si falla al cerrar → juega igual y la fila queda
+  `playing` para que el barrendero la invalide.
+- En los tests, un `rollback` de la corrida se lleva puesto lo sembrado en el SAVEPOINT: el
+  test del reintento commitea el banco antes (es H-05 visto desde el fixture).
+
+**Auth**
+
+- El token se lee con `algorithms=[ALGORITHM]` explícito (sin eso pasaría el `alg: none`) y
+  se atrapa `jwt.PyJWTError` entero: `InvalidTokenError` no cubre fallas de clave o algoritmo.
+- Sin `Authorization` el usuario es `None`, pero con un token **roto** es 401 y no un usuario
+  nuevo: ignorarlo le daría al cliente otra identidad sin avisarle.
+- `get_current_user` **envuelve** a `get_optional_user`: un solo camino de auth.
+- `authenticate` (`api/deps.py`) es la **única puerta**: la usan el header HTTP y el
+  `?token=` del WS.
+- `rename_user` NO hace SELECT previo (el único parcial es el árbitro y entre chequear y
+  escribir hay carrera): atrapa `IntegrityError` y hace `rollback`, mismo patrón que
+  `create_guest`. Costo: el PATCH rechazado se verifica por status, no por fila.
+- `PATCH /me` reemite el token (el pase lleva el `nick` adentro; dejarlo viejo sería un pase
+  que miente). `DELETE /me` es baja lógica y el dep rechaza al borrado (401); el único
+  parcial libera el nick sin borrar la fila.
+- El perfil y el pase viven en `schemas/users.py` (`UserOut`, `AuthOut`, `NickUpdate`).
+- El 422 incluye el campo (`loc[1:]`) para que el cliente sepa qué corregir. El formato es
+  `{"error": {"code", "message"}}` también para el 422; el 404 de ruta desconocida sigue
+  siendo el de FastAPI.
+- `JWT_SECRET` de dev tiene 18 bytes y PyJWT avisa: en prod tiene que medir 32 o más
+  (`Settings` lo rechaza si `env != "local"`).
+
+**Tests**
+
 - Un test que pasa no dice nada por sí solo: lo que prueba es el sabotaje.
-- Ojo con los tests que rompen dos reglas a la vez: el error que llega puede ser el de la otra. Aislar la fila inválida en vez de aflojar el `motivo`.
-- El host de la sala es **el creador** (`rooms.host_user_id`), no "el primero que entra": la fila vive más que las conexiones. En los tests, `room()` pide el id de un host ya insertado (como `match()` pide sus dos jugadores).
-- Una migración que agrega una columna `NOT NULL` sin default sobre una tabla con filas falla a propósito: en `0002` no hay host que inventarle a una sala vieja.
-- **H-05**: `get_session` commitea al final del pedido, pero FastAPI cierra el `yield` **después** de emitir la respuesta: no protege al cliente. Los 4 endpoints de escritura (`/auth/guest`, `POST /rooms`, `PATCH`/`DELETE /me`) commitean ellos antes de responder; lo de `get_session` queda como red de seguridad para lo que se escriba sin commit explícito. El principio viejo ("el borde del pedido es el borde de la transacción") era falso.
-- El token se lee con `algorithms=[ALGORITHM]` explícito (sin eso, el `alg: none` clásico pasaría) y se atrapa `jwt.PyJWTError` entero: `InvalidTokenError` no cubre las fallas de clave o de algoritmo, que saldrían como 500.
-- Sin `Authorization` el usuario es `None`, pero con un token **roto** es 401 y no un usuario nuevo: ignorarlo le entregaría al cliente una identidad distinta sin avisarle. La identidad la manda el token, no el body.
-- Los tests de API usan la fixture `client` con `ASGITransport` y reemplazan `get_session` por la sesión del test: el pedido entra en la misma transacción y el rollback final lo deshace (sin eso, los tests de API ensuciarían la base y dependerían del orden).
-- El formato de error es `{"error": {"code", "message"}}` para todo lo que tenga código propio **y** para el 422 de validación. El 404 de ruta desconocida sigue siendo el de FastAPI: nadie le pega a una ruta que no existe.
-- El único de `nick` es funcional sobre `lower(nick)` y parcial: `Ana` y `ana` son el mismo nombre, y borrar una fila lógica lo libera. La guardia de schema compara texto de Postgres contra texto de Postgres (aplica el DDL de los modelos en un schema descartable y lo relee), así que un índice funcional no la rompe.
-- El Redis de los tests es el de desarrollo **en otra base** (`:6379/1` contra `/0`), igual que `trivia_test`: un `FLUSHDB` de los tests no toca el juego en curso. Por eso `pytest` ahora necesita Redis levantado, no solo Postgres.
-- `RoundQuestion` (lo que va al cliente) **no tiene** `correct_index` a propósito: la respuesta vive en `LoadedQuestion`, del lado del servidor. Un `hasattr` en el test lo vigila; si el campo vuelve al tipo, el test falla.
-- El historial de vistas del arcade degrada: si Redis no contesta se juega igual, sin historial, y la advertencia queda en el log. La sala no usa Redis para eso: el estado de la partida en memoria ya evita repetir, y duplicarlo sería una segunda verdad.
-- `JWT_SECRET` de dev tiene 18 bytes y PyJWT avisa (`InsecureKeyLengthWarning`): en prod tiene que tener 32 o más. Candidato a validación en `config.py` cuando exista `env != "local"`.
+- Los tests de API usan `client` con `ASGITransport` y reemplazan `get_session` por la
+  sesión del test: el pedido entra en la misma transacción y el rollback lo deshace.
+- Los tests de WS **no usan `starlette.testclient`** (levanta la app en otro hilo y loop, y
+  la sesión de asyncpg no cruza): `tests/ws_client.py` maneja `scope: "websocket"` a mano,
+  con el mismo aislamiento que el resto. `until(t)` saltea los ya llegados; el test pide por
+  tipo, no por orden.
+- En los tests, `drain()` vacía la cola: un solo `drain` por tanda (dos seguidos descartan
+  el mensaje no mirado).
+- Los tests del `room_manager` pasan la **sesión del test** como factory (su `commit` se
+  vuelve SAVEPOINT), sin ensuciar `trivia_test`.
+- Ojo con tests que rompen dos reglas a la vez: puede llegar el error de la otra. Aislar la
+  fila inválida en vez de aflojar el `motivo`.
+- El reloj y el `sleep` se inyectan: el `FakeClock` no duerme, espera a que el test mueva la
+  hora, así una partida entera por vencimientos corre en milisegundos. Está en `tests/clock.py`.
+
+**Contenido e importación**
+
+- El `content_hash` se calcula sobre el enunciado normalizado (NFKD sin diacríticos,
+  minúsculas, sin signos, espacios colapsados): "¿Cuál es el río?" y "Cual es el rio" son la
+  misma pregunta.
+- El default del import es `draft`; las 60 semilla entran `published` por flag (`make seed`),
+  si no `candidates()` no ve nada que jugar.
+- `import_rows` frena el duplicado **dentro del mismo archivo** en Python (dict de hashes):
+  el `ON CONFLICT` solo ve lo ya cargado. El importador repite en Python los `CHECK` y las
+  reglas que la base no expresa (opciones no vacías y distintas), para que el informe traiga
+  fila y motivo en vez de un `IntegrityError` sin contexto.
+- El import HTTP es un **borde sobre `services/importer.py`**, no un segundo importador:
+  `parse_text` lo comparten CLI y endpoint. Errores de archivo → 400 `IMPORT_FORMAT`; de
+  fila → `rejected` sin abortar. `python-multipart` está por `UploadFile`.
+- El listado ordena `created_at DESC, id DESC` (dos importadas en el mismo lote comparten
+  `created_at`; sin desempate, la página 2 repite una fila). `q` es `ILIKE` con `%` y `_`
+  escapados y es **sensible a tildes** (`rio` no encuentra `río`; insensible pide `unaccent`).
+- El panel es lo **único** que devuelve `correct_index`, a propósito. `ADMIN_TOKEN` es
+  obligatorio: vacío siempre se rechaza y < 32 bytes se rechaza fuera de `local`; se compara
+  con `compare_digest` sobre **bytes** (la versión de texto explota con no-ASCII).
+
+**Sala viva (`runtime/`, `ws/`)**
+
+- La sala viva es **estado inmutable + transiciones puras**: recibe `now_ms` y lo ya cargado
+  (`LoadedQuestion`, `match_id`) y devuelve estado nuevo + mensajes. Base, sockets, reloj y
+  lock son de afuera: se testea sin nada levantado.
+- Los mensajes salen **por jugador** (`dict[user_id, mensajes]`), no como broadcast:
+  `room_state` lleva `you` y `round_result`/`match_end` cambian de lado según quién mira.
+- El host se sienta en `A` (calza con `rooms.host_user_id`/`matches.player_a_id`), el
+  invitado en `B`; un tercero recibe `ROOM_FULL`.
+- Al reanudar una ronda pausada se corre **todo** (arranque y respuestas ya dadas) por el
+  hueco: el tiempo de quien ya contestó no cambia y el reloj no gasta pausa. Repetir una
+  respuesta es idempotente.
+- La última ronda emite `round_result` **y** `match_end` juntos.
+- El `RoomStore` es un `Protocol`; el estado vivo es **uno por proceso** (`room_store`,
+  como `engine` y `redis_client`) y se apaga en el lifespan.
+- `room.start` sólo se acepta desde `WAITING` (H-06): con la sala `finished`, el único
+  camino es la revancha acordada. `disconnect` vuelve la sala a `WAITING`, así "se fue uno,
+  entra otro, arrancamos" sigue andando.
+- `GET /rooms/{code}` informa `players` desde el `RoomStore` (presencia viva), no desde la base.
+- El pool de preguntas se recorta al tramo de dificultad **antes** de elegir; si no hay
+  pregunta en el tramo, los dos reciben `NO_QUESTIONS` y la sala queda `playing` (la fila la
+  cierra el barrendero, no el vacío).
+- Los vencimientos son **una task por sala** que duerme al próximo plazo (ronda o gracia) y
+  se despierta con un `Event`; bajo el lock vuelve a chequear el plazo.
+- El reloj **no muere con el primer error de base**: reintenta con backoff y, agotados
+  `MAX_EXPIRY_FAILURES`, avisa `ROOM_CLOCK_DOWN` y se rinde. `_tick` aísla una vuelta del
+  reloj; reintentar es seguro porque `_step` dejó el estado coherente con Postgres.
+  `retry_serve` cubre el fallo al cargar la **próxima** pregunta (no alcanza con
+  `needs_next_round`: `NO_QUESTIONS` también lo deja en `True` y ahí hay que esperar).
+- H-03: `RoomStore.open` desaloja, antes de crear una sala, las que no tienen `outbox`, no
+  están `playing` y llevan más de `ROOM_IDLE_TIMEOUT_SECONDS` sin actividad
+  (`last_activity_ms` se toca en cada transición). Una entrada `expired` que se reabre se
+  reemplaza por una fresca.
+- H-04: el barrido de salas filtra `status='waiting'`; para que eso signifique algo,
+  `rooms.status` se sincroniza con la vida de la sala (`playing` al arrancar/revancha,
+  `finished` al cerrar, `waiting` al irse alguien de una terminada). Al arrancar la partida
+  se refresca `expires_at` con `rounds × (seconds + gracia) + 60 s`.
+- Una sala **vencida no se revive** (`room_is_available`): `expired`, o `waiting` con
+  `expires_at` pasado → 404 en la vista previa y `ROOM_NOT_FOUND` en el WS. `playing` y
+  `finished` siguen abiertas.
+- El **barrendero** (`services/reaper.py`) corre al arrancar y cada
+  `REAPER_INTERVAL_SECONDS` (60) desde el lifespan, cancelado limpio. Cierra lo que nadie
+  más cierra: `waiting` vencidas → `expired`, `playing` más viejas que
+  `STALE_MATCH_MINUTES` (15) → `void`, corridas de arcade igual de viejas → `invalid`. Tres
+  `UPDATE` con `returning` y un commit; idempotente y best-effort (si la base no contesta,
+  loguea y la API arranca igual; el `except` no atrapa `CancelledError`).
+- El barrido **no adivina qué está vivo**: recibe `Live` (`runtime/live.py`) con lo que el
+  proceso sabe (`RoomStore.live()`, `live_arcade_runs`) y excluye esos ids con `NOT IN`.
+  Correcto con un proceso; con varias instancias vive en Redis.
+- La entrega es un **outbox** (cola) por jugador, no un callback: el vencimiento entrega sin
+  que haya nadie esperando y el timer no conoce sockets. `OUTBOX_MAX = 64`: si el cliente no
+  lee, se descarta el más viejo. `disconnect` suelta esa cola.
+- `disconnect` recibe el `outbox` de **su** conexión y no toca la silla si esa cola ya no es
+  la vigente (H-01): un corte silencioso deja al socket viejo vivo hasta el timeout, y al
+  cerrar no puede desmontar al que ya reconectó. El `outbox` es único por conexión, así que
+  la comparación por identidad alcanza.
+- El WS **acepta antes de autenticar**: un token malo tiene que poder recibir `AUTH_REQUIRED`
+  por el socket; el rechazo de entrada (token, sala, sala llena) cierra con **1008**.
+- El handler hace `join` **al conectar**, no al `hello`; `hello` → `sync` repinta el estado
+  completo y la ronda en curso con su `ends_at` original.
+- `RoomStore.seated` existe por el tercero: le deja su `ROOM_FULL` en el `outbox` y el
+  handler lo manda y **corta**.
+- El socket lo escribe **una sola corrutina** (la que drena el `outbox`); el lector pasa por
+  el mismo lock para el `pong`. Dos `send` en paralelo no son seguros.
+- Un corte de red silencioso no genera `disconnect`: lo detecta el timeout de inactividad
+  (45 s = 3 heartbeats) y recién ahí arranca la gracia.
+- Códigos nuevos del WS: `BAD_MESSAGE` (sobre o `answer` mal formados) y `UNKNOWN_MESSAGE`;
+  no se reusa `VALIDATION_ERROR`, que es del cuerpo HTTP.
+- El token del WS viaja en `?token=` y uvicorn loguea la URL completa:
+  `logging_config._HideWebSocketTokens` descarta los registros de `/ws/...` o con `?token=`
+  (el filtro va por logger, no por handler).
+- Swing del `shuffle`: se barajan **índices**, no textos, para que un banco con opciones
+  repetidas no desplace la respuesta. `RoomStore` acepta `shuffle_served_options=False` para
+  tests que necesitan predecir la letra.
+
+**Arcade**
+
+- El arcade resuelve **en la primera respuesta**, no espera a nadie: `answer` devuelve
+  `arcade_result` y deja la sesión pidiendo la próxima. Una respuesta repetida de la misma
+  ronda llega cuando la ronda ya no está en vuelo → `ROUND_MISMATCH`.
+- La transición devuelve `(state, effects, record)` y **no** acumula `RoundRecord` en el
+  estado: el motor los entrega para que el borde los guarde y el estado quede chico.
+  `ArcadeEnd` sale con las posiciones en `None`; el ranking las completa.
+- El `seen` vive en el estado de la sesión (el motor no guarda historial a propósito).
+  `serve(..., allow_repeat=True)` es la excepción de §Selección: pool agotado → repite y
+  sigue, con la advertencia en el log del llamador.
+- El **WS del arcade no tiene store global**: una conexión es una corrida, el estado vive en
+  el handler. La cola lleva `(mensaje, id)`, hasta el `pong`, y conserva la correlación sin lock.
+- El reloj y el `Random` entran por `ArcadeRuntime` (inyectable). El `sleep` del `FakeClock`
+  calcula el vencimiento al llamarlo y resuelve un registro que nace vencido: cubre la
+  carrera entre `advance` y la tarea recién agendada.
+- El `start` es **una vez por conexión**: para otra corrida se reconecta (no hay `restart`).
+- El ranking se hace en Postgres (A3.5): `DISTINCT ON` por usuario ordenado por
+  `score DESC, ended_at ASC` y la posición con `row_number()` sobre esa subquery. En
+  SQLAlchemy 2.1 `.distinct(expr)` está deprecado: va `select(...).ext(distinct_on(...))`.
+- El desempate usa el `ended_at` de la corrida que **alcanzó** el puntaje, no el último del
+  jugador; con puntaje y fecha idénticos desempata `user_id`.
+- La semana corta lunes 00:00 local (`zoneinfo`) y se compara como `timestamptz`: un run del
+  domingo 23:59:59 local sigue en la semana anterior aunque en UTC ya sea lunes.
+- `personal_best`/`is_new_best` miran la mejor corrida **anterior** (sin la actual): empatar
+  el récord no es récord nuevo, y `personal_best` igual incluye la actual porque es el máximo.
+  Si el ranking falla, esos campos salen en `None` pero la corrida ya quedó guardada.
+- El `arcade_end` lo completa el borde con `dataclasses.replace` después de cerrar la fila.
+  El JSON de `/leaderboard/arcade/me` usa `global` por `serialization_alias` (no puede ser
+  nombre de campo en Python).
+
+**Calidad y procesos**
+
+- La barra de calidad es un **gate**: `ruff` con `select` (incluye `ASYNC`, `B`, `SIM`,
+  `PT`; `N818` ignorado), `mypy strict` y la cobertura en `make cov` (umbral 85 %), **no** en
+  `addopts` (si estuviera, una corrida dirigida fallaría por la cobertura global).
+- Los bordes tienen tope de tamaño: cuerpo HTTP 1 MB, `max_length` en el schema del nick, e
+  import por lotes de 500.
+- **Rate limiting** (`api/rate_limit.py`): ventana fija de 60 s por IP con bucket en Redis
+  (`INCR`+`EXPIRE`), en alta de invitado, vista previa y WS. Si Redis no contesta, se deja
+  pasar y se loguea. Un fixture autouse lo apunta al Redis de test con límites altos.
 - Todo lo de frontend es de otra persona: acá solo se toca `backend/`.
-- Este documento se mantiene alineado con el código en el mismo paso: el plan es lo que lee la próxima sesión.
-- La URL de la base **no** está en `alembic.ini`: sale de `.env` por `app.config.settings`. Un solo lugar donde se configura.
-- El `content_hash` (clave del `UNIQUE` de `questions`) se calcula sobre el enunciado **normalizado**: NFKD sin diacríticos, minúsculas, sin signos, espacios colapsados, así "¿Cuál es el río?" y "Cual es el rio" son la misma pregunta. El default del import es `draft` (§13.2) y las 60 semilla entran `published` por flag (`make seed`), si no `candidates()` no ve nada que jugar. `import_rows` frena el duplicado **dentro del mismo archivo** en Python (diccionario de hashes): el `ON CONFLICT` solo ve lo ya cargado. El importador repite en Python los `CHECK` y las reglas que la base no expresa (opciones no vacías y distintas con `casefold`), para que el informe traiga la fila y el motivo en vez de un `IntegrityError` sin contexto.
-- La CLI commitea a mano: `session_factory` no tiene el commit automático de `get_session` ("el borde del pedido es el borde de la transacción", pero acá no hay pedido).
-- `get_current_user` **envuelve** a `get_optional_user` en vez de repetir la lectura del token: un solo camino de auth, y `POST /auth/guest` sigue usando la opcional.
-- `rename_user` NO hace un SELECT previo: el único parcial de `users` es el árbitro, y entre chequear y escribir hay una carrera. Atrapa `IntegrityError` y hace `rollback` (mismo patrón que `create_guest`); el costo es que en los tests eso descarta lo escrito en la transacción del test, así que un PATCH rechazado se verifica por status, no por fila.
-- `PATCH /me` reemite el token: el pase lleva el `nick` adentro y dejarlo viejo sería entregarle al cliente un pase que miente (aunque hoy la identidad se resuelva por `sub` contra la base).
-- `DELETE /me` es baja lógica (`deleted_at`) y responde 204: el mismo dep que lee el token rechaza al usuario borrado (401) y el único parcial libera el nick sin borrar la fila.
-- `GET /me` refresca `last_seen_at` **como mucho una vez por minuto**: escribir en cada lectura era gratis en un test y caro con el frontend consultando seguido (H-23).
-- El perfil y el pase viven en `schemas/users.py` (`UserOut`, `AuthOut`, `NickUpdate`); `auth.py` los reimporta para que `/me` no dependa de un módulo de alta.
-- El código de sala se genera con `secrets` (no `random`): es la llave de la sala, tiene que ser impredecible. La colisión la arbitra el único de `code` con reintento, mismo patrón que el nick.
-- La config de `POST /rooms` se valida en el schema con `field_validator` contra `ONLINE_ROUNDS_OPTIONS`/`ONLINE_SECONDS_OPTIONS`: el valor malo sale 422 `VALIDATION_ERROR` (mismo formato que el resto) y no un `IntegrityError` del `CHECK`.
-- El `server_default="waiting"` de `rooms.status` no puebla el atributo en Python tras el `flush` (sin `eager_defaults`): por eso el POST devuelve solo `code`/`config` y el status se lee en el GET, que trae la fila desde la base.
-- La sala viva (`runtime/room.py`) es **estado inmutable + transiciones puras**: recibe `now_ms` y lo ya cargado (la `LoadedQuestion`, el `match_id`), y devuelve estado nuevo + mensajes. La base, los sockets, el reloj y el lock son de afuera: se testea sin nada levantado.
-- Los mensajes salen **por jugador** (`dict[user_id, mensajes]`), no como broadcast: `room_state` lleva `you` y `round_result`/`match_end` cambian de lado según quién mira. El error de un no sentado también viaja así.
-- El host se sienta siempre en `A` (calza con `rooms.host_user_id` / `matches.player_a_id`); el invitado en `B`. Un tercero recibe `ROOM_FULL`.
-- Al reanudar una ronda pausada se corre **todo** (arranque y respuestas ya dadas) por el hueco de la pausa: el tiempo medido de quien ya contestó no cambia y el reloj no gasta pausa. La gracia la fija el primer ausente.
-- Repetir una respuesta es idempotente (no cambia nada): al reconectar, el cliente puede reenviarla.
-- La última ronda de la partida emite `round_result` **y** `match_end` juntos: el resumen no necesita que el cliente recuerde la última revelación.
-- El `RoomStore` es un `Protocol` y no una clase base (A3.6): el handler del WebSocket dependerá de la interfaz, así multi-instancia = otra implementación y el handler no se toca. El estado vivo es **uno por proceso** (`room_store`, mismo patrón que `engine` y `redis_client`) y se apaga en el lifespan, o sus tasks de vencimiento quedan colgadas.
-- La partida se escribe en dos momentos y el manager **commitea a mano**: no corre dentro de un pedido, así que no hereda el commit de `get_session` (mismo criterio que la CLI). Si la escritura falla, el estado en memoria vuelve atrás: todavía nadie vio nada.
-- La revancha la arranca el **segundo** pedido, y `_persist` escribe la fila nueva porque mira "la partida pasó a `playing`" en vez de "arrancó de cero": el rematch reusa el mismo bloque que `start`.
-- El pool de preguntas se recorta al tramo de dificultad de la ronda **antes** de elegir: `next_round` revienta si la pregunta no entra en el tramo y `select` puede devolver una fuera de rango por sus fallbacks. Sin pregunta en el tramo, los dos reciben `NO_QUESTIONS` y la sala queda en `playing`: la fila abierta la cierra el barrendero, no el vacío.
-- Los vencimientos son una task por sala que duerme hasta el próximo plazo (ronda o gracia) y se despierta con un `Event` cuando el estado cambia. Bajo el lock vuelve a chequear el plazo: entre despertar y tomar el lock, otra acción pudo resolver la ronda o servir la siguiente.
-- El reloj **no muere con el primer error de base**: reintenta con backoff y, agotados `MAX_EXPIRY_FAILURES`, avisa `ROOM_CLOCK_DOWN` a los sentados y se rinde (una sala sin reloj tiene que cortar, no quedarse muda). `_tick` aísla *una* vuelta del reloj para que el `except` del loop envuelva exactamente una y el `else` resetee el contador. Reintentar es seguro porque `_step` ya dejó el estado en memoria coherente con Postgres. Si una transición queda **debiendo** la ronda siguiente (la consulta de `_pick` falló), `retry_serve` la hace servir en la vuelta siguiente: no alcanza con mirar `needs_next_round`, porque `NO_QUESTIONS` también lo deja en `True` y ahí hay que esperar, no girar en vacío.
-- `room.start` sólo se acepta desde `WAITING` (H-06): con la sala `finished`, el único camino a otra partida es la revancha acordada; un `start` ahí la arrancaba salteando el acuerdo. Como `disconnect` devuelve la sala a `WAITING`, el flujo "se fue uno, entra otro, arrancamos" sigue andando.
-- `GET /rooms/{code}` informa `players` desde el `RoomStore` (presencia viva), no desde la base: la fila de `rooms` no sabe de conexiones. Por eso el store global es el mismo objeto que usa el WebSocket.
-- **La barra de calidad es un gate, no un adorno**: `ruff` con `select` (incluye `ASYNC`, `B`, `SIM`, `PT`), `mypy strict` y **93 % de cobertura** contra un umbral de 85 %. La cobertura **no** va en `addopts` a propósito: si estuviera, `pytest tests/test_room.py` fallaría por la cobertura global; `make test` corre rápido y `make cov` es el gate que usa el CI. `N818` queda ignorado: `NickTaken`/`InvalidTransition` se leen mejor sin el sufijo `Error`.
-- El token del WS viaja en `?token=` (el navegador no deja headers en `new WebSocket`), y uvicorn loguea el handshake con la URL completa en `uvicorn.error`. `logging_config._HideWebSocketTokens` descarta los registros cuyos argumentos son `/ws/...` o contienen `?token=`; el resto de `uvicorn.error` (arranque, errores) sigue visible. El filtro va por logger, no por handler, porque uvicorn escribe esos renglones directamente en `uvicorn.access`/`uvicorn.error`.
-- Las opciones se barajan **al servir** (`shuffle_options`) y `correct_index` se remapea en la misma copia: `RoundStart` y `match_rounds` ven el índice nuevo, y la pregunta guardada no se toca. Se barajan **índices**, no textos, para que un banco con opciones repetidas no desplace la respuesta. El `RoomStore` acepta `shuffle_served_options=False` para los tests que necesitan predecir la letra; producción lo deja en `True`.
-- El desempate tiene tope (`MAX_TIEBREAK_ROUNDS = 3`): si tras tres rondas extra siguen empatados, la partida termina **en empate** (`FINISHED`, `winner=None`). `MatchState` sólo acepta un terminado sin ganador si `round_index >= config.rounds + MAX_TIEBREAK_ROUNDS`; antes del tope sigue siendo inválido. `MatchEnd` ya traducía `winner=None` a `"tie"`.
-- **Rate limiting** (`api/rate_limit.py`): ventana fija de 60 s por IP y bucket en Redis (`INCR` + `EXPIRE`). Aplica al alta de invitado, a la vista previa y al WS. Si Redis no contesta se deja pasar y se loguea: el juego degrada, no se cae. En tests, un fixture autouse lo apunta al Redis de test con límites altos; los tests del corte lo bajan a mano (si no, toda la suite comparte el contador de la misma IP).
-- Una sala **vencida no se revive** (`room_is_available`): `expired`, o `waiting` con `expires_at` pasado, dan 404 en la vista previa y `ROOM_NOT_FOUND` en el WS. `playing` y `finished` siguen abiertas para reconectar o pedir revancha.
-- El **`outbox`** está acotado (`OUTBOX_MAX = 64`); si el cliente deja de leer, se descarta el mensaje más viejo en vez de bloquear la sala o crecer sin techo. El timeout de inactividad termina cortando esa conexión.
-- Los bordes tienen tope de tamaño: cuerpo HTTP de 1 MB (`BodySizeLimitMiddleware`), `max_length` generoso en el schema del nick (el límite real de 16 sigue en `clean_nick`) y el importador inserta en lotes de 500. El 422 de validación incluye el campo (`loc[1:]`) para que el cliente sepa qué corregir.
-- El reloj y el `sleep` se inyectan: el `FakeClock` de los tests no duerme, espera a que el test mueva la hora. Así una partida entera por vencimientos corre en milisegundos, sin esperar los 10–20 s reales de cada ronda.
-- Los tests del `room_manager` pasan la **sesión del test** como factory (su `commit` se vuelve SAVEPOINT): igual que la fixture `client`, sin ensuciar `trivia_test`.
-- La entrega es un `outbox` (cola) por jugador y no un callback: el vencimiento tiene que entregar sin que haya nadie esperando del otro lado, y el timer no conoce sockets. `disconnect` suelta esa cola: mensajes para un socket que ya no está no le sirven a nadie y se acumularían.
-- `disconnect` recibe el `outbox` de **su** conexión y no toca la silla si esa cola ya no es la vigente (H-01): un corte silencioso deja al socket viejo vivo hasta el timeout, y cuando por fin cierra no puede desmontar al jugador que ya reconectó. El `outbox` es único por conexión (`asyncio.Queue` nueva por handler), así que la comparación por identidad alcanza: no hace falta un contador de generación.
-- En los tests, `drain()` vacía la cola: dos `drain` seguidos para pedir dos tipos distintos descartan el que no se miró (un `uno(...)` que devuelve vacío). Un solo `drain` por tanda.
-- El **barrendero** (`services/reaper.py`) corre al arrancar y cada `REAPER_INTERVAL_SECONDS` (60) desde una task del lifespan, cancelada limpia en el shutdown. Cierra lo que nadie más cierra: una sala `playing` sin preguntas o un proceso que muere a mitad de partida dejan la fila abierta a propósito (§5.4). Son tres `UPDATE` con `returning` y un solo commit: salas `waiting` vencidas → `expired`, partidas `playing` más viejas que `STALE_MATCH_MINUTES` (15) → `void` con `ended_at`, y corridas de arcade `playing` igual de viejas → `invalid`.
-- **El barrido periódico no adivina qué está vivo**: recibe `Live` (`runtime/live.py`) con lo que el proceso sabe por memoria. `RoomStore.live()` devuelve los `room_id` con `outbox` y los `match_id` de partidas `playing`; `live_arcade_runs` es un set que el handler del arcade anota al arrancar la corrida y suelta al cerrarla o al caerse el socket. El `UPDATE` excluye esos ids con `NOT IN`. Es correcto con un solo proceso y sin migración; con varias instancias cada una barrería solo lo que ve, y el registro se muda a Redis con el resto del estado vivo. El trade-off es una ventana de milisegundos entre leer el registro y el `UPDATE`, que el barrido siguiente corrige.
-- Es **idempotente y best-effort**: si la base no contesta, se loguea el error, la API arranca igual y el intervalo siguiente reintenta; el `except` de la task no atrapa `CancelledError`, así que el shutdown la corta de verdad.
-- **H-04 es un filtro, no un detalle**: el barrido de salas filtra `status='waiting'`; una sala `playing` puede tener `expires_at` viejo. Para que el filtro signifique algo, `rooms.status` se sincroniza con la sala viva: `playing` al arrancar/revancha, `finished` al cerrar, `waiting` cuando se va alguien de una sala terminada. Al arrancar la partida también se refresca `expires_at` con `rounds × (seconds + gracia) + 60 s`, así la vista previa no sigue mostrando el vencimiento del lobby.
-- **H-03 se desaloja en `open`, no con otra tarea**: antes de crear una sala, `RoomStore` descarta las que no tienen `outbox`, no están `playing` y llevan más de `ROOM_IDLE_TIMEOUT_SECONDS` sin actividad (`last_activity_ms` se actualiza en cada transición). Como el mapa crece con las altas, una barrida por alta alcanza para que no crezca sin techo. Una entrada `expired` que se reabre se reemplaza por una sala fresca.
-- `authenticate` (`api/deps.py`) es la **única puerta de auth**: la usan el header `Authorization` de HTTP y el `?token=` del WebSocket (el navegador no deja headers en `new WebSocket`). Dos transportes, una regla.
-- El WS **acepta antes de autenticar**: un token malo tiene que poder recibir su `error` `AUTH_REQUIRED` por el socket (§12); si se cortara sin aceptar, el cliente no tendría por dónde enterarse. El rechazo de entrada (token, sala, sala llena) cierra con **1008**.
-- El handler hace `join` **al conectar**, no al `hello`: la presencia tiene que existir cuando el navegador abre la sala (Fase 2). `hello` → `sync` repinta el estado completo y, de paso, la ronda en curso con su `ends_at` original (§10.3).
-- `RoomStore.seated` existe por el tercero: el store le deja su `ROOM_FULL` en el `outbox` y el handler lo manda y **corta** la conexión. Sin esa consulta, una conexión sin silla queda viva sin tener a quién entregarle nada.
-- El socket lo escribe **una sola corrutina** en régimen (la que drena el `outbox`); el lector pasa por el mismo lock para el `pong` y los errores que responde por su cuenta. Dos `send` en paralelo sobre el mismo socket no son seguros.
-- Un corte de red silencioso no genera `disconnect`: lo detecta el **timeout de inactividad** (`ws_idle_timeout_seconds`, 45 s = 3 heartbeats del cliente) y recién ahí arranca la gracia. El handler cierra el socket al salir, así el cliente ve un cierre limpio y no un 1006.
-- Códigos nuevos del WS: `BAD_MESSAGE` (sobre o `answer` mal formados) y `UNKNOWN_MESSAGE` (tipo que no conocemos). No se reusa `VALIDATION_ERROR`, que es del cuerpo HTTP.
-- Los tests de WS **no usan `starlette.testclient`**: levanta la app en otro hilo y otro event loop y la sesión de asyncpg del test no cruza de loop (el rollback dejaría de ver lo escrito). `tests/ws_client.py` maneja el `scope: "websocket"` a mano en el loop del test, igual que `ASGITransport` con HTTP: mismo aislamiento (sesión y reloj falso) que el resto. Un `until(t)` saltea los mensajes que ya llegaron; el test pide por tipo, no por orden exacto.
-- El arcade resuelve **en la primera respuesta**, no espera a nadie: `answer` devuelve `arcade_result` y deja la sesión pidiendo la próxima pregunta. Una respuesta repetida de la misma ronda llega cuando la ronda ya no está en vuelo y se rechaza con `ROUND_MISMATCH`.
-- La transición del arcade devuelve `(state, effects, record)` y **no** acumula `RoundRecord` en el estado: el motor los entrega justamente para que el borde los guarde y el estado quede chico. `ArcadeEnd` sale con las posiciones en `None`: el ranking (corte 4) es quien las completa.
-- El `seen` del arcade vive en el estado de la sesión: es lo que evita repetir pregunta dentro de una corrida, porque el motor no guarda historial a propósito. `serve(..., allow_repeat=True)` es la excepción de §9.4: con el pool agotado se repite y se sigue, con la advertencia en el log del llamador.
-- El **WebSocket del arcade no tiene store global**: una conexión es una corrida, así que el estado vive en el handler. El único escritor es la corrutina que drena el `outbox`, y la cola lleva `(mensaje, id)`: hasta el `pong` pasa por ahí y conserva su correlación sin lock de escritura.
-- El reloj y el `Random` del arcade entran por `ArcadeRuntime` (dependencia inyectable). El `sleep` del `FakeClock` calcula el vencimiento al llamarlo y resuelve un registro que nace vencido: cubre la carrera entre el `advance` del test y la tarea que recién se agenda. Está en `tests/clock.py`, compartido con la sala.
-- La sesión SQL del WS del arcade es la del pedido (`SessionDep`) y se usa serializada por el lock de la corrida. La selección recorta el pool a la dificultad objetivo ±1 y solo abre todo el banco si no alcanza; la repetición queda como último recurso.
-- El `start` del arcade es **una vez por conexión**: para otra corrida se reconecta. No hay `restart` en §10.2.
-- La corrida se escribe en **dos momentos**: al arrancar (`playing`, con `status` explícito porque el `server_default` no puebla el atributo en Python) y al terminar (`UPDATE` + **todas** las `arcade_answers` en el mismo commit). No se guarda ronda a ronda: el historial de una corrida cortada no le sirve al ranking, y el precio es que una corrida abandonada no tiene auditoría.
-- Si la base falla al **arrancar** no se juega a ciegas: el jugador recibe `RUN_NOT_STARTED` y puede reintentar (el `rollback` deja la sesión limpia). Si falla al **cerrar**, juega igual y ve su `arcade_end`: la fila queda `playing` y el barrendero la marca `invalid`.
-- El barrendero también invalida corridas de arcade `playing` más viejas que `stale_match_minutes`: media corrida no compite. La corrida legítima puede durar más que una partida 1v1, así que el barrido periódico la excluye mientras su socket está abierto (`live_arcade_runs`). Al terminar o al cortarse el socket se suelta: si la fila quedó `playing`, el barrido siguiente la invalida.
-- En los tests, un `rollback` de la corrida se lleva puesto todo lo que el test sembró en el SAVEPOINT: el test del reintento commitea el banco antes (en producción el usuario y las preguntas ya están commiteados). Es el mismo detalle de H-05 visto desde el fixture.
-- El ranking del arcade se hace en **Postgres** (A3.5), no con sorted sets: A7 los descarta y A3.7 exige que el ranking siga andando con Redis caído. La consulta es un `DISTINCT ON` por usuario ordenado por `score DESC, ended_at ASC` y la posición sale con `row_number()` sobre esa misma subquery. En SQLAlchemy 2.1 `.distinct(expr)` está deprecado: va `select(...).ext(distinct_on(...))`.
-- El desempate (§14, A7) usa el `ended_at` de la corrida que **alcanzó** el puntaje, no el último `ended_at` del jugador: `DISTINCT ON` se queda con su mejor corrida y de esa sale la fecha. Con puntaje y fecha idénticos desempata `user_id` para que la posición no baile entre pedidos.
-- La semana corta los lunes 00:00 en `America/Argentina/Buenos_Aires` con `zoneinfo` y se compara como `timestamptz`: un run del domingo 23:59:59 local sigue en la semana anterior aunque en UTC ya sea lunes.
-- `personal_best`/`is_new_best` miran la mejor corrida **anterior** de ese usuario (sin la actual): empatar el récord no es un récord nuevo, y `personal_best` igual incluye la corrida actual porque es el máximo. Si el ranking falla, `arcade_end` sale con esos campos en `None` pero la corrida ya quedó guardada.
-- El `arcade_end` lo completa el borde con `dataclasses.replace` después de cerrar la fila; la máquina pura sigue sin saber de base. Y el JSON de `/leaderboard/arcade/me` usa `global` por `serialization_alias`: `global` no puede ser nombre de campo en Python.
-- **El panel de preguntas (`/admin`) es lo único que devuelve `correct_index`**, y es a propósito: `RoundQuestion` sigue sin el campo. La auth es `X-Admin-Token` contra `ADMIN_TOKEN`, comparado con `compare_digest` sobre **bytes** (la versión de texto explota con no-ASCII); token ausente y token inválido dan el mismo 401 `ADMIN_REQUIRED`. La dependencia va en el router, no en cada endpoint: una ruta `/admin` nueva nace protegida.
-- `admin_token` volvió a `config.py` con el panel (era H-16) y ahora es **obligatorio**: vacío se rechaza siempre y con menos de 32 bytes se rechaza fuera de `local`. `.env.example` y el workflow de CI lo traen; un `.env` viejo sin `ADMIN_TOKEN` no arranca.
-- El **import por HTTP es un borde sobre `services/importer.py`**, no un segundo importador: `parse_text` lo comparten la CLI y el endpoint, el formato sale de la extensión y el default sigue siendo `draft`. Errores de **archivo** (extensión, encabezado, JSON roto, no-UTF-8) son 400 `IMPORT_FORMAT` con el motivo; los de **fila** no abortan y viajan en `rejected`. `python-multipart` volvió a las dependencias (FastAPI la necesita para `UploadFile`), y el upload comparte el tope de 1 MB del middleware: subirlo es cambiar `MAX_BODY_BYTES`.
-- El listado ordena `created_at DESC, id DESC`: dos preguntas importadas en el mismo lote comparten `created_at`, y sin el desempate la página 2 repite una fila de la 1. La búsqueda `q` es `ILIKE` con `%` y `_` escapados (sin eso, buscar `%` devuelve el banco entero) y es **sensible a tildes**: `rio` no encuentra `río`, porque hacerla insensible pide `unaccent` en Postgres.
+- Este documento se mantiene alineado con el código en el mismo paso: el plan es lo que lee
+  la próxima sesión.
