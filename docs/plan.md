@@ -29,8 +29,8 @@ notificaciones, bots; monetización; despliegue en la nube (queda preparado).
 
 **Escala:** 100–200 concurrentes, una instancia. **Autoridad:** el servidor decide todo; la
 respuesta correcta nunca viaja antes de contestar; los puntajes se calculan en el servidor
-con su propio reloj. **Idioma:** interfaz en español; código, tablas, endpoints y variables
-en inglés.
+con su propio reloj. **Idioma:** interfaz en español neutro (sin vos ni tú); código, tablas,
+endpoints y variables en inglés.
 
 **Arquitectura:** navegador (SvelteKit, PWA) ⇄ HTTP/JSON + WS/JSON ⇄ API FastAPI con motor de
 juego en memoria y autoritativo. El frontend no guarda estado de juego propio que el servidor
@@ -70,6 +70,9 @@ ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # sin O, 0, I, 1
   `round_start` con `ends_at`. La ronda se resuelve cuando **los dos** contestaron o al
   vencer el plazo, lo primero. `round_result` trae la correcta, qué eligió cada uno,
   ms, puntos y el marcador. No contestar = incorrecta, cero puntos.
+- **Revelación:** 2,5 s con la correcta, qué eligió cada uno y los puntos; la explicación
+  aparece solo si el jugador falló. El servidor tiene que pausar ese tiempo antes de servir
+  la próxima ronda (pedido en `docs/api.md`).
 - **Puntaje de ronda:** solo si acertó → `BASE + round(TIME_BONUS_MAX * ratio)`, con
   `ratio = clamp(1 - ms / (seconds * 1000), 0, 1)`. Con 20 s: acertar en 1 s da 148;
   al límite, 100.
@@ -92,6 +95,7 @@ ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # sin O, 0, I, 1
   con `streak` = aciertos consecutivos **antes** de esta pregunta.
 - Un error (o no contestar) descuenta vida; a 0 vidas termina. `arcade_end` trae puntaje,
   aciertos, dificultad máxima, mejor racha y la posición en ranking global y semanal.
+- **Revelación:** 2,5 s, igual que el 1v1; el servidor pausa antes de la próxima pregunta.
 - Anti-trampa: puntajes y tiempos siempre del servidor; una corrida con tiempos
   imposibles se marca `invalid` y no entra al ranking.
 
@@ -113,8 +117,8 @@ Cada categoría tiene su color y **manda** en el badge y en el feedback de acier
 
 | Pantalla | Contenido |
 |---|---|
-| Inicio | Dos botones (jugar 1v1 / arcade), nick e ingreso como invitado |
-| Jugar | Crear sala (rondas y segundos) o unirse por código |
+| Inicio | Nick obligatorio (1–16), dos botones (jugar 1v1 / arcade) y enlace discreto al ranking |
+| Jugar | Una pantalla: crear sala (rondas y segundos) o unirse con el código |
 | Lobby | Código gigante, jugadores conectados, botón `start` solo para el host |
 | Partida | Pregunta, 4 `AnswerTile`, `TimerRing`, marcador y aviso de rival |
 | Revelación | Correcta, qué eligió cada uno, puntos y explicación |
@@ -122,7 +126,7 @@ Cada categoría tiene su color y **manda** en el badge y en el feedback de acier
 | Arcade | Pregunta, vidas (`LifeStrip`), racha, puntaje y tiempo |
 | Fin de arcade | Puntaje, aciertos, mejor racha, mejor marca y posición |
 | Ranking | Global / semanal |
-| Admin | Token, listado con filtros y paginación, subida de CSV/JSON con informe |
+| Admin | Solo por URL `/admin`: token, listado con filtros y paginación, subida de CSV/JSON con informe |
 
 Componentes, tokens y reglas visuales: `docs/diseno.md`.
 

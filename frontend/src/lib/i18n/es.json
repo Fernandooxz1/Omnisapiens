@@ -5,9 +5,9 @@
 	"common.coming_soon": "En construcción.",
 	"home.tagline": "Trivia para dos, o para uno contra todos.",
 	"home.play_online": "Jugar 1v1",
-	"home.play_online_hint": "Creá una sala y compartí el código.",
+	"home.play_online_hint": "Crea una sala y comparte el código.",
 	"home.play_arcade": "Arcade",
-	"home.play_arcade_hint": "Tres vidas, dificultad creciente y ranking.",
+	"home.play_arcade_hint": "Tres vidas y dificultad creciente.",
 	"arcade.title": "Arcade",
 	"play.title": "Jugar 1v1"
 }

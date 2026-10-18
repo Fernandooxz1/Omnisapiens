@@ -5,17 +5,18 @@
 
 ## Ahora
 
-- [ ] Fijar la paleta: probar el `Button` "juicy" con la candidata A (Preguntados) y B
-      (oscura de `frontend/design/referencia-botones.html`) y quedarse con una.
+- [ ] **Proof de identidad**: mostrar `frontend/design/proof-inicio-partida.html` (inicio +
+      partida, paleta A, Fredoka vs Bricolage) y que el usuario elija el display.
 
 ## Después
 
 - [ ] Tokens de `docs/diseno.md` en CSS y componentes `Button` + `CategoryBadge`.
 - [ ] Cliente HTTP + sesión (`POST /auth/guest`, token en `sessionStorage`, `GET /me`).
-- [ ] Inicio: dos botones (jugar 1v1 / arcade) y nick.
+- [ ] Inicio: nick obligatorio, dos botones (jugar 1v1 / arcade) y enlace al ranking.
 - [ ] Crear/unirse a sala y lobby con código gigante.
 - [ ] Cliente WS (`ws.ts`) con reconexión y heartbeat.
-- [ ] Pantalla de partida: `AnswerTile`, `TimerRing`, marcador y revelación.
+- [ ] Pantalla de partida: `AnswerTile`, `TimerRing`, marcador y revelación (espera la pausa
+      de 2,5 s del backend).
 - [ ] Fin de partida + revancha.
 - [ ] Arcade completo (`LifeStrip`, fin con ranking).
 - [ ] Ranking global/semanal.

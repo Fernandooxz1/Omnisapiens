@@ -25,21 +25,19 @@ sombra dura y color plano.
 - **Accesibilidad mínima**: foco visible, contraste AA, todo jugable con teclado
   (`1`–`4` responde, `Enter` confirma).
 
-## Paleta (decisión abierta)
+## Paleta
 
-Hay dos candidatas. Se decide probando el mismo `Button` y la misma pantalla de partida con
-las dos, no en abstracto. Hasta entonces, los tokens de abajo son la **candidata A**.
+**A — Preguntados (clara)**, decidida: fondo papel cálido, tinta oscura y seis colores de
+categoría saturados. Se lee bien al sol y en pantalla chica, y el color codifica la categoría.
+La candidata B (oscura) queda descartada como piel global; `referencia-botones.html` se
+conserva como referencia del botón.
 
-**A — Preguntados (clara).** Fondo papel cálido, tinta oscura, seis colores de categoría
-saturados. Es la que fija el producto: se lee bien al sol, en pantalla chica, y el color
-codifica la categoría.
-
-**B — oscura.** La de `referencia-botones.html`: fondo `#1e272e`, botones verdes/amarillos/
-violetas. Más "arcade", peor contraste para texto largo.
+El **texto del badge y del acierto** depende del color: blanco en `science` y `art`, tinta en
+el resto. Los pares exactos se fijan en los tokens (`--cat-*-on`), no a ojo.
 
 ```css
 :root {
-  /* Candidata A */
+  /* Paleta A */
   --ink: #101828; --ink-2: #344054; --ink-3: #667085;
   --paper: #FCF8F0; --paper-2: #F2EADF; --white: #FFFFFF;
   --correct: #2FA36B; --correct-dark: #1E7A4D;
@@ -58,14 +56,15 @@ violetas. Más "arcade", peor contraste para texto largo.
   --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
 
   /* Tipografía */
-  --font-display: "Fredoka", system-ui, sans-serif;   /* 600/700 */
+  --font-display: "Fredoka", system-ui, sans-serif;   /* en prueba */
   --font-ui: "Instrument Sans", system-ui, sans-serif;
 }
 ```
 
-Fuentes autoalojadas en `frontend/static/fonts/` (woff2, `font-display: swap`). Display en
-título, marcador, números grandes y botones (700); UI en texto común. **Presupuesto:** ≤ 250 KB
-de JS.
+Fuentes autoalojadas en `frontend/static/fonts/` (woff2, `font-display: swap`). La UI usa
+**Instrument Sans**; el display (títulos, botones, marcador, números) se elige en
+`frontend/design/proof-inicio-partida.html` entre **Fredoka** y **Bricolage Grotesque**.
+**Presupuesto:** ≤ 250 KB de JS.
 
 ## Botón "juicy" (núcleo del sistema)
 
@@ -113,6 +112,15 @@ Variantes: `primary` (brand), `secondary` (paper + ink, con borde), `danger` (wr
 | `Modal` | fondo plano (sin blur), `Enter`/`Esc`, foco atrapado |
 | `Toast` | errores de la API con `code` + `message` |
 | `LifeStrip` | 3 vidas del arcade, se apagan con animación corta |
+
+## Partida
+
+- La **revelación** dura 2,5 s: correcta con el color de la categoría, qué eligió cada
+  jugador y los puntos. La explicación aparece **solo si el jugador falló**.
+- La pausa la da el servidor antes de servir la próxima ronda; mientras no exista, la
+  pantalla de partida no se cierra (`docs/api.md`).
+- Mientras el rival no contestó, la elección propia queda bloqueada y marcada; nunca se
+  insinúa si es correcta.
 
 ## Sonido
 

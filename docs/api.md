@@ -224,6 +224,17 @@ Cliente → servidor: `start {}`, `answer {"round": n, "choice": 0..3}`, `ping {
 - **Arcade: `start` una sola vez por conexión.** Al terminar, cerrar y abrir otra.
 - **`answer` repetido** (doble tap, retry) → `ROUND_MISMATCH`; la ronda ya no está en vuelo.
 
+## Pedido pendiente al backend
+
+**Pausa de revelación.** Hoy `room_manager._step` entrega `round_result` y sirve la ronda
+siguiente en el mismo instante; en el arcade, cada `answer` encadena la próxima pregunta sin
+pausa. Así, el reloj de la próxima ronda corre mientras el cliente todavía muestra el
+resultado. Se pide una pausa de **2,5 s** (configurable) entre el resultado y la próxima
+ronda o pregunta, en 1v1 y en arcade.
+
+Hasta que exista, la pantalla de partida no se cierra: el cliente no inventa tiempo ni
+retiene la ronda por su cuenta.
+
 ## Códigos de error
 
 | Código | HTTP | Cuándo |
