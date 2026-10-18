@@ -1,5 +1,8 @@
-The sound effects in this directory were synthesized for Omnisapiens and are released
+The original sound effects in this directory were synthesized for Omnisapiens and are released
 under CC0 1.0 Universal (public domain dedication):
 https://creativecommons.org/publicdomain/zero/1.0/
 
 They can be copied, modified and distributed without attribution.
+
+Exception: correct.mp3 and wrong.mp3 were supplied by the project owner and are not covered by
+the CC0 dedication above. Their license is the one granted by the owner to this project.

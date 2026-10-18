@@ -208,14 +208,20 @@ la **barra de tiempo** (verde → amarillo → rojo) como cuenta atrás visual.
   `shell` y el botón), con `min-height: min-content` como piso; la columna de respuestas se
   reparte ese alto entre 48 y 62 px. Así el aire sobra igual arriba y abajo y la partida nunca
   scrollea.
-- Mientras no exista el cliente WS, `/play` se dibuja con datos de ejemplo de `src/lib/demo/`;
-  esa carpeta se borra al conectar el servidor.
-
 ## Sonido
 
 `tick`, `reveal`, `correct`, `wrong`, `match_start`, `match_win`, `match_lose`, `best_score`
-en `frontend/static/assets/sfx/` (mp3/ogg, < 60 KB, CC0). Se inicializa tras la primera
-interacción; el silencio se persiste en `localStorage`.
+en `frontend/static/assets/sfx/` (mp3/ogg, < 60 KB). El audio se habilita tras la primera
+interacción —requisito de iOS— y el silencio se persiste en `localStorage` con la clave
+`omni-sound`.
+
+La revelación de una ronda suena una sola vez: el resultado usa `correct` o `wrong`, sin
+superponer `reveal` ni ningún otro efecto. `reveal` queda para transiciones sin resultado,
+como un empate.
+
+Los efectos originales fueron sintetizados para el proyecto y se distribuyen como CC0;
+`correct` y `wrong` fueron provistos por el dueño del proyecto y quedan fuera de esa
+dedicatoria (ver `LICENSE.txt`).
 
 ## Pantallas
 

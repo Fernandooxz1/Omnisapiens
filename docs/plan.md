@@ -7,9 +7,11 @@
 ## Estado
 
 El **backend está terminado** (HTTP, WS, salas, arcade, ranking, panel de admin, 547 tests,
-cobertura 94 %) y no se toca. Lo que falta es el producto: el frontend arranca de cero en
-`frontend/` (SvelteKit + TypeScript). `frontend/dev/` es la página de prueba del backend, no
-el producto, y se borra cuando lobby y arcade anden de verdad.
+cobertura 94 %) y no se toca. El **frontend cubre el MVP** en `frontend/` (SvelteKit +
+TypeScript): inicio, creación y unión de salas, partida 1v1, arcade, ranking, panel de admin,
+sonido, teclado y PWA instalable. Quedan la suite e2e, el tratamiento de errores
+(`+error.svelte` y avisos de API caída) y retirar `frontend/dev/`, la página histórica de
+prueba del backend.
 
 **La próxima tarea está en `docs/tareas.md`.** El detalle del backend quedó archivado en
 `docs/archive/` (no se lee).
@@ -136,11 +138,13 @@ Componentes, tokens y reglas visuales: `docs/diseno.md`.
 - **Un solo estilo** (pizarra cálida; `docs/diseno.md`): relleno liso, volumen por base sólida
   y bisel, sin degradados de color. El jugador elige su **color de acento** (5 swatches,
   `data-accent` sobre `<html>` + `localStorage`, clave `omni-accent`).
-- **Estado:** stores `sessionStore` / `matchStore` / `arcadeStore` como máquinas de estados;
-  `ws.ts` con reconexión y heartbeat.
+- **Estado:** `session` (`src/lib/api/session.svelte.ts`), `createLiveMatch`
+  (`src/lib/match/live.svelte.ts`) y `createArcadeRun` (`src/lib/arcade/live.svelte.ts`) como
+  máquinas de estados; `ws.ts` con reconexión y heartbeat.
 - **PWA:** manifest + service worker nativo (`src/service-worker.ts`), cachea el app shell;
   el juego **no** funciona offline.
-- **i18n:** todas las cadenas en `app/i18n/es.json`; ninguna cadena visible en un componente.
+- **i18n:** todas las cadenas en `src/lib/i18n/es.json`; ninguna cadena visible en un componente.
+- **Sonido:** efectos en `src/lib/sound.svelte.ts`, con preferencia de silencio persistida.
 - **Presupuesto:** JS por debajo de 250 KB.
 
 ## Testing (frontend)
@@ -159,8 +163,8 @@ Componentes, tokens y reglas visuales: `docs/diseno.md`.
 | 2 Salas y presencia | dos navegadores por código, sala llena, host cae, expira | ✅ backend |
 | 3 Partida online | rondas cronometradas, revelación, puntajes, desempate, gracia, revancha | ✅ backend |
 | 4 Arcade y ranking | 3 vidas, progresión, corte semanal, récord personal | ✅ backend |
-| 5 Identidad visual | 9 componentes, SVG propios, sonido, teclado, sin scroll, ≤250 KB JS | ← ahora |
-| 6 PWA, e2e y docs | instalable, Playwright en CI, plan y README al día | pendiente |
+| 5 Identidad visual | componentes propios, SVG, sonido, teclado, sin scroll, ≤250 KB JS | ✅ frontend |
+| 6 PWA, e2e y docs | instalable, Playwright en CI, plan y README al día | PWA ✅ · e2e pendiente |
 | 7 (opcional) Publicar | `docker-compose.prod.yml`, `docs/deploy.md` | pendiente |
 
 ## Definición de terminado del MVP
