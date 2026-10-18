@@ -33,6 +33,7 @@
 	--r-full: 999px;
 	--border-w: 2.5px;
 	--key-h: 78px;
+	--key-h-sm: 64px;
 	--depth-key: 6px;
 
 	--s-1: 4px;
@@ -221,6 +222,9 @@ input {
 /* ---------- Columna de la app ---------- */
 
 .shell {
+	/* El alto de la pantalla de partida depende de estos dos: son el único borde. */
+	--shell-pad-top: max(var(--s-5), env(safe-area-inset-top));
+	--shell-pad-bottom: max(var(--s-5), env(safe-area-inset-bottom));
 	display: flex;
 	flex-direction: column;
 	gap: var(--s-5);
@@ -229,8 +233,8 @@ input {
 	min-height: 100dvh;
 	margin-inline: auto;
 	padding: var(--s-5) var(--s-4);
-	padding-top: max(var(--s-5), env(safe-area-inset-top));
-	padding-bottom: max(var(--s-5), env(safe-area-inset-bottom));
+	padding-top: var(--shell-pad-top);
+	padding-bottom: var(--shell-pad-bottom);
 }
 
 .shell--center {
@@ -1009,15 +1013,20 @@ input {
 	margin-top: auto;
 }
 
-/* En juego: ritmo fijo (los bloques pegados, sin repartir el aire) y el sobrante
-   queda al pie, que es donde flota el paso siguiente. */
+/* En juego: los bloques con ritmo fijo y el tablero centrado en el alto que deja libre
+   el velo, así el aire se reparte arriba y abajo y nada queda debajo del botón. */
 .match--live {
-	--cta-inset: max(var(--s-5), env(safe-area-inset-bottom));
+	flex: 0 1 auto;
+	height: calc(
+		100dvh - var(--shell-pad-top) - var(--shell-pad-bottom) - var(--s-2) - var(--key-h-sm)
+	);
+	min-height: min-content;
+	justify-content: center;
 }
 
-/* Tope de la columna: 4 teclas de 62 px más sus separaciones. */
+/* La columna de respuestas no crece: se queda en su tope. */
 .match--live .match__tiles {
-	max-height: calc(62px * 4 + var(--s-3) * 3);
+	flex: 0 1 calc(62px * 4 + var(--s-3) * 3);
 }
 
 /* El aviso va pegado a las respuestas: el hueco de abajo es para el paso siguiente. */
@@ -1032,7 +1041,7 @@ input {
 	width: 100%;
 	max-width: var(--shell-max);
 	margin-inline: auto;
-	padding: var(--s-2) var(--s-4) var(--cta-inset);
+	padding: var(--s-2) var(--s-4) var(--shell-pad-bottom);
 	background: var(--veil-bg);
 	backdrop-filter: blur(7px);
 	animation: cta-in 0.18s ease-out;
@@ -1040,7 +1049,7 @@ input {
 
 /* Más baja que las teclas grandes: flota y no puede tapar la última respuesta. */
 .match__cta .btn {
-	min-height: 64px;
+	min-height: var(--key-h-sm);
 	padding: 9px 20px;
 }
 
