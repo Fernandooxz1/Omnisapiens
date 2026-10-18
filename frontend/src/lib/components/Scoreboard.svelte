@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { t } from '#lib/i18n';
+	import Avatar from './Avatar.svelte';
+
 	interface Player {
 		nick: string;
 		points: number;
@@ -11,20 +14,21 @@
 
 	let { you, rival }: Props = $props();
 
-	const initial = (nick: string) => nick.trim().charAt(0).toUpperCase() || '?';
+	const youLead = $derived(you.points > rival.points);
+	const rivalLead = $derived(rival.points > you.points);
 </script>
 
 <div class="scoreboard">
 	<div class="score">
-		<span class="avatar-token avatar-token--you" aria-hidden="true">{initial(you.nick)}</span>
+		<Avatar nick={you.nick} tone="you" crown={youLead} />
 		<span class="score__lines">
 			<span class="score__who">{you.nick}</span>
 			<span class="score__points">{you.points}</span>
 		</span>
 	</div>
-	<span class="delta" aria-hidden="true">—</span>
+	<span class="scoreboard__vs">{t('play.vs')}</span>
 	<div class="score score--right">
-		<span class="avatar-token avatar-token--rival" aria-hidden="true">{initial(rival.nick)}</span>
+		<Avatar nick={rival.nick} tone="rival" crown={rivalLead} />
 		<span class="score__lines">
 			<span class="score__who">{rival.nick}</span>
 			<span class="score__points">{rival.points}</span>

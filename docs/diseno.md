@@ -1,183 +1,177 @@
 # Sistema de diseño
 
 > Cómo se ve y se siente Omnisapiens. Se consulta al construir cualquier pantalla.
-> Referencias vivas: `frontend/design/referencia-botones.html` (botón) y
-> `frontend/design/laboratorio_de_botones_juicy_ui_sheen.html` (lenguaje del estilo Colorido).
+> Referencia viva: `frontend/design/pruebadeArgon4.html` (lenguaje de la pizarra cálida).
 
-## Dos estilos
+## Un solo estilo
 
-La app tiene **dos estilos completos**, no dos paletas: mismo layout, misma estructura de
-componentes y **otra piel entera** (forma, sombras, tipografía, densidad, tono). El jugador
-elige; el estilo vive en `data-skin` sobre `<html>` y se recuerda en `localStorage`. El cambio
-es **inmediato** (la CSS lee variables de la piel, no hay markup distinto) y la piel se resuelve
-en `app.html` antes del primer pintado para que no parpadee.
+La app tiene **un estilo**: pizarra cálida, relleno liso y base sólida. No hay variantes de
+color ni temas alternativos; lo que cambia es el **acento** del jugador.
 
-| | **Papel** (por defecto) | **Colorido** |
-|---|---|---|
-| Idea | Juguete de mesa: papel, tinta, teclas | Preguntados / Clash: botones gruesos de maquinita sobre un tablero oscuro |
-| Fondo | papel cálido plano `#FCF8F0` | tablero pizarra `#222831` con viñeta radial desde `#2C3849` |
-| Superficie | blanca, borde de tinta `2.5px`, sombra dura `4px 4px 0` | tarjeta `#2B323C` con base sólida `0 6px 0 #171C22`, panel `#363F4C` |
-| Botón | borde de tinta, degradado leve, base dura de 6 px | sin borde, bisel interno, **radio 18 px y base sólida de 6 px** |
-| Radial | `10` chips · `14` botones y tarjetas | `18` botones · `16` respuestas y campos · `22` paneles |
-| Tamaños | `lg` 84 px · `md` 60 px | modo principal 78 px · modo secundario 78 px · tiles 60 px |
-| Texto | frase normal, `Instrument Sans` + `Fredoka` | mayúsculas en botones/badges, `Plus Jakarta Sans` + `Fredoka` |
-| Tiles de respuesta | teclas blancas con borde de tinta, tecla `1`–`4` a la izquierda | **teclas blancas y altas** (60 px), radio 16 px, base de 5 px y tecla `1`–`4` en el keycap |
-| Acierto | verde, con la tecla pintada | verde, con la tecla pintada |
-| Paleta de controles | azul (acción) · blanco (secundario) | **verde** (acción/arcade) · **azul** (secundario/1v1) · pizarra (neutro) |
-| Extras | ninguno | destello diagonal en el modo principal, esticker sobre la pregunta, avatares en el marcador |
+| | **Pizarra cálida** |
+|---|---|
+| Idea | Preguntados: botones gruesos de maquinita sobre un tablero oscuro y cálido |
+| Fondo | plano `#191724` con textura de puntos: **no** hay luz difusa ni degradado de relleno |
+| Superficie | panel `#2E2A42` con base sólida `0 6px 0 #181524`; tarjeta `#232033`, filo `#12101B` |
+| Profundidad | bisel de luz arriba (`inset 0 2px 0 rgb(255 255 255 / .28)`) + base dura del color del filo |
+| Radios | `24` paneles · `20` botones · `18` respuestas y pozos · `14` pastillas |
+| Tamaños | botón de modo 78 px · respuesta ≥ 60 px (crece hasta 112 px) · táctiles ≥ 44 px |
+| Texto | mayúsculas en botones y badges · `Plus Jakarta Sans` + `Fredoka` |
+| Tiles de respuesta | **teclas blancas y altas**, una por fila, con la tecla `1`–`4` en un keycap a la izquierda |
+| Extras | sello del logo, tarjeta de perfil con avatar y swatches, marcador abierto con corona |
 
-Ningún estilo se mezcla con el otro: los componentes comparten markup y se visten por
-bloques `html[data-skin='…']`. **Sin librería de UI y sin Tailwind**: CSS propio.
-
-**Las reglas de abajo no se niegan en ningún estilo:**
+**Las reglas de abajo no se negocian:**
 
 - **Cero emojis.** Todos los íconos son SVG propios (grid 24, trazo 2.5, `currentColor`).
-- El **gradiente solo da volumen** a lo presionable (luz arriba, sombra abajo) o el brillo
-  estático de un borde. Prohibido como decoración de fondos o tarjetas. Excepciones: la
-  viñeta del tablero de Colorido y el destello del botón principal.
-- **Botones grandes, nunca píldora**: geometría squircle (`18px` el botón, `16px` la
-  respuesta, `22px` el panel).
+- **Cero degradados de color.** Ni de fondo, ni de tarjeta, ni de botón. El volumen sale del
+  bisel interior y de la base sólida; un relleno que va de claro a oscuro está prohibido.
+  La única textura permitida es el **patrón de puntos** del tablero (un solo color al 4 %,
+  no un degradado).
+- **Botones grandes, nunca píldora**: geometría squircle (`20px` el botón, `18px` la
+  respuesta, `24px` el panel; `999px` solo en pastillas y badges chicos).
 - **Al presionar** el elemento se hunde: baja 4 px (botón) o 3 px (tile) y la base sólida se
   reduce en la misma proporción. Sin rebotes largos.
 - **Campos y contadores van hundidos** (pozo con sombra interna oscura), nunca con volumen
   hacia afuera.
 - La **tipografía se elige**, no se hereda. Nada de `system-ui` como fuente principal.
 - **Cero animaciones de entrada por scroll**: se anima el feedback (press, reveal, acierto).
-  Excepción única: el **destello en loop del botón del modo principal** de Colorido.
+  Tampoco hay animaciones en loop: el pulso del reloj solo aparece en los últimos 5 s.
 - **Accesibilidad mínima**: foco visible, contraste AA, blancos táctiles ≥ 44 px, todo
   jugable con teclado (`1`–`4` responde, `Enter` confirma).
 - **Sin scroll en la pantalla de partida**; en el resto, columna máx. 480 px.
 
-## Estilo Papel
+## Paleta
 
 ```css
-html[data-skin='papel'] {
-  --ink: #101828; --ink-2: #344054; --ink-3: #667085;
-  --bg: #FCF8F0; --surface: #FFFFFF; --surface-2: #F2EADF;
-  --key-primary-top: #3D78FF; --key-primary-bottom: #2F6BFF; --key-primary-edge: #1E4FD1;
-  --key-secondary-top: #FFFFFF; --key-secondary-bottom: #F5EEE2; --key-secondary-edge: #D8CCB8;
-  --cat-geography: #2E9E5B; --cat-history: #C77B2E; --cat-science: #2A6FD6;
-  --cat-art: #8A4FD3; --cat-entertainment: #E0498F; --cat-sports: #1E9E9E;
-  --font-ui: 'Instrument Sans', system-ui, sans-serif;
-}
-```
+:root {
+  --page-bg: #191724;  --card-bg: #232033;  --card-edge: #12101B;
+  --panel-bg: #2E2A42; --panel-edge: #181524;
+  --well-bg: #181523;  --well-border: #3B3654;
+  --ink: #FFFFFF; --ink-2: #D8D2E8; --ink-3: #9B94B8;
 
-El **texto del badge** depende del color: blanco en `science` y `art`, tinta en el resto. Los
-pares exactos se fijan en los tokens (`--cat-*-ink`), no a ojo.
+  --green: #1EC765;  --green-edge: #13964B;
+  --blue: #0098E6;   --blue-edge: #006BB3;
+  --yellow: #FFC800; --yellow-edge: #D69E00;
+  --orange: #FF7800; --orange-edge: #CC5600;
+  --pink: #EC388B;   --pink-edge: #B51B63;
+  --purple: #9338C6; --purple-edge: #6A1E96;
+  --red: #E62514;    --red-edge: #AD1407;
 
-## Estilo Colorido
-
-La paleta es la oficial de Preguntados: cada familia tiene luz, cuerpo y filo (la base sólida
-del botón). Un color, un uso; nunca se cruzan.
-
-```css
-html[data-skin='colorido'] {
-  --board-bg: #222831; --card-bg: #2B323C; --card-edge: #171C22;
-  --panel-bg: #363F4C; --panel-edge: #1E232A;
-  --well-bg: #1A1F26; --well-border: #3E4856;
-
-  --green-top: #2CE67C; --green-bot: #1EC765; --green-edge: #13964B;
-  --blue-top: #2BC0FF;  --blue-bot: #0098E6;  --blue-edge: #006BB3;
-  --yellow-top: #FFE135; --yellow-bot: #FFC800; --yellow-edge: #D69E00;
-  --orange-top: #FF9E2C; --orange-bot: #FF7800; --orange-edge: #CC5600;
-  --pink-top: #FF66B2;   --pink-bot: #EC388B;   --pink-edge: #B51B63;
-  --red-top: #FF5242;    --red-bot: #E62514;    --red-edge: #AD1407;
-
-  --ink: #F8FAFC; --ink-2: #CBD5E1; --ink-3: #94A3B8;
   --font-ui: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
 ```
 
+Cada familia tiene **cuerpo y filo**: el cuerpo rellena (botón, badge, avatar) y el filo es la
+base sólida de 5–6 px y el `text-shadow`. Un color, un uso; nunca se cruzan.
+
 ### Quién usa cada color
 
-- **Verde** — CTA y modo principal (arcade), y el acierto al revelar. También `science`.
+- **Verde** — CTA y modo principal (arcade), el acierto al revelar y `science`.
 - **Azul** — modo secundario (1v1), el esticker "respondes" y `geography`.
-- **Amarillo** — destacados y monedas; `history`.
-- **Naranja** — `sports`. **Rosa** — `entertainment`. **Rojo** — el fallo al revelar y `art`.
-- **Pizarra** (`#334155`/`#243042`/`#111722`) — controles neutros (`slate`).
-- **Los seis colores de categoría** — solo el badge de categoría.
+- **Amarillo** — el sello del logo (`sapiens`), la corona del que va ganando, la ronda en
+  curso y `history`. Lleva **tinta oscura** (`#3F2D00`) en el badge: blanco sobre amarillo
+  no llega a AA.
+- **Naranja** — el rival en el marcador y `sports`.
+- **Rosa** — `entertainment`. **Rojo** — el fallo al revelar y `art`.
+- **Violeta** — solo como acento elegible del jugador.
+- **Pizarra** (`--well-border`/`#201C30`) — controles neutros (`slate`).
 
-## Forma y tipografía (compartidas)
+### Acento del jugador
+
+El jugador no elige un tema, elige **su color**: `AccentPicker` escribe `data-accent`
+(`blue` · `green` · `orange` · `pink` · `purple`) sobre `<html>` y lo recuerda en
+`localStorage` (clave `omni-accent`, ver `src/lib/accent.ts`). Los tokens `--accent` y
+`--accent-edge` salen de ahí y pintan **solo el avatar propio** (perfil y marcador). El
+`app.html` lo resuelve antes del primer pintado para que no parpadee.
+
+## Forma y tipografía
 
 ```css
 :root {
-  --r-sm: 10px; --r-md: 14px; --r-lg: 22px; --r-key: 18px; --r-tile: 16px;
+  --r-sm: 10px; --r-md: 14px; --r-lg: 24px; --r-key: 20px; --r-tile: 18px;
   --border-w: 2.5px; --depth-key: 6px; --depth-tile: 5px;
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px;
   --font-display: 'Fredoka', system-ui, sans-serif;
 }
 ```
 
-`--font-display` (títulos, botones, marcador, números) es **Fredoka**, siempre. La UI cambia
-por estilo: `Instrument Sans` en Papel, `Plus Jakarta Sans` en Colorido. Fuentes autoalojadas
-en `frontend/static/fonts/` (woff2, `font-display: swap`). **Presupuesto:** ≤ 250 KB de JS.
+`--font-display` (títulos, botones, marcador, números) es **Fredoka**, siempre. La UI usa
+`Plus Jakarta Sans`. Fuentes autoalojadas en `frontend/static/fonts/` (woff2,
+`font-display: swap`). **Presupuesto:** ≤ 250 KB de JS.
 
-## Botón "juicy" (núcleo del estilo Colorido)
+## Botón "juicy"
 
 ```css
 .btn {
-  --bg-top: var(--green-top); --bg-bot: var(--green-bot); --edge: var(--green-edge);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  --key-bg: var(--green); --edge: var(--green-edge);
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px;
   width: 100%; min-height: 78px; padding: 15px 20px;
-  border: none; border-radius: var(--r-key);                 /* 18 px, nunca píldora */
-  background: linear-gradient(180deg, var(--bg-top), var(--bg-bot));
+  border: none; border-radius: var(--r-key);                 /* 20 px, nunca píldora */
+  background: var(--key-bg);                                 /* relleno liso, sin degradado */
   box-shadow:
-    inset 0 2px 0 rgb(255 255 255 / .4), inset 0 -2px 0 rgb(0 0 0 / .12),
-    0 var(--depth-key) 0 var(--edge), 0 calc(var(--depth-key) + 4px) 18px -4px rgb(0 0 0 / .35);
-  color: #FFF;                                                 /* título BLANCO */
+    inset 0 2px 0 rgb(255 255 255 / .28),
+    0 6px 0 var(--edge), 0 10px 18px -6px rgb(0 0 0 / .5);
+  color: #FFF;                                               /* título BLANCO */
   text-shadow: 0 2px 0 var(--edge);
-  cursor: pointer; overflow: hidden;
+  cursor: pointer;
   transition: transform .07s cubic-bezier(.34,1.56,.64,1), box-shadow .07s ease, filter .15s ease;
 }
-.btn:hover  { filter: brightness(1.04); transform: translateY(-1px); }
+.btn:hover  { filter: brightness(1.06); transform: translateY(-1px); }
 .btn:active { transform: translateY(4px);                     /* se hunde casi toda la base */
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / .2), 0 2px 0 var(--edge),
-              0 3px 5px -1px rgb(0 0 0 / .3); }
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .16), 0 2px 0 var(--edge); }
 .btn:disabled { filter: grayscale(.5) opacity(.55); cursor: not-allowed; }
 ```
 
 El botón lleva **dos líneas**: título en mayúsculas (Fredoka `1.3rem`) y subtítulo descriptivo
 (`Plus Jakarta Sans`, `0.82rem`). Variantes: `green` (acento/CTA) · `blue` (secundario) ·
-`slate` (neutro). El `:focus-visible` es `outline: 3px solid #FFF` (Colorido) o
-`3px solid var(--ink)` (Papel).
+`slate` (neutro). Con la prop `aside` se convierte en fila y acepta una **pastilla a la
+derecha** (las tres vidas del arcade, el `VS` del duelo). El `:focus-visible` es
+`outline: 3px solid #FFF`.
 
-**Destello del modo principal** (solo Colorido): el botón lleva `overflow: hidden` y un `::after`
-de 60 % de ancho, inclinado `-25°`, que cruza de `-130%` a `160%` en el 32 % de un ciclo de
-3,5 s y descansa el resto. Es la única animación en loop permitida, y `prefers-reduced-motion`
-la apaga. En Papel no se dibuja.
+## Logo y perfil
+
+El sello del inicio es una pastilla naranja inclinada 2° arriba del wordmark; el wordmark va
+en dos tonos (`Omni` blanco con sombra dura, `sapiens` amarillo con filo) y debajo, la
+bajada en `--ink-3`.
+
+La **tarjeta de perfil** es un panel `--r-lg` con el `NickInput` adentro (avatar a la
+izquierda dentro del pozo, badge verde de check a la derecha) y, debajo, los **swatches** del
+acento: cuadrados de 26 px centrados en un botón de 44 px, el elegido sube 2 px y se escala.
 
 ## Input hundido (pozo)
 
 Campos de texto y contadores no tienen volumen hacia afuera: parecen cavados en el tablero.
-Fondo `--well-bg`, borde `2px solid --well-border`, radio `16px` y
+Fondo `--well-bg`, borde `2px solid --well-border`, radio `18px` y
 `box-shadow: inset 0 4px 0 rgb(0 0 0 / .45)`. A la derecha, el badge de validación es un
 squircle verde de 34 px con relieve propio (`inset 0 2px 0 rgb(255 255 255 / .4)`,
 `0 3px 0 var(--green-edge)`) y un check SVG adentro.
 
 ## Respuestas (teclado mecánico)
 
-Las cuatro opciones son **teclas blancas** (`linear-gradient(180deg,#FFFFFF,#F1F5F9)`), borde
-`2px solid #E2E8F0`, radio 16 px y base de 5 px. El número `1`–`4` vive en un **keycap** de
-30×30 px a la izquierda, con su propio relieve (`0 2.5px 0 #CBD5E1`) y el número en azul.
-La etiqueta va centrada para que **no se mueva** cuando aparecen las marcas.
+Las cuatro opciones van **en una columna**: una tecla por fila, y la columna se reparte el
+alto libre de la pantalla (`min-height: 60px`, `max-height: 112px`). Son teclas blancas
+(`#F8FAFC`), borde `2px solid #E2E8F0`, radio 18 px y base de 5 px. El número `1`–`4` vive en
+un **keycap** de 30×30 px a la izquierda, con su propio relieve (`0 2.5px 0 #CBD5E1`) y el
+número en azul. La etiqueta va centrada para que **no se mueva** cuando aparecen las marcas.
 
 Lo único que cambia entre estados es el color y la marca: elegido = borde azul, acierto =
-**verde**, fallo = **rojo** con una sacudida horizontal de `0.36s`; en acierto y fallo la tecla
-pasa a blanco sobre su color.
+**verde**, fallo = **rojo** con una sacudida horizontal de `0.36s`; en acierto y fallo la
+tecla pasa a su filo y el texto a blanco.
 
 ## Componentes
 
 | Componente | Notas |
 |---|---|
-| `Button` | `green/blue/slate` · dos líneas (título + subtítulo) · 78 px · press de 4 px · misma API en los dos estilos · `sheen` solo el principal |
-| `SkinSwitcher` | elegido en Inicio; escribe `data-skin` y `localStorage` (clave `omni-skin`) |
-| `CategoryBadge` | color `--cat-*` + etiqueta de `es.json` |
-| `AnswerTile` | idle/selected/correct/wrong/dim · ≥ 60 px · keycap `1`–`4` · verde/rojo al revelar · tag de quién eligió |
-| `QuestionCard` | panel con badge de categoría y esticker "Responde" flotante |
-| `NickInput` | 1–16, pozo hundido, badge de check; muestra el error del servidor tal cual |
-| `TimerBadge` | cuenta atrás sobre `ends_at`; late y se pinta rojo en los últimos 5 s, se apaga fuera del turno |
+| `Button` | `green/blue/slate` · dos líneas (título + subtítulo) · 78 px · press de 4 px · `aside` opcional a la derecha |
+| `AccentPicker` | swatches del acento del jugador; escribe `data-accent` y `localStorage` (clave `omni-accent`) |
+| `Avatar` | squircle 44 px con la inicial; acento propio o naranja del rival; corona al que va ganando |
+| `CategoryBadge` | pastilla `--r-full` con color `--cat-*` + etiqueta de `es.json` |
+| `AnswerTile` | idle/selected/correct/wrong/dim · una por fila · keycap `1`–`4` · verde/rojo al revelar |
+| `QuestionCard` | panel con la pastilla de categoría **centrada sobre el borde** y esticker "Responde" flotante a la derecha |
+| `NickInput` | 1–16, pozo hundido, badge de check, snippet `prefix` para el avatar |
+| `TimerBadge` | pastilla con reloj sobre `ends_at`; late y se pinta rojo en los últimos 5 s, se apaga fuera del turno |
 | `PlayerPanel` | nick, estado conectado/desconectado, puntos |
-| `Scoreboard` | `you` – `opponent`, números en display; avatares en Colorido |
+| `Scoreboard` | **abierto** (sin caja): avatar + nick + puntos a cada lado, `vs` en el medio, corona al líder |
 | `CodeInput` | 6 casillas, alfabeto sin `O/0/I/1`, pegado del código completo |
 | `Modal` | fondo plano (sin blur), `Enter`/`Esc`, foco atrapado |
 | `Toast` | errores de la API con `code` + `message` |
@@ -191,6 +185,9 @@ pasa a blanco sobre su color.
   pantalla de partida no se cierra (`docs/api.md`).
 - Mientras el rival no contestó, la elección propia queda bloqueada y marcada; nunca se
   insinúa si es correcta.
+- Arriba van las **cápsulas de ronda** (ganada / perdida / en curso), la pastilla del reloj y,
+  debajo del marcador, la **barra de tiempo**; la ronda también se anuncia para lectores de
+  pantalla.
 - Mientras no exista el cliente WS, `/play` se dibuja con datos de ejemplo de `src/lib/demo/`;
   esa carpeta se borra al conectar el servidor.
 
@@ -209,8 +206,6 @@ ranking · admin. El contenido de cada una está en `docs/plan.md`.
 
 - Foco visible siempre; orden de tabulación natural; `aria-live` para el resultado de ronda.
 - Teclado: `1`–`4` elige, `Enter` confirma, `Esc` cierra modal.
-- Contraste AA en ambos estilos: en Papel sobre el fondo y sobre cada color de categoría
-  (blanco solo donde el ratio lo permita); en Colorido el texto de los botones es blanco
-  sobre el degradado, con `text-shadow` para el filo.
-- `prefers-reduced-motion`: sin pulso de `TimerBadge`, sin rebote del botón, sin destello,
-  sin transición de tile.
+- Contraste AA: texto blanco sobre los cuerpos de color con `text-shadow` para el filo; el
+  badge de `history` usa tinta oscura sobre el amarillo.
+- `prefers-reduced-motion`: sin pulso del reloj, sin rebote del botón, sin transición de tile.

@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { t } from '#lib/i18n';
+	import Icon from './Icon.svelte';
+
 	interface Props {
 		seconds: number;
 		/** Últimos segundos: late y se pinta de rojo. */
@@ -10,6 +13,7 @@
 	let { seconds, alert = false, idle = false }: Props = $props();
 </script>
 
-<span class="timer-badge" class:is-alert={alert} class:is-idle={idle} aria-hidden="true">
-	{seconds}
+<span class="timer-pill" class:is-alert={alert} class:is-idle={idle}>
+	<Icon name="clock" size={16} />
+	{t('play.timer', { n: seconds })}
 </span>

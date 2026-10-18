@@ -23,6 +23,7 @@
 	let picked = $state<number | null>(null);
 	let pointsYou = $state(0);
 	let pointsRival = $state(0);
+	let results = $state<('won' | 'lost')[]>([]);
 	let endsAt = $state(Date.now() + ROUND_SECONDS * 1000);
 	let now = $state(Date.now());
 
@@ -31,6 +32,7 @@
 	const seconds = $derived(Math.max(0, Math.ceil((endsAt - now) / 1000)));
 	const alert = $derived(phase === 'question' && seconds <= 5);
 	const youRight = $derived(picked === current.correct);
+	const timeLeft = $derived(phase === 'reveal' ? 0 : Math.round((seconds / ROUND_SECONDS) * 100));
 
 	// Demo: en el juego real el cliente solo dibuja el `ends_at` que manda el servidor.
 	$effect(() => {
@@ -52,6 +54,7 @@
 	function reveal() {
 		if (phase === 'reveal' || finished) return;
 		phase = 'reveal';
+		results[round] = picked === current.correct ? 'won' : 'lost';
 		if (picked === current.correct) pointsYou += DEMO_POINTS;
 		if (current.rivalPick === current.correct) pointsRival += DEMO_POINTS;
 	}
@@ -69,7 +72,14 @@
 		phase = 'question';
 		pointsYou = 0;
 		pointsRival = 0;
+		results = [];
 		endsAt = Date.now() + ROUND_SECONDS * 1000;
+	}
+
+	/** Cápsula de cada ronda: ganada, perdida, la que corre o todavía vacía. */
+	function capsuleState(index: number): 'won' | 'lost' | 'current' | undefined {
+		if (index === round && phase !== 'reveal') return 'current';
+		return results[index];
 	}
 
 	/** Quiénes eligieron esta opción (el rival recién al revelar). */
@@ -117,16 +127,24 @@
 			<p class="muted">{t('play.demo')}</p>
 		</div>
 		<div class="modes">
-			<Button variant="green" sheen title={t('play.rematch')} onclick={restart} />
+			<Button variant="green" title={t('play.rematch')} onclick={restart} />
 			<Button variant="slate" title={t('common.back')} onclick={() => goto('/')} />
 		</div>
 	</section>
 {:else}
 	<section class="match">
 		<div class="match__top">
-			<span class="round-label">
-				{t('play.round', { n: round + 1, total: DEMO_ROUNDS.length })}
-			</span>
+			<span class="sr-only">{t('play.round', { n: round + 1, total: DEMO_ROUNDS.length })}</span>
+			<div class="round-capsules" aria-hidden="true">
+				{#each DEMO_ROUNDS as _, index (index)}
+					<span
+						class="capsule"
+						class:is-won={capsuleState(index) === 'won'}
+						class:is-lost={capsuleState(index) === 'lost'}
+						class:is-current={capsuleState(index) === 'current'}
+					></span>
+				{/each}
+			</div>
 			<TimerBadge {seconds} {alert} idle={phase !== 'question'} />
 		</div>
 
@@ -134,6 +152,15 @@
 			you={{ nick: DEMO_YOU, points: pointsYou }}
 			rival={{ nick: DEMO_RIVAL, points: pointsRival }}
 		/>
+
+		<div class="time-bar" aria-hidden="true">
+			<span
+				class="time-bar__fill"
+				class:is-warn={seconds <= 8 && seconds > 4}
+				class:is-alert={seconds <= 4}
+				style="width: {timeLeft}%"
+			></span>
+		</div>
 
 		<QuestionCard
 			category={current.category}

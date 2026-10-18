@@ -1,6 +1,6 @@
 import type { MessageKey } from '#lib/i18n';
 
-/** Las seis categorías del juego; el color lo pone la piel. */
+/** Las seis categorías del juego; el color lo pone el badge de la pregunta. */
 export type Category = 'science' | 'geography' | 'history' | 'sports' | 'entertainment' | 'art';
 
 export const CATEGORIES: readonly Category[] = [
