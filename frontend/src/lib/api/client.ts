@@ -1,4 +1,5 @@
 import { PUBLIC_API_URL } from '$app/env/public';
+import { connection } from './connection.svelte';
 
 /**
  * Falla del contrato (`{"error": {"code", "message"}}`). Se ramifica por `code`:
@@ -48,8 +49,12 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 			body: form ?? (body === undefined ? undefined : JSON.stringify(body))
 		});
 	} catch {
+		connection.unreachable();
 		throw new ApiError(0, NETWORK_ERROR, 'No se pudo conectar con el servidor.');
 	}
+
+	// Llegó una respuesta: la API está viva aunque el pedido haya fallado.
+	connection.reachable();
 
 	if (response.status === 204) return undefined as T;
 

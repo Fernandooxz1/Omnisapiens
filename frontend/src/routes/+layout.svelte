@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import '../app.css';
+	import ConnectionBanner from '#lib/components/ConnectionBanner.svelte';
+	import Toast from '#lib/components/Toast.svelte';
 	import { t } from '#lib/i18n';
 	import { unlockSound } from '#lib/sound.svelte';
 	import type { LayoutProps } from './$types';
@@ -26,3 +28,6 @@
 <main class="shell">
 	{@render children()}
 </main>
+
+<ConnectionBanner />
+<Toast />

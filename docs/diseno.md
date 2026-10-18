@@ -187,7 +187,19 @@ la **barra de tiempo** (verde → amarillo → rojo) como cuenta atrás visual.
 | `CodeInput` | 6 casillas, alfabeto sin `O/0/I/1`, pegado del código completo |
 | `Modal` | fondo plano (sin blur), `Enter`/`Esc`, foco atrapado |
 | `Toast` | errores de la API con `code` + `message` |
+| `ConnectionBanner` | banda fija cuando la API no responde, con `Reintentar` |
 | `LifeStrip` | 3 vidas del arcade, se apagan con animación corta |
+
+### Errores
+
+- **`Toast`**: abajo y centrado; panel con filo rojo, el `code` de la API y el `message` del
+  servidor. Se apila hasta tres, se cierra solo a los 7 s o con la cruz, y no repite la caída
+  de red (esa la cubre la banda).
+- **`ConnectionBanner`**: aparece cuando un `fetch` no llega a la API; sondea `/health` cada
+  4 s y `Reintentar` vuelve a probar sin recargar la pantalla. No cambia el estado de la
+  partida: eso lo resuelve el WebSocket.
+- **Ruta rota**: `+error.svelte` muestra el estado HTTP, un título según 404/genérico y la
+  vuelta al inicio.
 
 ## Partida
 

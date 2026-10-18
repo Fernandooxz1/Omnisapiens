@@ -5,8 +5,8 @@
 
 ## Ahora
 
-- [ ] Errores: `+error.svelte`, `Toast` con `code`/`message` y aviso de API caída.
+- [ ] Borrar `frontend/dev/` cuando lobby + arcade anden en SvelteKit.
 
 ## Después
 
-- [ ] Borrar `frontend/dev/` cuando lobby + arcade anden en SvelteKit.
+- [ ] Agregar preguntas sin fricción: plantilla y guía de autoría sobre el importador.

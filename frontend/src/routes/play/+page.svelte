@@ -8,6 +8,7 @@
 	import Button from '#lib/components/Button.svelte';
 	import CodeInput from '#lib/components/CodeInput.svelte';
 	import { t, type MessageKey } from '#lib/i18n';
+	import { toast } from '#lib/toast.svelte';
 
 	const ROUNDS = [3, 5, 7] as const;
 	const SECONDS = [10, 20, 30] as const;
@@ -47,7 +48,9 @@
 			const room = await createRoom(session.token, { rounds, seconds });
 			await goto(`/room/${room.code}`);
 		} catch (failure) {
-			error = errorKey(failure);
+			const key = errorKey(failure);
+			error = key;
+			if (key === 'play.error_generic') toast.failure(failure, t(key));
 		} finally {
 			busy = null;
 		}
@@ -74,7 +77,9 @@
 
 			await goto(`/room/${room.code}`);
 		} catch (failure) {
-			error = errorKey(failure);
+			const key = errorKey(failure);
+			error = key;
+			if (key === 'play.error_generic') toast.failure(failure, t(key));
 		} finally {
 			busy = null;
 		}

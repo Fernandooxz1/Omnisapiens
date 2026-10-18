@@ -16,6 +16,7 @@
 	import CategoryBadge from '#lib/components/CategoryBadge.svelte';
 	import { CATEGORIES, categoryKey, type Category } from '#lib/categories';
 	import { t, type MessageKey } from '#lib/i18n';
+	import { toast } from '#lib/toast.svelte';
 
 	const PAGE_SIZE = 20;
 	const STATUSES: QuestionStatus[] = ['draft', 'published', 'archived'];
@@ -82,10 +83,12 @@
 		} catch (error) {
 			if (current !== request) return;
 
-			tokenError = errorKey(error);
+			const key = errorKey(error);
+			tokenError = key;
 			failure = null;
 			result = null;
 			unlocked = false;
+			if (key !== 'admin.error_token') toast.failure(error, t(key));
 
 			if (error instanceof ApiError && error.code === 'ADMIN_REQUIRED') {
 				adminToken = '';
@@ -124,7 +127,9 @@
 				return;
 			}
 
-			failure = errorKey(error);
+			const key = errorKey(error);
+			failure = key;
+			toast.failure(error, t(key));
 		} finally {
 			if (current === request) loading = false;
 		}
@@ -227,7 +232,9 @@
 			} else if (error instanceof ApiError && error.code === 'IMPORT_FORMAT') {
 				importReason = error.message;
 			} else {
-				importFailure = errorKey(error);
+				const key = errorKey(error);
+				importFailure = key;
+				toast.failure(error, t(key));
 			}
 		} finally {
 			importing = false;

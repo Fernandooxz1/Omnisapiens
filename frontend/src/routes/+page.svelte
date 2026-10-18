@@ -10,6 +10,7 @@
 	import NickInput from '#lib/components/NickInput.svelte';
 	import SoundToggle from '#lib/components/SoundToggle.svelte';
 	import { t, type MessageKey } from '#lib/i18n';
+	import { toast } from '#lib/toast.svelte';
 
 	/** Falla del campo: se marca el pozo del nick en vez de avisar suelto. */
 	const FIELD_ERRORS: MessageKey[] = ['home.nick_taken', 'home.nick_invalid'];
@@ -38,7 +39,9 @@
 			await session.identify(nick);
 			await goto(path);
 		} catch (failure) {
-			error = errorKey(failure);
+			const key = errorKey(failure);
+			error = key;
+			if (key === 'home.enter_failed') toast.failure(failure, t(key));
 		} finally {
 			entering = false;
 		}

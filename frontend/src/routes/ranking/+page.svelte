@@ -6,6 +6,7 @@
 	import Button from '#lib/components/Button.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import { t } from '#lib/i18n';
+	import { toast } from '#lib/toast.svelte';
 
 	const LIMIT = 50;
 	const PERIODS: LeaderboardPeriod[] = ['all', 'week'];
@@ -46,8 +47,10 @@
 			const board = await leaderboard(selected, LIMIT);
 			if (current !== request) return;
 			entries = board.entries;
-		} catch {
-			if (current === request) failed = true;
+		} catch (failure) {
+			if (current !== request) return;
+			failed = true;
+			toast.failure(failure, t('ranking.error'));
 		} finally {
 			if (current === request) loading = false;
 		}
