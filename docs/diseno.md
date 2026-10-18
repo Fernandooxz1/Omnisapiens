@@ -1,7 +1,7 @@
 # Sistema de diseño
 
 > Cómo se ve y se siente Omnisapiens. Se consulta al construir cualquier pantalla.
-> Referencia viva: `frontend/design/pruebadeArgon4.html` (lenguaje de la pizarra cálida).
+> Los tokens de `frontend/src/app.css` son la fuente de verdad; este documento explica el porqué.
 
 ## Un solo estilo
 
