@@ -18,6 +18,8 @@ Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `doc
 
 El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en Redis. El plan del MVP está abajo en este archivo y el diseño de datos en el **Anexo A**: se consultan por fragmento (`grep` o `read` con `offset`/`limit`), no hace falta leerlos enteros. Verificación estándar antes de commitear: `make up` una vez y `make lint` + `make cov`.
 
+La página de prueba vive en `frontend/dev/` y se sirve con `make web` en `http://localhost:5173` (el API sigue en `:8000`; CORS ya permite ese origen). Es de desarrollo, no el producto: una pantalla con login de invitado, sala 1v1, revancha, arcade, ranking y log crudo de mensajes. Verificada con Chromium en dos pestañas.
+
 ### Hecho
 
 - [x] Base, `models/` (7 tablas), Alembic `0001`–`0003` y guardia de schema.
@@ -28,12 +30,12 @@ El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en R
 - [x] `GET /me` con marcas (`all_time`/`week`) e historial de arcade y 1v1 (`services/profile.py`), tope 10 y solo `finished`.
 - [x] Barrendero periódico (`REAPER_INTERVAL_SECONDS=60`) con lo vivo en memoria excluido (`runtime/live.py` y `RoomStore.live()`), cancelado limpio en el shutdown.
 - [x] Auditoría H-01..H-25, README y calidad (ruff/mypy/cobertura/CI).
+- [x] Página de prueba (`frontend/dev/`, `make web`): dos pestañas, sala + revancha, arcade y ranking.
 
 ### Próximos pasos
 
-**Ahora: página mínima de dos pestañas.** El smoke test de `/tmp` cubre la API sola, pero falta probar a ojo sala + revancha + arcade con dos navegadores. Es frontend de prueba, no producto: una sola pantalla que pida nick, cree/entre a una sala y muestre las preguntas. No invertir en estilos.
+**Ahora: Fase 1 del panel de preguntas.** El backend ya está completo para jugar; sigue el primer endpoint de administración con `X-Admin-Token`.
 
-- [ ] Página mínima para probar dos pestañas (el smoke test de `/tmp` ya cubre la API sola).
 - [ ] Fase 1: `GET /admin/questions` paginado con `X-Admin-Token`.
 - [ ] Fase 1: `POST /admin/questions/import` y devolver `X-Admin-Token` a `config.py`.
 - [ ] Fase 6: PWA, e2e y documentación (la parte de frontend es de otra persona).

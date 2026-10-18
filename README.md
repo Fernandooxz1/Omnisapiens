@@ -1,7 +1,8 @@
 # Omnisapiens
 
 Trivia online. Backend en **FastAPI + Python 3.12**, PostgreSQL 16 y Redis 7.
-El frontend (SvelteKit) lo hace otra persona: este repo es el backend.
+El frontend real (SvelteKit) lo hace otra persona: `frontend/dev/` es una página de
+prueba del backend, no el producto.
 
 ## Levantarlo en cinco comandos
 
@@ -19,6 +20,18 @@ Comprobación: `GET http://localhost:8000/health` devuelve
 `{"api":"ok","db":"ok","redis":"ok"}`. La documentación interactiva queda en
 `http://localhost:8000/docs`.
 
+## Probar a ojo (sala y arcade)
+
+Con `make api` corriendo, en otra terminal:
+
+```bash
+make web   # sirve frontend/dev/ en http://localhost:5173
+```
+
+Abrí `http://localhost:5173`. Para el 1v1 hacen falta **dos pestañas con nicks
+distintos** (no dupliques la pestaña: las dos compartirían la sesión). La página
+muestra el log crudo de los mensajes WebSocket y no es el frontend del producto.
+
 ## Comandos
 
 | Comando | Qué hace |
@@ -28,6 +41,7 @@ Comprobación: `GET http://localhost:8000/health` devuelve
 | `make seed` | Importa `backend/seeds/questions.csv` como publicadas |
 | `make import FILE=mi.csv` | Importa un CSV propio (queda en `draft` si no se publica) |
 | `make api` | API en `:8000` con reload |
+| `make web` | Página de prueba en `:5173` (sirve `frontend/dev/`) |
 | `make test` | Tests (rápido, sin umbral de cobertura) |
 | `make cov` | Tests con cobertura y umbral de 85 % (el gate del CI) |
 | `make lint` | `ruff check` + `ruff format --check` + `mypy --strict` |
