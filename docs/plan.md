@@ -9,7 +9,7 @@
 El **backend está terminado** (HTTP, WS, salas, arcade, ranking, panel de admin, 547 tests,
 cobertura 94 %) y no se toca. El **frontend cubre el MVP** en `frontend/` (SvelteKit +
 TypeScript): inicio, creación y unión de salas, partida 1v1, arcade, ranking, panel de admin,
-sonido, teclado y PWA instalable. Quedan la suite e2e, el tratamiento de errores
+sonido, teclado, PWA instalable y suite e2e. Quedan el tratamiento de errores
 (`+error.svelte` y avisos de API caída) y retirar `frontend/dev/`, la página histórica de
 prueba del backend.
 
@@ -164,7 +164,7 @@ Componentes, tokens y reglas visuales: `docs/diseno.md`.
 | 3 Partida online | rondas cronometradas, revelación, puntajes, desempate, gracia, revancha | ✅ backend |
 | 4 Arcade y ranking | 3 vidas, progresión, corte semanal, récord personal | ✅ backend |
 | 5 Identidad visual | componentes propios, SVG, sonido, teclado, sin scroll, ≤250 KB JS | ✅ frontend |
-| 6 PWA, e2e y docs | instalable, Playwright en CI, plan y README al día | PWA ✅ · e2e pendiente |
+| 6 PWA, e2e y docs | instalable, Playwright en CI, plan y README al día | ✅ |
 | 7 (opcional) Publicar | `docker-compose.prod.yml`, `docs/deploy.md` | pendiente |
 
 ## Definición de terminado del MVP

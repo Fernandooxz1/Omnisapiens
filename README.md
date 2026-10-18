@@ -197,8 +197,8 @@ a arrancar si el estado vivo está en memoria sin `SINGLE_PROCESS=1`.
 | `make lint` | `ruff` + `mypy --strict` |
 | `make check-schema` | Verifica que modelos y migraciones coincidan |
 
-En `frontend/`: `npm run dev`, `npm run build`, `npm run preview` y `npm run check`
-(`svelte-check`).
+En `frontend/`: `npm run dev`, `npm run build`, `npm run preview`, `npm run check`
+(`svelte-check`) y `npm run test:e2e` (Playwright, con la API levantada).
 
 ## Pruebas y calidad
 
@@ -206,9 +206,12 @@ En `frontend/`: `npm run dev`, `npm run build`, `npm run preview` y `npm run che
   corriendo. `make cov` exige una cobertura mínima del 85 %.
 - `make lint` aplica `ruff` y `mypy --strict`; `make check-schema` detecta modelos sin migrar.
 - El frontend pasa `svelte-check` y un build de producción sin advertencias.
-- La suite e2e con Playwright (un 1v1 completo y un arcade hasta el final) está pendiente y
-  figura en `docs/tareas.md`.
-- El CI ejecuta lint, migraciones, cobertura del backend y `check` + `build` del frontend.
+- La suite e2e con Playwright juega un 1v1 completo (dos contextos) y un arcade hasta el final
+  contra el backend real, no contra mocks: necesita `make up && make migrate && make seed` y la
+  API en `:8000`. Se corre con `npm run test:e2e` desde `frontend/`; Playwright levanta la SPA
+  en `:5173`.
+- El CI ejecuta lint, migraciones, cobertura del backend, `check` + `build` del frontend y la
+  suite e2e.
 
 ## API
 

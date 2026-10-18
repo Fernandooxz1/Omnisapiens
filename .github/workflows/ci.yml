@@ -64,3 +64,68 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trivia
+          POSTGRES_PASSWORD: trivia
+          POSTGRES_DB: trivia
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ENV: ci
+      SINGLE_PROCESS: 1
+      DATABASE_URL: postgresql+asyncpg://trivia:trivia@localhost:5432/trivia
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-secret-con-32-bytes-o-mas-para-no-avisar
+      ADMIN_TOKEN: ci-admin-token-con-32-bytes-o-mas
+      CORS_ORIGINS: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          cache-dependency-glob: backend/uv.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: uv sync --frozen --project backend
+      - run: make migrate
+      - run: make seed
+      # La API corre en background durante toda la suite; el frontend lo levanta Playwright.
+      - name: Start API
+        run: |
+          cd backend
+          nohup uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/api.log 2>&1 &
+      - run: curl --fail --silent --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:8000/health
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7
