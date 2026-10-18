@@ -24,13 +24,17 @@ const base = PUBLIC_API_URL.replace(/\/+$/, '');
 interface RequestOptions {
 	method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
 	body?: unknown;
+	/** `multipart/form-data`: el navegador arma el boundary. */
+	form?: FormData;
 	/** Sin token la llamada va anónima. */
 	token?: string | null;
+	/** Token del panel (`X-Admin-Token`), no el `Bearer` del jugador. */
+	adminToken?: string | null;
 }
 
 /** Única salida HTTP del cliente: arma la URL, pone el `Bearer` y traduce el error. */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-	const { method = 'GET', body, token } = options;
+	const { method = 'GET', body, form, token, adminToken } = options;
 	let response: Response;
 
 	try {
@@ -38,9 +42,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 			method,
 			headers: {
 				...(body === undefined ? {} : { 'content-type': 'application/json' }),
-				...(token ? { authorization: `Bearer ${token}` } : {})
+				...(token ? { authorization: `Bearer ${token}` } : {}),
+				...(adminToken ? { 'x-admin-token': adminToken } : {})
 			},
-			body: body === undefined ? undefined : JSON.stringify(body)
+			body: form ?? (body === undefined ? undefined : JSON.stringify(body))
 		});
 	} catch {
 		throw new ApiError(0, NETWORK_ERROR, 'No se pudo conectar con el servidor.');

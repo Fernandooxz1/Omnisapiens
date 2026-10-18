@@ -1,5 +1,7 @@
 /** Respuestas del backend tal cual, según `docs/api.md`. El cliente no las reescribe. */
 
+import type { Category } from '#lib/categories';
+
 export interface User {
 	id: string;
 	nick: string;
@@ -87,4 +89,53 @@ export interface Me extends User {
 	best: { all_time: number | null; week: number | null } | null;
 	arcade_runs: ArcadeRun[];
 	matches: MatchSummary[];
+}
+
+export type QuestionStatus = 'draft' | 'published' | 'archived';
+
+/** Vista del panel: es la única que trae `correct_index`. */
+export interface AdminQuestion {
+	id: string;
+	category: Category;
+	difficulty: number;
+	prompt: string;
+	options: string[];
+	correct_index: number;
+	explanation: string | null;
+	source: string | null;
+	status: QuestionStatus;
+	media_type: string;
+	media_url: string | null;
+	tags: string[];
+	created_at: string;
+	updated_at: string;
+}
+
+export interface AdminQuestionPage {
+	items: AdminQuestion[];
+	page: number;
+	page_size: number;
+	total: number;
+	pages: number;
+}
+
+export interface AdminFilters {
+	status?: QuestionStatus;
+	category?: Category;
+	difficulty?: number;
+	q?: string;
+	page?: number;
+	page_size?: number;
+}
+
+export interface RejectedRow {
+	row: number;
+	reason: string;
+}
+
+export interface ImportReport {
+	total: number;
+	imported: number;
+	duplicated: number;
+	rejected: RejectedRow[];
 }

@@ -5,11 +5,10 @@
 
 ## Ahora
 
-- [ ] Admin de preguntas (token, listado, subida).
+- [ ] Sonido, teclado (`1`–`4`, `Enter`) y PWA.
 
 ## Después
 
-- [ ] Sonido, teclado (`1`–`4`, `Enter`) y PWA.
 - [ ] Playwright: una partida 1v1 completa y un arcade hasta el final.
 - [ ] Errores: `+error.svelte`, `Toast` con `code`/`message` y aviso de API caída.
 - [ ] Borrar `frontend/dev/` cuando lobby + arcade anden en SvelteKit.
