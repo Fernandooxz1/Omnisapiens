@@ -99,14 +99,73 @@ la mejor fuente para este juego.
 ### Escribirlas vos (o con ayuda de un modelo)
 
 Es la mejor calidad por esfuerzo, sobre todo para historia, arte, deporte y entretenimiento.
-Un prompt útil para un borrador:
+Para un lote nuevo, copiá el prompt de abajo y **adjuntá `backend/seeds/questions.csv`** (o
+pegá solo su columna `prompt`): así el modelo sabe qué preguntas ya existen y no las repite.
+Cambiá la cantidad si querés otro tamaño, pero conservá la distribución por categoría y
+dificultad.
 
-> Generá N preguntas de trivia en español rioplatense neutro sobre \<tema\>. Devolvé solo CSV
-> con estas columnas: category,difficulty,prompt,option_a,option_b,option_c,option_d,correct,
-> explanation,source,tags. Una sola respuesta correcta, tres distractores plausibles de la
-> misma categoría, dificultad 1–5 y explicación de una frase. No repitas preguntas.
+```text
+Sos editor de contenido de Omnisapiens, un juego de trivia en español rioplatense neutro.
+Tu tarea es escribir preguntas nuevas y devolver un único CSV listo para importar.
 
-Después se revisa a mano: un modelo inventa fechas y atribuciones con seguridad.
+CONTEXTO
+Te adjunto el CSV del banco actual (`backend/seeds/questions.csv`). Leelo completo antes de
+escribir. No repitas ni reformules ninguno de sus enunciados, ni siquiera cambiando las
+opciones. No reutilices la misma respuesta correcta con otro enunciado.
+
+CANTIDAD Y BALANCE
+Escribí 60 preguntas: 10 por cada categoría.
+En cada categoría: 2 de dificultad 1, 2 de 2, 2 de 3, 2 de 4 y 2 de 5.
+Variá los temas dentro de cada categoría; no hagas diez preguntas de fútbol ni diez de cine.
+
+FORMATO DE SALIDA
+Devolvé solo el CSV, sin explicación, sin markdown y sin bloques de código.
+Encabezado exacto, una sola vez:
+category,difficulty,prompt,option_a,option_b,option_c,option_d,correct,explanation,source,tags
+
+Reglas de cada columna:
+- category: geography, history, science, art, entertainment o sports.
+- difficulty: entero de 1 a 5 (1 fácil, 5 difícil).
+- prompt: una sola pregunta autosuficiente, de 1 a 300 caracteres.
+- option_a, option_b, option_c, option_d: cuatro opciones no vacías y distintas entre sí.
+- correct: A, B, C o D, y tiene que coincidir con la posición de la opción correcta.
+- explanation: una frase con el dato o el porqué; no repitas literalmente la opción.
+- source: llm.
+- tags: 1 a 4 etiquetas en minúsculas, separadas por `;` y sin comas.
+
+REGLAS DE CONTENIDO
+- Una sola respuesta correcta e indiscutible. Si hay dos defendibles, descartá la pregunta.
+- Los tres distractores tienen que ser del mismo tipo que la correcta y plausibles; nada de
+  opciones absurdas, "todas las anteriores" ni "ninguna de las anteriores".
+- No uses preguntas negativas ("¿Cuál NO...?") ni preguntas de opinión.
+- Dificultad: 1 es cultura general amplia; 3 es secundaria; 5 es especializado. Difícil no
+  significa inventado ni irrelevante: el dato tiene que ser verificable.
+- Usá hechos estables. Evitá "actualmente", cargos vigentes, récords que cambian, precios,
+  dueños de clubes, fronteras disputadas y cualquier dato de la coyuntura.
+- Español neutro con tildes y signos correctos. Opciones cortas, sin explicaciones adentro.
+- Repartí la letra correcta entre A, B, C y D; no pongas todas en la misma letra.
+- Si no estás seguro de un dato, descartá la pregunta: no la inventes ni la completes con
+  una fecha aproximada.
+
+CSV
+- UTF-8, sin BOM, sin líneas vacías y sin filas de ejemplo.
+- Si un campo tiene coma, comilla o salto de línea, va entre comillas dobles; las comillas
+  internas se duplican. No uses saltos de línea dentro de un campo.
+- Una fila por pregunta. No agregues columnas ni comentarios.
+
+Ejemplo de formato (no lo incluyas: ya existe en el banco):
+geography,3,¿Cuál es la capital de Australia?,Sídney,Melbourne,Canberra,Perth,C,"Canberra es la capital, no la ciudad más poblada.",llm,capitales;oceanía
+
+ANTES DE RESPONDER, VERIFICÁ
+- Hay 60 filas de datos además del encabezado.
+- Hay 10 preguntas por categoría y 2 por cada dificultad.
+- Todas tienen cuatro opciones distintas y una letra `correct` que coincide.
+- No hay enunciados repetidos ni parecidos a los del banco adjunto.
+- Ningún campo con comas quedó sin comillas y no hay markdown alrededor del CSV.
+```
+
+Después se revisa a mano: un modelo inventa fechas y atribuciones con seguridad. El
+importador rechaza las filas mal formadas, pero no detecta un dato falso.
 
 ## Antes de publicar
 
