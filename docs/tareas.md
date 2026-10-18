@@ -5,12 +5,11 @@
 
 ## Ahora
 
-- [ ] Cliente WS (`ws.ts`) con reconexión y heartbeat.
+- [ ] Conectar la partida al servidor: reemplazar `src/lib/demo/` por el estado real (ronda,
+      `ends_at`, revelación de 2,5 s) y borrar la carpeta demo.
 
 ## Después
 
-- [ ] Conectar la partida al servidor: reemplazar `src/lib/demo/` por el estado real (ronda,
-      `ends_at`, revelación de 2,5 s) y borrar la carpeta demo.
 - [ ] Crear/unirse a sala y lobby con código gigante.
 - [ ] Fin de partida + revancha contra el servidor (la pantalla ya existe con datos de ejemplo).
 - [ ] Arcade completo (`LifeStrip`, fin con ranking).
