@@ -126,5 +126,19 @@
 	"arcade.error_no_questions": "El servidor no tiene preguntas para la corrida.",
 	"arcade.error_start": "No se pudo registrar la corrida. Probá de nuevo.",
 	"arcade.error_generic": "No se pudo seguir la corrida.",
-	"ranking.title": "Ranking"
+	"ranking.title": "Ranking",
+	"ranking.period": "Período",
+	"ranking.global": "Global",
+	"ranking.week": "Semanal",
+	"ranking.all_hint": "Las mejores marcas de siempre.",
+	"ranking.week_hint": "La semana empieza el lunes.",
+	"ranking.mine": "Tu posición",
+	"ranking.no_rank": "Jugá una corrida para entrar en este ranking.",
+	"ranking.player": "Jugador",
+	"ranking.points": "Puntos",
+	"ranking.score": "{n} pts",
+	"ranking.loading": "Cargando ranking…",
+	"ranking.empty": "Todavía no hay marcas.",
+	"ranking.error": "No se pudo cargar el ranking.",
+	"ranking.retry": "Reintentar"
 }

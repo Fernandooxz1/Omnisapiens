@@ -38,6 +38,33 @@ export interface RoomPreview {
 	players: number;
 }
 
+export type LeaderboardPeriod = 'all' | 'week';
+
+export interface LeaderboardEntry {
+	position: number;
+	nick: string;
+	score: number;
+	/** ISO-8601. */
+	achieved_at: string;
+}
+
+export interface Leaderboard {
+	period: LeaderboardPeriod;
+	entries: LeaderboardEntry[];
+}
+
+/** Los tres campos van juntos: sin corridas en el período, los tres son `null`. */
+export interface ArcadeRank {
+	rank: number | null;
+	score: number | null;
+	achieved_at: string | null;
+}
+
+export interface MyRanks {
+	global: ArcadeRank;
+	week: ArcadeRank;
+}
+
 export interface ArcadeRun {
 	id: string;
 	score: number;
