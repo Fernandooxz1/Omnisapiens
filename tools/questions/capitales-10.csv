@@ -1,0 +1,11 @@
+category,difficulty,prompt,option_a,option_b,option_c,option_d,correct,explanation,source,tags
+geography,1,¿Cuál es la capital de Alemania?,Múnich,Hamburgo,Berlín,Colonia,C,Berlín es la capital desde la reunificación de 1990.,manual,capitales;europa
+geography,1,¿Cuál es la capital de Japón?,Osaka,Tokio,Kioto,Yokohama,B,Tokio es la capital de Japón desde 1868.,manual,capitales;asia
+geography,1,¿Cuál es la capital de Italia?,Roma,Milán,Nápoles,Venecia,A,Roma es la capital de Italia desde 1871.,manual,capitales;europa
+geography,1,¿Cuál es la capital de Egipto?,El Cairo,Alejandría,Luxor,Guiza,A,El Cairo es la capital de Egipto y su ciudad más grande.,manual,capitales;áfrica
+geography,2,¿Cuál es la capital de Brasil?,Río de Janeiro,San Pablo,Brasilia,Salvador,C,Brasilia es la capital desde 1960; antes lo era Río de Janeiro.,manual,capitales;américa
+geography,2,¿Cuál es la capital de Turquía?,Estambul,Ankara,Esmirna,Antalya,B,Ankara es la capital desde la fundación de la República en 1923.,manual,capitales;asia
+geography,3,¿Cuál es la capital de la India?,Bombay,Nueva Delhi,Calcuta,Bangalore,B,Nueva Delhi es la capital; Bombay es la ciudad más poblada.,manual,capitales;asia
+geography,3,¿Cuál es la capital de Marruecos?,Rabat,Casablanca,Marrakech,Fez,A,Rabat es la capital; Casablanca es la ciudad más poblada.,manual,capitales;áfrica
+geography,3,¿Cuál es la capital de Pakistán?,Karachi,Islamabad,Lahore,Peshawar,B,Islamabad es la capital desde 1967; Karachi fue la anterior.,manual,capitales;asia
+geography,4,¿Cuál es la capital de Nigeria?,Lagos,Abuya,Kano,Ibadán,B,Abuya es la capital desde 1991; Lagos fue la anterior.,manual,capitales;áfrica

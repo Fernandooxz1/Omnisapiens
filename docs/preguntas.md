@@ -76,6 +76,13 @@ población y `source=wikidata`. Los distractores son países de población parec
 siendo una heurística: revisá que las opciones sean plausibles y ajustá la dificultad a mano.
 Después se importa como cualquier CSV.
 
+`tools/questions/capitales-10.csv` es un lote ya curado como ejemplo: 4 fáciles, 2 medias y 4
+difíciles, con distractores elegidos a mano. Se importa tal cual:
+
+```sh
+cd backend && uv run python -m app.cli import-questions ../tools/questions/capitales-10.csv --status published
+```
+
 La consulta se puede adaptar a otros datos con la misma forma (obra → autor, país → moneda,
 elemento → símbolo). Lo que no conviene automatizar sin revisión son preguntas de historia,
 entretenimiento o deporte: la respuesta depende del recorte y de la actualidad.
