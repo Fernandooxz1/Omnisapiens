@@ -189,7 +189,6 @@
 			{:else if phase === 'waiting'}
 				<p class="muted">{t('play.waiting', { nick: DEMO_RIVAL })}</p>
 			{:else}
-				<p class="explain" data-cat={current.category}>{current.explanation}</p>
 				<p class="delta">
 					{t('play.delta', {
 						you: delta(youRight ? DEMO_POINTS : 0),

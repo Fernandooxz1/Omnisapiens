@@ -12,12 +12,12 @@ color ni temas alternativos; lo que cambia es el **acento** del jugador.
 |---|---|
 | Idea | Preguntados: botones gruesos de maquinita sobre un tablero oscuro y cálido |
 | Fondo | plano `#191724` con textura de puntos: **no** hay luz difusa ni degradado de relleno |
-| Superficie | panel `#2E2A42` con base sólida `0 6px 0 #181524`; tarjeta `#232033`, filo `#12101B` |
+| Superficie | panel `#2E2A42` con base sólida `0 6px 0 #181524`; sombra dura de texto `#12101B` |
 | Profundidad | bisel de luz arriba (`inset 0 2px 0 rgb(255 255 255 / .28)`) + base dura del color del filo |
 | Radios | `24` paneles · `20` botones · `18` respuestas y pozos · `14` pastillas |
-| Tamaños | botón de modo 78 px · respuesta ≥ 60 px (crece hasta 112 px) · táctiles ≥ 44 px |
+| Tamaños | botón de modo 78 px · respuesta ≥ 56 px (crece hasta 88 px) · táctiles ≥ 44 px |
 | Texto | mayúsculas en botones y badges · `Plus Jakarta Sans` + `Fredoka` |
-| Tiles de respuesta | **teclas blancas y altas**, una por fila, con la tecla `1`–`4` en un keycap a la izquierda |
+| Tiles de respuesta | **teclas blancas chatas**, una por fila, con la tecla `1`–`4` en un keycap a la izquierda |
 | Extras | sello del logo, tarjeta de perfil con avatar y swatches, marcador abierto con corona |
 
 **Las reglas de abajo no se negocian:**
@@ -89,7 +89,7 @@ El jugador no elige un tema, elige **su color**: `AccentPicker` escribe `data-ac
 ```css
 :root {
   --r-sm: 10px; --r-md: 14px; --r-lg: 24px; --r-key: 20px; --r-tile: 18px;
-  --border-w: 2.5px; --depth-key: 6px; --depth-tile: 5px;
+  --border-w: 2.5px; --depth-key: 6px;
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px;
   --font-display: 'Fredoka', system-ui, sans-serif;
 }
@@ -149,14 +149,23 @@ squircle verde de 34 px con relieve propio (`inset 0 2px 0 rgb(255 255 255 / .4)
 ## Respuestas (teclado mecánico)
 
 Las cuatro opciones van **en una columna**: una tecla por fila, y la columna se reparte el
-alto libre de la pantalla (`min-height: 60px`, `max-height: 112px`). Son teclas blancas
-(`#F8FAFC`), borde `2px solid #E2E8F0`, radio 18 px y base de 5 px. El número `1`–`4` vive en
-un **keycap** de 30×30 px a la izquierda, con su propio relieve (`0 2.5px 0 #CBD5E1`) y el
-número en azul. La etiqueta va centrada para que **no se mueva** cuando aparecen las marcas.
+alto libre de la pantalla (`min-height: 56px`, `max-height: 88px`). Son teclas blancas
+(`#F8FAFC`), sin borde, radio 18 px y una base de 4 px; el volumen es chato, un bisel de luz
+arriba (`inset 0 3px 0 #FFF`) y **sin sombra proyectada**. El número `1`–`4` vive en un
+**keycap** de 26×26 px a la izquierda, con su propio relieve (`0 2px 0 #CBD5E1`) y el número
+en azul. La etiqueta va centrada para que **no se mueva** cuando aparecen las marcas.
 
-Lo único que cambia entre estados es el color y la marca: elegido = borde azul, acierto =
-**verde**, fallo = **rojo** con una sacudida horizontal de `0.36s`; en acierto y fallo la
-tecla pasa a su filo y el texto a blanco.
+Lo único que cambia entre estados es el **color**: elegido = borde azul, acierto = **verde**,
+fallo = **rojo** con una sacudida horizontal de `0.36s`. El cuerpo es el mismo en los tres
+(relleno liso, bisel de luz y base de 4 px del filo), así que la tecla no cambia de forma al
+revelarse; en acierto y fallo el texto pasa a blanco.
+
+## Marcador abierto y pastillas
+
+El **marcador** no lleva caja: avatar, nick y puntos flotan sobre el tablero a cada lado y
+en el medio van las **cápsulas de ronda** o el `vs`. El reloj es una **pastilla** con ícono
+de reloj sobre `ends_at`; en los últimos 5 s se pinta rojo y late. Debajo del marcador corre
+la **barra de tiempo** (verde → amarillo → rojo) como cuenta atrás visual.
 
 ## Componentes
 
@@ -166,7 +175,7 @@ tecla pasa a su filo y el texto a blanco.
 | `AccentPicker` | swatches del acento del jugador; escribe `data-accent` y `localStorage` (clave `omni-accent`) |
 | `Avatar` | squircle 44 px con la inicial; acento propio o naranja del rival; corona al que va ganando |
 | `CategoryBadge` | pastilla `--r-full` con color `--cat-*` + etiqueta de `es.json` |
-| `AnswerTile` | idle/selected/correct/wrong/dim · una por fila · keycap `1`–`4` · verde/rojo al revelar |
+| `AnswerTile` | idle/selected/correct/wrong/dim · una por fila · keycap `1`–`4` · **misma forma en todos los estados**, solo cambia el color |
 | `QuestionCard` | panel con la pastilla de categoría **centrada sobre el borde** y esticker "Responde" flotante a la derecha |
 | `NickInput` | 1–16, pozo hundido, badge de check, snippet `prefix` para el avatar |
 | `TimerBadge` | pastilla con reloj sobre `ends_at`; late y se pinta rojo en los últimos 5 s, se apaga fuera del turno |
@@ -179,8 +188,8 @@ tecla pasa a su filo y el texto a blanco.
 
 ## Partida
 
-- La **revelación** dura 2,5 s: correcta, qué eligió cada jugador y los puntos. La
-  explicación aparece **solo si el jugador falló**.
+- La **revelación** dura 2,5 s: la correcta, qué eligió cada jugador y los puntos. **No hay
+  explicación de la respuesta**: el tablero queda limpio y se pasa a la ronda siguiente.
 - La pausa la da el servidor antes de servir la próxima ronda; mientras no exista, la
   pantalla de partida no se cierra (`docs/api.md`).
 - Mientras el rival no contestó, la elección propia queda bloqueada y marcada; nunca se

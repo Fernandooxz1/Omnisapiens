@@ -70,8 +70,8 @@ ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # sin O, 0, I, 1
   `round_start` con `ends_at`. La ronda se resuelve cuando **los dos** contestaron o al
   vencer el plazo, lo primero. `round_result` trae la correcta, qué eligió cada uno,
   ms, puntos y el marcador. No contestar = incorrecta, cero puntos.
-- **Revelación:** 2,5 s con la correcta, qué eligió cada uno y los puntos; la explicación
-  aparece solo si el jugador falló. El servidor tiene que pausar ese tiempo antes de servir
+- **Revelación:** 2,5 s con la correcta, qué eligió cada uno y los puntos. La pantalla no
+  explica la respuesta. El servidor tiene que pausar ese tiempo antes de servir
   la próxima ronda (pedido en `docs/api.md`).
 - **Puntaje de ronda:** solo si acertó → `BASE + round(TIME_BONUS_MAX * ratio)`, con
   `ratio = clamp(1 - ms / (seconds * 1000), 0, 1)`. Con 20 s: acertar en 1 s da 148;
@@ -121,7 +121,7 @@ Cada categoría tiene su color y **manda** en el badge y en el feedback de acier
 | Jugar | Una pantalla: crear sala (rondas y segundos) o unirse con el código |
 | Lobby | Código gigante, jugadores conectados, botón `start` solo para el host |
 | Partida | Pregunta, 4 `AnswerTile` en columna, `TimerBadge` + barra de tiempo, cápsulas de ronda, marcador abierto y aviso de rival |
-| Revelación | Correcta, qué eligió cada uno, puntos y explicación |
+| Revelación | Correcta, qué eligió cada uno y puntos |
 | Fin | Ganador, resumen ronda a ronda y revancha |
 | Arcade | Pregunta, vidas (`LifeStrip`), racha, puntaje y tiempo |
 | Fin de arcade | Puntaje, aciertos, mejor racha, mejor marca y posición |
