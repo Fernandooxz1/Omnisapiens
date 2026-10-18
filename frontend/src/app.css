@@ -32,6 +32,7 @@
 	--r-tile: 18px;
 	--r-full: 999px;
 	--border-w: 2.5px;
+	--key-h: 78px;
 	--depth-key: 6px;
 
 	--s-1: 4px;
@@ -49,6 +50,8 @@
 
 	/* Tablero, tarjetas y pozos hundidos */
 	--page-bg: #191724;
+	/* Velo translúcido: el tablero se ve difuminado detrás de lo que flota. */
+	--veil-bg: rgb(25 23 36 / 0.66);
 	--pattern-dot: rgb(255 255 255 / 0.04);
 	--card-edge: #12101b;
 	--panel-bg: #2e2a42;
@@ -323,7 +326,7 @@ input {
 	justify-content: center;
 	gap: 3px;
 	width: 100%;
-	min-height: 78px;
+	min-height: var(--key-h);
 	padding: 15px 20px;
 	border: 0;
 	border-radius: var(--r-key);
@@ -1002,13 +1005,22 @@ input {
 	display: flex;
 	flex-direction: column;
 	gap: var(--s-2);
+	min-height: 1.5rem;
 	margin-top: auto;
 }
 
 /* En juego: la cabecera arriba y el resto repartido, así el aire sobrante no cae
    entero entre la última respuesta y el botón. */
 .match--live {
+	--cta-inset: max(var(--s-5), env(safe-area-inset-bottom));
 	justify-content: space-between;
+	transition: padding-bottom 0.2s ease;
+}
+
+/* El velo del paso siguiente mide `--cta-inset` + `--s-2` + el botón, y el tablero se
+   corre ese mismo alto: entra flotando y no tapa ninguna respuesta. */
+.match--live.is-reveal {
+	padding-bottom: calc(var(--s-2) + var(--key-h));
 }
 
 /* Tope de la columna: 4 teclas de 62 px más sus separaciones. */
@@ -1018,6 +1030,31 @@ input {
 
 .match--live .match__foot {
 	margin-top: 0;
+}
+
+/* En pantallas bajas el tablero cede unos píxeles de sus teclas antes que scrollear. */
+.match--live.is-reveal .tile {
+	min-height: 44px;
+}
+
+.match__cta {
+	position: fixed;
+	inset-inline: 0;
+	bottom: 0;
+	width: 100%;
+	max-width: var(--shell-max);
+	margin-inline: auto;
+	padding: var(--s-2) var(--s-4) var(--cta-inset);
+	background: var(--veil-bg);
+	backdrop-filter: blur(7px);
+	animation: cta-in 0.18s ease-out;
+}
+
+@keyframes cta-in {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
 }
 
 .tile__side {
@@ -1042,13 +1079,6 @@ input {
 
 .tile__mark {
 	display: inline-flex;
-}
-
-.delta {
-	color: var(--ink-3);
-	font-family: var(--font-ui);
-	font-size: 0.8125rem;
-	font-weight: 600;
 }
 
 /* ---------- Enlace al ranking ---------- */

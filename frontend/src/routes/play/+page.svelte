@@ -33,6 +33,13 @@
 	const alert = $derived(phase === 'question' && seconds <= 5);
 	const youRight = $derived(picked === current.correct);
 	const timeLeft = $derived(phase === 'reveal' ? 0 : Math.round((seconds / ROUND_SECONDS) * 100));
+	const deltaText = $derived(
+		t('play.delta', {
+			you: delta(youRight ? DEMO_POINTS : 0),
+			name: DEMO_RIVAL,
+			rival: delta(current.rivalPick === current.correct ? DEMO_POINTS : 0)
+		})
+	);
 
 	// Demo: en el juego real el cliente solo dibuja el `ends_at` que manda el servidor.
 	$effect(() => {
@@ -132,7 +139,7 @@
 		</div>
 	</section>
 {:else}
-	<section class="match match--live">
+	<section class="match match--live" class:is-reveal={phase === 'reveal'}>
 		<div class="match__head">
 			<header class="brand">
 				<h1 class="wordmark">
@@ -197,16 +204,14 @@
 			{:else if phase === 'waiting'}
 				<p class="muted">{t('play.waiting', { nick: DEMO_RIVAL })}</p>
 			{:else}
-				<p class="delta">
-					{t('play.delta', {
-						you: delta(youRight ? DEMO_POINTS : 0),
-						name: DEMO_RIVAL,
-						rival: delta(current.rivalPick === current.correct ? DEMO_POINTS : 0)
-					})}
-				</p>
-				<p class="sr-only">{youRight ? t('play.correct') : t('play.wrong')}</p>
-				<Button variant="blue" title={t('play.next')} onclick={next} />
+				<p class="sr-only">{deltaText}. {youRight ? t('play.correct') : t('play.wrong')}</p>
 			{/if}
 		</div>
+
+		{#if phase === 'reveal'}
+			<div class="match__cta">
+				<Button variant="blue" title={t('play.next')} sub={deltaText} onclick={next} />
+			</div>
+		{/if}
 	</section>
 {/if}
