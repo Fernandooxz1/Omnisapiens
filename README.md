@@ -200,6 +200,13 @@ a arrancar si el estado vivo está en memoria sin `SINGLE_PROCESS=1`.
 En `frontend/`: `npm run dev`, `npm run build`, `npm run preview`, `npm run check`
 (`svelte-check`) y `npm run test:e2e` (Playwright, con la API levantada).
 
+### Cargar preguntas
+
+[`docs/preguntas.md`](docs/preguntas.md) reúne el formato CSV/JSON, la plantilla descargable,
+las reglas de autoría y las fuentes (Wikidata, manual). También se importa desde el panel
+`/admin`; por terminal, `make import FILE=...` carga borradores y el CLI acepta
+`--status published`.
+
 ## Pruebas y calidad
 
 - El backend se prueba contra PostgreSQL y Redis reales, no contra mocks; `make up` debe estar

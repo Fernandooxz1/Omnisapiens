@@ -9,4 +9,4 @@
 
 ## Después
 
-- [ ] Agregar preguntas sin fricción: plantilla y guía de autoría sobre el importador.
+- Nada pedido por ahora.

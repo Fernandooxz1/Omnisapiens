@@ -191,6 +191,8 @@
 	"admin.difficulty_value": "Dificultad {n}",
 	"admin.import_title": "Importar preguntas",
 	"admin.import_hint": "CSV o JSON. Una fila con problemas no aborta la carga.",
+	"admin.import_template": "Descargar plantilla CSV",
+	"admin.import_publish_hint": "Los borradores no entran en las partidas: elegí Publicada si ya revisaste las preguntas.",
 	"admin.import_file": "Archivo",
 	"admin.import_status": "Guardar como",
 	"admin.import": "Importar",

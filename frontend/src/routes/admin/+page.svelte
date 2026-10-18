@@ -472,6 +472,10 @@
 			<h2 class="admin__title">{t('admin.import_title')}</h2>
 			<p class="muted">{t('admin.import_hint')}</p>
 
+			<a class="template" href="/plantilla-preguntas.csv" download>
+				{t('admin.import_template')}
+			</a>
+
 			<label class="field">
 				<span class="field__label">{t('admin.import_file')}</span>
 				<input
@@ -502,6 +506,8 @@
 					{/each}
 				</div>
 			</fieldset>
+
+			<p class="muted">{t('admin.import_publish_hint')}</p>
 
 			<Button
 				variant="blue"
@@ -573,6 +579,25 @@
 		border-radius: var(--r-lg);
 		background: var(--panel-bg);
 		box-shadow: 0 5px 0 var(--panel-edge);
+	}
+
+	.template {
+		display: inline-flex;
+		align-items: center;
+		align-self: flex-start;
+		min-height: 44px;
+		padding: 0 var(--s-3);
+		border-radius: var(--r-sm);
+		background: var(--well-bg);
+		box-shadow: inset 0 3px 0 rgb(0 0 0 / 0.3);
+		color: var(--ink-2);
+		font-size: 0.85rem;
+		font-weight: 600;
+		text-decoration: none;
+	}
+
+	.template:hover {
+		color: var(--ink);
 	}
 
 	.admin__title {
