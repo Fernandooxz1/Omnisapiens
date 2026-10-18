@@ -45,3 +45,17 @@ class AdminQuestionPage(BaseModel):
     # `pages` viene calculado para que el cliente no repita la división (ni se
     # equivoque con el redondeo).
     pages: int
+
+
+class RejectedRowOut(BaseModel):
+    row: int
+    reason: str
+
+
+class ImportReportOut(BaseModel):
+    """El mismo informe que imprime la CLI, para que la pantalla lo muestre igual."""
+
+    total: int
+    imported: int
+    duplicated: int
+    rejected: list[RejectedRowOut]

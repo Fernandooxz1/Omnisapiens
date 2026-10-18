@@ -79,13 +79,22 @@ SQLite ni mocks. Por eso `make up` tiene que estar corriendo.
 - `GET /admin/questions?status=&category=&difficulty=&q=&page=&page_size=` →
   listado del banco para curar (incluye la respuesta correcta). Requiere
   `X-Admin-Token` con el `ADMIN_TOKEN` del `.env`.
+- `POST /admin/questions/import` → sube un CSV o JSON (multipart, campo `file`,
+  `status` opcional `draft`/`published`/`archived`) y devuelve el informe de
+  importadas, duplicadas y rechazadas. Mismo formato que `make import`.
 - `GET /health` → 503 si falta Postgres o Redis.
 
-Ejemplo del panel:
+Ejemplos del panel:
 
 ```bash
-curl -H "X-Admin-Token: dev-admin-token-de-32-bytes-o-mas" \
+TOKEN=dev-admin-token-de-32-bytes-o-mas
+
+curl -H "X-Admin-Token: $TOKEN" \
   "http://localhost:8000/admin/questions?status=draft&page=1&page_size=20"
+
+curl -H "X-Admin-Token: $TOKEN" -F status=published \
+  -F file=@backend/seeds/questions.csv \
+  http://localhost:8000/admin/questions/import
 ```
 
 Los errores tienen siempre la forma `{"error": {"code", "message"}}`.

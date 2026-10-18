@@ -8,10 +8,13 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models import Question
+from app.services import importer
+from app.services.question_bank import candidates
 
 from .factories import question
 
@@ -255,4 +258,204 @@ async def test_a_bad_filter_is_a_validation_error(
     respuesta = await client.get("/admin/questions", params=filtros, headers=_AUTH)
 
     assert respuesta.status_code == 422, filtros
+    assert respuesta.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+# --- import por HTTP ---------------------------------------------------------
+
+# El encabezado del formato (§13.1), tomado de la misma fuente que el parser.
+_HEADER = ",".join(importer.COLUMNS)
+
+
+def _row(prompt: str, **overrides: str) -> str:
+    """Una fila CSV válida; el enunciado se cambia para no chocar por `content_hash`."""
+    valores = {
+        "category": "geography",
+        "difficulty": "2",
+        "prompt": prompt,
+        "option_a": "Paraná",
+        "option_b": "Amazonas",
+        "option_c": "Orinoco",
+        "option_d": "Magdalena",
+        "correct": "B",
+        "explanation": "El Amazonas.",
+        "source": "manual",
+        "tags": "mundo",
+    } | overrides
+    return ",".join(valores[columna] for columna in importer.COLUMNS)
+
+
+def _csv(*filas: str) -> bytes:
+    return ("\n".join([_HEADER, *filas]) + "\n").encode("utf-8")
+
+
+def _upload(nombre: str, contenido: bytes, **campos: str) -> dict[str, object]:
+    return {
+        "files": {"file": (nombre, contenido, "application/octet-stream")},
+        "data": campos,
+    }
+
+
+async def test_the_import_without_the_header_is_forbidden(
+    client: httpx.AsyncClient,
+) -> None:
+    respuesta = await client.post(
+        "/admin/questions/import", **_upload("q.csv", _csv(_row("Una pregunta")))
+    )
+
+    assert respuesta.status_code == 401
+    assert respuesta.json()["error"]["code"] == "ADMIN_REQUIRED"
+
+
+async def test_the_report_counts_imported_duplicated_and_rejected(
+    client: httpx.AsyncClient, session: AsyncSession
+) -> None:
+    contenido = _csv(
+        _row("¿Cuál es el río más largo de Chile?"),
+        _row("¿Cuál es el río más largo de Perú?"),
+        _row("¿Cuál es el río más largo de Chile?"),  # duplicada de la línea 2
+        _row("Pregunta mala", category="cinema"),  # rechazada
+    )
+
+    respuesta = await client.post(
+        "/admin/questions/import", headers=_AUTH, **_upload("q.csv", contenido)
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json() == {
+        "total": 4,
+        "imported": 2,
+        "duplicated": 1,
+        "rejected": [{"row": 5, "reason": "categoría desconocida: 'cinema'"}],
+    }
+    guardadas = (
+        await session.execute(select(Question.prompt).where(Question.status == "draft"))
+    ).scalars()
+    assert sorted(guardadas) == [
+        "¿Cuál es el río más largo de Chile?",
+        "¿Cuál es el río más largo de Perú?",
+    ]
+
+
+async def test_a_published_import_lands_in_the_bank(
+    client: httpx.AsyncClient, session: AsyncSession
+) -> None:
+    respuesta = await client.post(
+        "/admin/questions/import",
+        headers=_AUTH,
+        **_upload(
+            "q.csv",
+            _csv(_row("¿Cuál es el río más largo del mundo?")),
+            status="published",
+        ),
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["imported"] == 1
+    assert [c.category for c in await candidates(session)] == ["geography"]
+
+
+async def test_json_is_imported_like_csv(
+    client: httpx.AsyncClient, session: AsyncSession
+) -> None:
+    contenido = (
+        '[{"category": "history", "difficulty": "3", "prompt": "¿Quién pintó el'
+        ' Guernica?", "option_a": "Dalí", "option_b": "Picasso", "option_c": "Miró",'
+        ' "option_d": "Goya", "correct": "B", "explanation": "", "source": "manual",'
+        ' "tags": ["arte"]}]'
+    ).encode()
+
+    respuesta = await client.post(
+        "/admin/questions/import",
+        headers=_AUTH,
+        **_upload("q.json", contenido, status="published"),
+    )
+
+    assert respuesta.json() == {
+        "total": 1,
+        "imported": 1,
+        "duplicated": 0,
+        "rejected": [],
+    }
+    fila = (await session.execute(select(Question))).scalar_one()
+    assert (fila.category, fila.status, fila.tags) == ("history", "published", ["arte"])
+
+
+async def test_importing_the_same_file_twice_is_duplicated_the_second_time(
+    client: httpx.AsyncClient,
+) -> None:
+    carga = _upload("q.csv", _csv(_row("¿Cuántos lados tiene un triángulo?")))
+
+    await client.post("/admin/questions/import", headers=_AUTH, **carga)
+    segunda = await client.post("/admin/questions/import", headers=_AUTH, **carga)
+
+    assert segunda.json() == {
+        "total": 1,
+        "imported": 0,
+        "duplicated": 1,
+        "rejected": [],
+    }
+
+
+async def test_a_bom_from_excel_does_not_break_the_header(
+    client: httpx.AsyncClient,
+) -> None:
+    contenido = (
+        "\ufeff" + _HEADER + "\n" + _row("¿Cuántos continentes hay?") + "\n"
+    ).encode("utf-8")
+
+    respuesta = await client.post(
+        "/admin/questions/import", headers=_AUTH, **_upload("q.csv", contenido)
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["imported"] == 1
+
+
+@pytest.mark.parametrize(
+    ("nombre", "contenido", "motivo"),
+    [
+        ("preguntas.txt", _csv(_row("Pregunta")), "no sé leer"),
+        ("preguntas.csv", b"category,difficulty\ngeography,2\n", "faltan"),
+        ("preguntas.json", b"[{", "JSON inválido"),
+        ("preguntas.json", b'{"category": "geography"}', "array de objetos"),
+    ],
+)
+async def test_a_broken_file_is_a_format_error(
+    client: httpx.AsyncClient, nombre: str, contenido: bytes, motivo: str
+) -> None:
+    respuesta = await client.post(
+        "/admin/questions/import", headers=_AUTH, **_upload(nombre, contenido)
+    )
+
+    assert respuesta.status_code == 400, nombre
+    cuerpo = respuesta.json()["error"]
+    assert cuerpo["code"] == "IMPORT_FORMAT"
+    assert motivo in cuerpo["message"]
+
+
+async def test_a_file_that_is_not_utf8_is_rejected_with_a_reason(
+    client: httpx.AsyncClient,
+) -> None:
+    respuesta = await client.post(
+        "/admin/questions/import",
+        headers=_AUTH,
+        **_upload("q.csv", _HEADER.encode("latin-1") + b"\n\xff\xfe\n"),
+    )
+
+    assert respuesta.status_code == 400
+    assert respuesta.json()["error"]["code"] == "IMPORT_FORMAT"
+    assert "UTF-8" in respuesta.json()["error"]["message"]
+
+
+async def test_a_bad_status_is_a_validation_error(
+    client: httpx.AsyncClient,
+) -> None:
+    respuesta = await client.post(
+        "/admin/questions/import",
+        headers=_AUTH,
+        **_upload("q.csv", _csv(_row("Pregunta")), status="deleted"),
+    )
+
+    assert respuesta.status_code == 422
     assert respuesta.json()["error"]["code"] == "VALIDATION_ERROR"

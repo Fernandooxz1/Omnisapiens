@@ -235,6 +235,15 @@ def detect_format(path: Path) -> str:
     raise ImportFormatError(f"no sé leer `{path.suffix}`: usá .csv o .json")
 
 
+def parse_text(text: str, *, fmt: str) -> list[RawRow]:
+    """El texto ya decodificado, según el formato. Elige por sí sola qué parser usar."""
+    if fmt == "csv":
+        return parse_csv(text)
+    if fmt == "json":
+        return parse_json(text)
+    raise ImportFormatError(f"formato desconocido: {fmt!r}")
+
+
 def read_file(path: Path, *, fmt: str | None = None) -> list[RawRow]:
     """Lee el archivo y devuelve las filas crudas. Sin tocar la base.
 
@@ -243,7 +252,7 @@ def read_file(path: Path, *, fmt: str | None = None) -> list[RawRow]:
     """
     formato = fmt or detect_format(path)
     text = path.read_text(encoding="utf-8-sig")
-    return parse_csv(text) if formato == "csv" else parse_json(text)
+    return parse_text(text, fmt=formato)
 
 
 async def import_rows(
