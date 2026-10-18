@@ -1,6 +1,6 @@
 category,difficulty,prompt,option_a,option_b,option_c,option_d,correct,explanation,source,tags
 geography,2,¿Cuál es el río más largo de Sudamérica?,Paraná,Amazonas,Orinoco,Magdalena,B,El Amazonas recorre unos 6.400 km.,manual,mundo;ríos
-geography,3,¿Cuál es la capital de Australia?,Sídney,Melbourne,Camberra,Perth,C,"Camberra es la capital, no la ciudad más poblada.",manual,capitales;oceanía
+geography,3,¿Cuál es la capital de Australia?,Sídney,Melbourne,Canberra,Perth,C,"Canberra es la capital, no la ciudad más poblada.",manual,capitales;oceanía
 geography,1,¿Cuál es el país más grande del mundo por superficie?,Canadá,China,Estados Unidos,Rusia,D,Rusia supera los 17 millones de km².,manual,mundo;récords
 geography,1,¿Qué cordillera recorre el oeste de Sudamérica?,Los Andes,Los Apalaches,Los Urales,El Atlas,A,Los Andes son la cordillera más larga del continente.,manual,relieve;américa
 geography,1,¿Cuál es el océano más extenso del planeta?,Atlántico,Índico,Pacífico,Ártico,C,El Pacífico cubre cerca de un tercio de la superficie.,manual,océanos
@@ -52,10 +52,22 @@ entertainment,2,¿Qué película de Pixar trata sobre juguetes que cobran vida?,
 sports,1,¿Cada cuántos años se juega la Copa Mundial de fútbol?,Cada 2,Cada 3,Cada 4,Cada 5,C,Se juega cada cuatro años desde 1930.,manual,fútbol;mundial
 sports,1,¿Cuántos jugadores tiene un equipo de fútbol en cancha?,9,10,11,12,C,"Once por equipo, contando al arquero.",manual,fútbol;reglas
 sports,1,¿En qué deporte se encesta en un aro con un balón naranja?,Vóleibol,Básquetbol,Handbol,Hockey,B,El básquetbol nació en 1891.,manual,básquetbol
-sports,2,¿Quién fue campeón del mundo con Argentina en 1986?,Pelé,Diego Maradona,Lionel Messi,Ronaldo,B,Maradona capitaneó a Argentina en México 86.,manual,fútbol;argentina
+sports,2,¿Quién capitaneó a Argentina campeón del mundo en 1986?,Pelé,Diego Maradona,Lionel Messi,Ronaldo,B,Maradona capitaneó a Argentina en México 86.,manual,fútbol;argentina
 sports,2,¿En qué país nacieron los Juegos Olímpicos de la era moderna?,Italia,Grecia,Francia,Inglaterra,B,"Los primeros juegos modernos fueron en Atenas, 1896.",manual,olímpicos;historia
 sports,2,¿Cuántos puntos vale un tiro libre en básquetbol?,1,2,3,4,A,Cada tiro libre vale un punto.,manual,básquetbol;reglas
 sports,2,¿Qué selección ganó más Copas del Mundo de fútbol?,Alemania,Italia,Brasil,Argentina,C,Brasil tiene cinco títulos.,manual,fútbol;mundial
-sports,3,¿Cómo se llama el estadio del Real Madrid?,Camp Nou,Santiago Bernabéu,Wanda Metropolitano,San Siro,B,Lleva el nombre de un expresidente del club.,manual,fútbol;estadios
+sports,3,¿Cómo se llama el estadio del Real Madrid?,Camp Nou,Santiago Bernabéu,Mestalla,San Siro,B,Lleva el nombre de un expresidente del club.,manual,fútbol;estadios
 sports,2,¿Qué torneo de tenis se juega sobre césped en Londres?,Roland Garros,El US Open,Wimbledon,El Abierto de Australia,C,Wimbledon es el más antiguo de los cuatro Grand Slam.,manual,tenis;torneos
 sports,2,¿Cuántos anillos tiene el símbolo olímpico?,4,5,6,7,B,Cinco anillos por los cinco continentes habitados.,manual,olímpicos;símbolos
+geography,4,¿Cuál es el país más pequeño del mundo por superficie?,Mónaco,Nauru,Ciudad del Vaticano,San Marino,C,"El Vaticano tiene 0,44 km².",manual,países;récords
+geography,5,¿Cuál es el lago de agua dulce más profundo del mundo?,Superior,Tanganica,Baikal,Victoria,C,"El Baikal, en Siberia, supera los 1.600 m.",manual,lagos;asia
+history,4,¿Qué pueblo inventó la escritura cuneiforme?,Los acadios,Los sumerios,Los fenicios,Los egipcios,B,La cuneiforme nació en Sumeria hacia el 3200 a. C.,manual,antigüedad;escritura
+history,5,¿Qué emperador romano trasladó la capital a Bizancio?,Diocleciano,Constantino,Teodosio,Nerón,B,"Constantino la fundó en 330 y pasó a llamarse Constantinopla.",manual,europa;imperios
+science,4,¿Cuál es el elemento químico más abundante del universo?,Hidrógeno,Helio,Oxígeno,Carbono,A,"El hidrógeno es cerca del 75 % de la materia común.",manual,química;elementos
+science,5,¿Cuál es el metal más abundante en la corteza terrestre?,Hierro,Aluminio,Silicio,Calcio,B,El aluminio supera al hierro en la corteza.,manual,química;geología
+art,4,¿Quién pintó La creación de Adán en la Capilla Sixtina?,Miguel Ángel,Rafael,Sandro Botticelli,Leonardo da Vinci,A,"Miguel Ángel pintó la bóveda entre 1508 y 1512.",manual,pintura;renacimiento
+art,5,¿Quién compuso El clave bien temperado?,Antonio Vivaldi,Johann Sebastian Bach,Georg Frideric Händel,Georg Philipp Telemann,B,Es una colección de preludios y fugas de Bach.,manual,música;clásica
+entertainment,4,¿Qué banda grabó el álbum The Dark Side of the Moon?,Led Zeppelin,The Rolling Stones,Pink Floyd,Queen,C,"Salió en 1973 y estuvo años en las listas.",manual,música;bandas
+entertainment,5,¿Qué película ganó el Óscar a mejor película en 2020 y fue la primera de habla no inglesa en lograrlo?,Roma,Parásitos,1917,El irlandés,B,"Parásitos, del coreano Bong Joon-ho.",manual,cine;premios
+sports,4,¿En qué país se jugó el primer Mundial de fútbol?,Brasil,Uruguay,Argentina,Italia,B,Uruguay 1930 fue la primera Copa del Mundo.,manual,fútbol;mundial
+sports,5,"¿Qué selección ganó la primera Eurocopa, en 1960?",Yugoslavia,Unión Soviética,España,Italia,B,La Unión Soviética le ganó 2-1 a Yugoslavia en París.,manual,fútbol;eurocopa

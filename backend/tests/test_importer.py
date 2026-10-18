@@ -230,12 +230,12 @@ async def test_an_existing_hash_is_reported_as_duplicated(
     assert report.duplicated == 1
 
 
-async def test_importing_the_seed_file_loads_sixty_questions(
+async def test_importing_the_seed_file_loads_all_the_questions(
     session: AsyncSession,
 ) -> None:
     report = await importer.import_file(session, SEED_FILE, status="published")
 
-    assert report.imported == 60
+    assert report.imported == 72
     assert report.rejected == []
     assert report.duplicated == 0
 
@@ -252,4 +252,4 @@ async def test_running_the_seed_twice_imports_nothing_the_second_time(
     segunda = await importer.import_file(session, SEED_FILE, status="published")
 
     assert segunda.imported == 0
-    assert segunda.duplicated == 60
+    assert segunda.duplicated == 72

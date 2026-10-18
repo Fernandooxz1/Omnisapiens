@@ -16,7 +16,7 @@ web:
 migrate:
 	cd backend && uv run alembic upgrade head
 
-# Carga las 60 preguntas semilla (ya publicadas) desde backend/seeds/.
+# Carga las 72 preguntas semilla (ya publicadas) desde backend/seeds/.
 seed:
 	cd backend && uv run python -m app.cli seed
 

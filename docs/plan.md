@@ -24,7 +24,7 @@ La página de prueba vive en `frontend/dev/` (`index.html` + `app.js` + `style.c
 
 - [x] Base, `models/` (7 tablas), Alembic `0001`–`0003` y guardia de schema.
 - [x] HTTP: JWT, `/auth/guest`, `/me`, `/rooms`, `/leaderboard/arcade` y errores con código.
-- [x] Banco de preguntas + importador + CLI + 60 semilla; motores puros y `runtime/`.
+- [x] Banco de preguntas + importador + CLI + 72 semilla; motores puros y `runtime/`.
 - [x] Sala 1v1: `runtime/room.py`, `room_manager` y `ws/room_ws.py` con presencia, gracia y revancha.
 - [x] Arcade: `arcade_session`, `ws/arcade_ws`, persistencia (`arcade_runs`/`arcade_answers`) y ranking.
 - [x] `GET /me` con marcas (`all_time`/`week`) e historial de arcade y 1v1 (`services/profile.py`), tope 10 y solo `finished`.
@@ -33,15 +33,16 @@ La página de prueba vive en `frontend/dev/` (`index.html` + `app.js` + `style.c
 - [x] Página de prueba (`frontend/dev/`): dos pestañas, sala + revancha, arcade y ranking.
 - [x] Admin Fase 1: `GET /admin/questions` paginado y `POST /admin/questions/import` (multipart), con `X-Admin-Token`.
 - [x] Sección de admin en la página de prueba: token, listado con filtros y paginación, y subida de CSV/JSON con el informe.
+- [x] Curación de la semilla: 72 preguntas (12 por categoría) con los tramos de dificultad cubiertos (18/23/15/10/6), tres arreglos de contenido y los conteos alineados (tests, Makefile, README).
 
 ### Próximos pasos
 
-**Ahora: curar la semilla desde el panel.** El panel HTTP y su pantalla están completos; falta el trabajo de contenido (revisar las 60 semilla y publicar lo que corresponda).
+**Ahora: cerrar los pendientes de la auditoría.** La semilla queda curada; lo que sigue son los huecos que `docs/observaciones.md` todavía tiene abiertos.
 
-- [ ] Fase 1 (curación): revisar la semilla y publicar lo que corresponda desde el panel.
+- [ ] H-07: guard en el `lifespan` que impida arrancar con más de una instancia fuera de `local`.
+- [ ] Los dos tests de concurrencia que faltan (dos `answer` simultáneos de la misma silla y dos salas compartiendo el `Random`).
 - [ ] Fase 5 (visual; el frontend lo hace otra persona): componentes, íconos SVG, sonidos y teclado.
 - [ ] Fase 6: PWA, e2e (Playwright) y documentación.
-- [ ] Repasar `docs/observaciones.md` por pendientes P3 sin cerrar.
 - [ ] Cerrar §20: repasar la "definición de terminado" del MVP.
 
 > **Trampas y decisiones que no se re-descubren: Anexo B**, al final. Consultarlo por
@@ -271,7 +272,7 @@ normalizado (NFKD sin diacríticos, minúsculas, sin signos, espacios colapsados
 duplicado se omite y se informa. Informe: importadas, duplicadas y rechazadas con motivo.
 El import JSON acepta un array con las mismas claves.
 
-`make seed` carga `backend/seeds/questions.csv` (60, 10 por categoría) y las deja
+`make seed` carga `backend/seeds/questions.csv` (72, 12 por categoría) y las deja
 **`published`**; el importador usa `draft` por defecto (§13.2) y `--status` lo cambia.
 
 **Curación:** las preguntas generadas con IA entran `draft`; un humano las pasa a
@@ -389,7 +390,7 @@ shell; el juego **no** funciona offline. **i18n:** todas las cadenas en `es.ts` 
 | Fase | Entregable | Estado |
 |---|---|---|
 | 0 Esqueleto | monorepo, compose, CI, `/health`, inicio con tokens | ✅ |
-| 1 Identidad y contenido | invitado + token, nicks, import, panel, 60 semilla | ✅ (falta curación) |
+| 1 Identidad y contenido | invitado + token, nicks, import, panel, 72 semilla | ✅ |
 | 2 Salas y presencia | dos navegadores por código, sala llena, host cae, expira | ✅ backend |
 | 3 Partida online | rondas cronometradas, revelación, puntajes, desempate, gracia, revancha | ✅ backend |
 | 4 Arcade y ranking | 3 vidas, progresión, corte semanal, récord personal | ✅ backend |
@@ -622,7 +623,7 @@ El §Reglas sigue mandando en el producto y el protocolo; este anexo fija la cap
 - El `content_hash` se calcula sobre el enunciado normalizado (NFKD sin diacríticos,
   minúsculas, sin signos, espacios colapsados): "¿Cuál es el río?" y "Cual es el rio" son la
   misma pregunta.
-- El default del import es `draft`; las 60 semilla entran `published` por flag (`make seed`),
+- El default del import es `draft`; las 72 semilla entran `published` por flag (`make seed`),
   si no `candidates()` no ve nada que jugar.
 - `import_rows` frena el duplicado **dentro del mismo archivo** en Python (dict de hashes):
   el `ON CONFLICT` solo ve lo ya cargado. El importador repite en Python los `CHECK` y las

@@ -12,7 +12,7 @@ Requisitos: **Docker** y **uv** (instala solo CPython 3.12 si hace falta).
 cp backend/.env.example backend/.env   # configuración local (dev)
 make up          # Postgres 16 + Redis 7 en Docker
 make migrate     # crea las tablas (Alembic)
-make seed        # carga las 60 preguntas de ejemplo
+make seed        # carga las 72 preguntas de ejemplo
 make api         # uvicorn con reload en http://localhost:8000
 ```
 
