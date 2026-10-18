@@ -1,10 +1,9 @@
 # Omnisapiens
 
-Trivia online. Backend en **FastAPI + Python 3.12**, PostgreSQL 16 y Redis 7.
-El frontend real (SvelteKit) lo hace otra persona: `frontend/dev/` es una página de
-prueba del backend, no el producto.
+Trivia online. **Backend** en FastAPI + Python 3.12 (terminado: HTTP, WebSocket, salas 1v1,
+arcade, ranking y panel de admin). **Frontend** en SvelteKit + TypeScript + PWA (en curso).
 
-## Levantarlo en cinco comandos
+## Levantar el backend
 
 Requisitos: **Docker** y **uv** (instala solo CPython 3.12 si hace falta).
 
@@ -16,33 +15,19 @@ make seed        # carga las 72 preguntas de ejemplo
 make api         # uvicorn con reload en http://localhost:8000
 ```
 
-Comprobación: `GET http://localhost:8000/health` devuelve
-`{"api":"ok","db":"ok","redis":"ok"}`. La documentación interactiva queda en
-`http://localhost:8000/docs`.
+Comprobación: `GET http://localhost:8000/health` → `{"api":"ok","db":"ok","redis":"ok"}`.
+Documentación interactiva: `http://localhost:8000/docs`.
 
-## Probar a ojo (sala y arcade)
-
-Con `make api` corriendo, en otra terminal:
+## Página de prueba del backend
 
 ```bash
 make web   # sirve frontend/dev/ en http://localhost:5173
 ```
 
-Abrí `http://localhost:5173`. Para el 1v1 hacen falta **dos pestañas con nicks
-distintos** (no dupliques la pestaña: las dos compartirían la sesión). La página
-muestra el log crudo de los mensajes WebSocket y no es el frontend del producto.
-
-### Notas de la página de prueba
-
-- Es **solo para desarrollo**: no reemplaza al frontend SvelteKit ni invierte en estilos.
-- La sesión va en `sessionStorage`. Si duplicás la pestaña, el navegador puede copiarla
-  y las dos serían el mismo jugador: abrí una pestaña nueva y entrá a la URL.
-- **No reconecta sola al recargar**: la sala se retoma entrando de nuevo con el código;
-  el arcade no (una corrida cortada queda `playing` y el barrendero la invalida).
-- Al reconectar a mitad de partida, el marcador local vuelve a `0-0` hasta el próximo
-  resultado: `room_state` no lleva puntajes.
-- `players` en `room_state` incluye sillas desconectadas, así que `2/2` puede adelantarse
-  unos segundos; el servidor igual rechaza `start` con `NOT_READY`.
+Es un sandbox para ver el contrato funcionando (login de invitado, sala 1v1, revancha,
+arcade, ranking y admin), **no** el producto. Se borra cuando lobby y arcade anden en
+SvelteKit. Para el 1v1 hacen falta dos pestañas con nicks distintos: no duplicar la pestaña,
+compartiría la sesión.
 
 ## Comandos
 
@@ -51,63 +36,48 @@ muestra el log crudo de los mensajes WebSocket y no es el frontend del producto.
 | `make up` / `make down` | Levanta / baja Postgres y Redis |
 | `make migrate` | `alembic upgrade head` |
 | `make seed` | Importa `backend/seeds/questions.csv` como publicadas |
-| `make import FILE=mi.csv` | Importa un CSV propio (queda en `draft` si no se publica) |
+| `make import FILE=mi.csv` | Importa un CSV propio (`draft` por defecto) |
 | `make api` | API en `:8000` con reload |
-| `make web` | Página de prueba en `:5173` (sirve `frontend/dev/`) |
-| `make test` | Tests (rápido, sin umbral de cobertura) |
-| `make cov` | Tests con cobertura y umbral de 85 % (el gate del CI) |
-| `make lint` | `ruff check` + `ruff format --check` + `mypy --strict` |
-| `make check-schema` | Falla si los modelos y las migraciones se desincronizaron |
+| `make web` | Página de prueba en `:5173` |
+| `make test` / `make cov` | Tests rápidos / con umbral de cobertura (85 %) |
+| `make lint` | `ruff` + `mypy --strict` |
+| `make check-schema` | Falla si modelos y migraciones se desincronizaron |
 
-Los tests usan **Postgres y Redis reales** (base `trivia_test` y Redis `/1`), no
-SQLite ni mocks. Por eso `make up` tiene que estar corriendo.
+Los tests usan **Postgres y Redis reales** (base `trivia_test`, Redis `/1`), no SQLite ni
+mocks: `make up` tiene que estar corriendo.
 
 ## API
 
-- `POST /auth/guest` → alta de invitado y token JWT.
-- `GET`/`PATCH`/`DELETE /me` → perfil (con mejor marca e historial de arcade y 1v1),
-  cambio de nick y baja lógica.
-- `POST /rooms` → crea una sala 1v1 y devuelve el código.
-- `GET /rooms/{code}` → vista previa (estado, config, `players`, vencimiento).
-- `WS /ws/room/{code}?token=...` → sala en vivo (`hello`, `start`, `answer`,
-  `rematch`, `ping`; el servidor manda `room_state`, `round_start`, `round_result`,
-  `match_end`, `error`).
-- `WS /ws/arcade?token=...` → corrida flash (`start`, `answer`, `ping`; el servidor
-  manda `arcade_start`, `arcade_question`, `arcade_result`, `arcade_end`).
-- `GET /leaderboard/arcade?period=all|week&limit=50` → tabla del ranking.
-- `GET /leaderboard/arcade/me` → posición y marca del jugador en ambos períodos.
-- `GET /admin/questions?status=&category=&difficulty=&q=&page=&page_size=` →
-  listado del banco para curar (incluye la respuesta correcta). Requiere
-  `X-Admin-Token` con el `ADMIN_TOKEN` del `.env`.
-- `POST /admin/questions/import` → sube un CSV o JSON (multipart, campo `file`,
-  `status` opcional `draft`/`published`/`archived`) y devuelve el informe de
-  importadas, duplicadas y rechazadas. Mismo formato que `make import`.
-- `GET /health` → 503 si falta Postgres o Redis.
+El contrato completo (formas, códigos y trampas del cliente) está en **`docs/api.md`**.
+Resumen:
 
-Ejemplos del panel:
+- `POST /auth/guest` → alta de invitado y JWT.
+- `GET`/`PATCH`/`DELETE /me` → perfil, cambio de nick y baja lógica.
+- `POST /rooms` · `GET /rooms/{code}` → sala 1v1.
+- `WS /ws/room/{code}?token=...` → sala en vivo.
+- `WS /ws/arcade?token=...` → corrida arcade.
+- `GET /leaderboard/arcade` · `GET /leaderboard/arcade/me`.
+- `GET /admin/questions` · `POST /admin/questions/import` (`X-Admin-Token`).
+- `GET /health`.
 
-```bash
-TOKEN=dev-admin-token-de-32-bytes-o-mas
+Errores siempre `{"error": {"code", "message"}}`.
 
-curl -H "X-Admin-Token: $TOKEN" \
-  "http://localhost:8000/admin/questions?status=draft&page=1&page_size=20"
+## Decisiones que no se re-descubren
 
-curl -H "X-Admin-Token: $TOKEN" -F status=published \
-  -F file=@backend/seeds/questions.csv \
-  http://localhost:8000/admin/questions/import
-```
+- El estado vivo de las salas está **en memoria**: el backend corre en un solo worker
+  (fuera de `local` exige `SINGLE_PROCESS=1` o no arranca).
+- El servidor es **autoritativo**: la respuesta correcta no viaja antes de contestar y las
+  opciones se barajan al servir.
+- El token del WS viaja en `?token=` (el navegador no deja headers); no loguearlo.
+- El **backend no se toca** desde el frontend. Si falta un contrato, se pide.
 
-Los errores tienen siempre la forma `{"error": {"code", "message"}}`.
+## Documentación
 
-## Decisiones que conviene no olvidar
-
-- El **estado vivo de las salas está en memoria**: hoy el backend corre en **una
-  sola instancia** (el código asume un proceso). Fuera de `local` el proceso se
-  niega a arrancar si el despliegue no declara `SINGLE_PROCESS=1`: con más de un
-  worker habría dos verdades por código de sala (H-07).
-- El servidor es **autoritativo**: la respuesta correcta no viaja al cliente antes
-  de contestar, y las opciones se barajan al servir.
-- El token del WS viaja en `?token=` (el navegador no deja headers en
-  `new WebSocket`); los logs filtran ese renglón.
-- `docs/plan.md` es la memoria del proyecto: estado de sesión, plan del MVP y
-  diseño de la capa de datos. `docs/observaciones.md` es la auditoría (cerrada).
+| Archivo | Qué es |
+|---|---|
+| `AGENTS.md` | Rol y reglas de trabajo para el agente |
+| `docs/tareas.md` | Cola volátil de tareas del frontend |
+| `docs/plan.md` | Producto, reglas del juego, pantallas y roadmap |
+| `docs/api.md` | Contrato HTTP + WebSocket |
+| `docs/diseno.md` | Sistema visual, componentes y accesibilidad |
+| `docs/archive/` | Backend histórico (arquitectura, trampas, auditoría) |

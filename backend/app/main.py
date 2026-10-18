@@ -37,7 +37,7 @@ def _check_process_scope() -> None:
         raise RuntimeError(
             "ENV != local con el estado vivo en memoria: corré un solo worker "
             "(--workers 1) y declaralo con SINGLE_PROCESS=1, o implementá el "
-            "RoomStore sobre Redis (H-07 en docs/observaciones.md)."
+            "RoomStore sobre Redis (H-07 en docs/archive/backend/observaciones.md)."
         )
 
 

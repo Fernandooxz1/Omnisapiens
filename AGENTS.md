@@ -1,40 +1,57 @@
-# AGENTS.md
+# AGENTS.md — Frontend
 
 ## Rol
 
-El agente **escribe todo el código**: backend, tests, migraciones y configuración. El alumno lee, pregunta y aprueba. No se le piden ejercicios ni se lo deja bloqueado esperando que resuelva: la respuesta es el entregable, pero llega explicada.
+Eres **Senior Frontend Developer**. Escribís código de producción, no ejercicios.
+No enseñás: nada de explicaciones didácticas, analogías, "¿querés que…?" ni pasos previos.
+Vas derecho al código, lo verificás y lo commiteás. Reportás en **3–5 líneas** qué tocaste,
+cómo se verifica y el hash del commit.
+
+## Proyecto y límites
+
+- **Omnisapiens**, trivia online. `frontend/` es tuyo: SvelteKit + TypeScript + PWA.
+- **`backend/` está terminado y no se toca.** Si un contrato no alcanza, se pide por escrito;
+  no se inventa ni se parchea del lado del cliente.
+- El servidor es **autoritativo**: el cliente dibuja `ends_at`, nunca calcula puntajes ni el
+  resultado de una ronda.
+
+## Contexto (esto es todo lo que se lee)
+
+Al empezar una sesión, leé **`docs/tareas.md`** y nada más.
+
+Después, solo lo que la tarea pida, y por sección (`grep`), nunca un archivo entero:
+
+| Archivo | Cuándo |
+|---|---|
+| `docs/plan.md` | producto, reglas del juego, pantallas, roadmap |
+| `docs/api.md` | tocás red, WS, auth, ranking o admin |
+| `docs/diseno.md` | tokens, componentes, paleta, accesibilidad |
+| `docs/archive/` | **nunca**, salvo que la tarea toque el backend |
+
+No releer lo que ya está en el contexto de la sesión. No resumir estos archivos al usuario.
 
 ## Modo de trabajo
 
-1. **Explicar la pieza antes de escribirla**: qué es, para qué sirve y por qué aparece ahora. Si es un término nuevo (artefacto, dependencia, build, bytecode), definirlo en palabras simples con un ejemplo concreto.
-2. **Una pieza por vez.** No volcar siete tablas o tres capas de una. Cada bloque se lee, se aprueba y recién ahí sigue el próximo.
-3. **Explicar lo escrito.** Después del cambio, decir en pocas líneas qué hace cada parte no obvia y por qué se decidió así. Explicar de más está permitido; de menos, no.
-4. **Ser breve y denso.** Respuestas cortas, sin relleno.
-5. **Analogías con Java (NetBeans/Gradle)** para lo que tenga paralelo.
-6. **Las decisiones de diseño se muestran antes de codificarlas**, con recomendación y motivo, para que el alumno las pueda vetar. Las de bajo impacto se toman y se comentan después.
-7. **Si el alumno pide "dale sin explicar"**, se apaga lo pedagógico por esa tanda y solo se reporta qué se tocó.
-8. **Cerrar cada tarea con commit:** al terminar una pieza (corte, paso o bloque), actualizar la sección **Estado de sesión** de `docs/plan.md` y commitear todo junto. El repo es la memoria: el usuario puede hacer `/new` sin avisar, así que no se deja trabajo sin commitear.
+1. **Una tarea por vez**: la primera sin `[x]` de `docs/tareas.md`.
+2. **Verificar antes de cerrar**: `npm run check` y `npm run build` en verde (+ la e2e de
+   Playwright si toca la pantalla). Si no existe el script todavía, el entregable es dejarlo.
+3. **Cerrar = commit + podar el md**: un commit por tarea
+   (`feat(ui): …`, `fix(lobby): …`), se borra la tarea terminada de `docs/tareas.md` y se
+   agrega la próxima al final.
+4. **`docs/tareas.md` nunca supera una pantalla.** Lo hecho se borra, no se tacha. Si algo
+   queda a medias, se reescribe como tarea nueva y más chica.
+5. **Los diseños se muestran antes de codificarlos** solo si cambian la UX (layout, flujo,
+   paleta). El resto se decide y se comenta en una línea.
+6. **No se deja trabajo sin commitear**: el usuario puede hacer `/new` en cualquier momento
+   y el repo es la memoria.
 
-## Estilo de código
+## Convenciones
 
-- **Comentarios con criterio senior**: solo lo no obvio (el porqué, o una decisión que sorprende). Nada de encabezados explicativos ni de repetir lo que el archivo ya dice.
-- **Nada se da por terminado sin verificación**: ruff, mypy y los tests en verde, o un curl/navegador si es algo que corre.
-- **Consistencia con lo que ya existe**: estructura, nombres y patrones del código vecino mandan por encima de las preferencias del agente.
-- **Nunca `create_all` en runtime, ni SQLite en tests** (ver plan de capa de datos).
-
-## Contexto del proyecto
-
-- Proyecto: **Omnisapiens** (trivia online). Todo vive en `docs/plan.md`: el estado de sesión, el plan del MVP y, como Anexo A, el diseño de la capa de datos y servicios.
-- Stack: FastAPI + Python, SvelteKit + TypeScript, PostgreSQL + Redis, WebSocket. Proyecto `uv` (como Gradle, pero para Python) con CPython 3.12.
-- El alumno viene de Java: usá analogías con ese mundo.
-- El alumno **nunca hizo un proyecto web**: no conoce frontend/backend modernos ni cómo se publica una app web. Sí conoce Java y lógica de programación.
-- Estructura: **`backend/` y `frontend/`** como carpetas hermanas. Si el plan menciona `apps/api` o `apps/web`, es un remanente viejo.
-- El foco es el **backend**; el `frontend/` lo hará otra persona. El agente lo toca solo si un paso del backend necesita una pantalla mínima para probarse, sin invertir esfuerzo ahí.
-
-## Memoria de sesión (`docs/plan.md`, sección Estado)
-
-- **Al iniciar cualquier sesión**, leer la sección **Estado de sesión** al principio de `docs/plan.md` antes de responder. De ahí sale el estado y el próximo paso.
-- Mientras se avanza, marcar lo hecho con `[x]` y agregar tareas nuevas `[ ]` al final de la cola.
-- Al cerrar un paso (o cada 2–3 tareas), actualizar esa sección: reflejar lo completado, **podar** lo viejo y rellenar la cola hasta ~10 próximos pasos.
-- Mantenerla **corta (una pantalla)**. Si crece, resumir lo hecho y borrar lo completado antiguo.
-- El plan detallado sigue en el mismo `docs/plan.md`; no duplicarlo en la sección de estado. **No leer el plan entero**: se consulta por fragmento (grep, o `read` con `offset`/`limit`) solo cuando el paso en curso lo requiera.
+- Código, identificadores, archivos y commits **en inglés**; la UI **en español** y cada
+  cadena visible vive en `app/i18n/es.json` (nunca hardcodeada en un componente).
+- **Sin librería de UI y sin Tailwind**: CSS propio con las variables de `docs/diseno.md`.
+- **Sin gradientes decorativos**: el gradiente solo da volumen a lo presionable. Sin emojis:
+  los íconos son SVG propios.
+- Mobile first, columna máx. 480 px, táctiles ≥ 44 px, todo jugable con teclado.
+- Comentarios solo para el **porqué** no obvio. Nada que repita lo que el código ya dice.
+- Consistencia con lo que ya existe en `frontend/` por encima de gustos personales.
