@@ -96,6 +96,7 @@ API FastAPI (un proceso, estado vivo en memoria)
 | `app/services/` | Persistencia, ranking, importación y barrido de partidas huérfanas |
 | `app/models/` · `alembic/` | Modelos SQLAlchemy y migraciones |
 | `seeds/questions.csv` | 120 preguntas de ejemplo listas para importar |
+| `seeds/questions_new.csv` | lote adicional de 60 preguntas generadas y revisadas |
 
 La respuesta correcta nunca se envía antes de que la ronda se resuelva y las opciones se
 barajan al servir cada pregunta. El servidor también descarta las corridas de arcade con
@@ -132,6 +133,7 @@ cp backend/.env.example backend/.env
 make up          # PostgreSQL 16 y Redis 7 en Docker
 make migrate     # crea o actualiza el esquema
 make seed        # importa las 120 preguntas de ejemplo
+make import FILE=seeds/questions_new.csv  # lote adicional de 60
 make api         # API con reload en http://localhost:8000
 ```
 

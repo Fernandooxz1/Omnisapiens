@@ -52,6 +52,9 @@ cd backend && uv run python -m app.cli import-questions ../mis-preguntas.csv --s
 
 # Las 120 semilla del repo
 make seed
+
+# El lote adicional de 60 preguntas generadas y revisadas
+cd backend && uv run python -m app.cli import-questions seeds/questions_new.csv --status published
 ```
 
 `make seed` importa `backend/seeds/questions.csv` como publicado; ese archivo es la mejor
