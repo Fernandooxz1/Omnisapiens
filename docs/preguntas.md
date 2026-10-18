@@ -165,7 +165,17 @@ ANTES DE RESPONDER, VERIFICÁ
 ```
 
 Después se revisa a mano: un modelo inventa fechas y atribuciones con seguridad. El
-importador rechaza las filas mal formadas, pero no detecta un dato falso.
+importador rechaza las filas mal formadas, pero no detecta un dato falso. También tiende a
+**inflar la dificultad un nivel**: lo que es nivel 2 lo marca 3, y así. Estos anclajes del
+banco ayudan a recalibrar:
+
+| Nivel | Referencia del banco |
+|---|---|
+| 1 | ¿Cuál es el océano más extenso del planeta? |
+| 2 | ¿Quién pintó la Mona Lisa? |
+| 3 | ¿En qué año cayó el Muro de Berlín? |
+| 4 | ¿Qué pueblo inventó la escritura cuneiforme? |
+| 5 | ¿Qué emperador romano trasladó la capital a Bizancio? |
 
 ## Antes de publicar
 
