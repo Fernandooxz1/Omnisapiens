@@ -1009,18 +1009,10 @@ input {
 	margin-top: auto;
 }
 
-/* En juego: la cabecera arriba y el resto repartido, así el aire sobrante no cae
-   entero entre la última respuesta y el botón. */
+/* En juego: ritmo fijo (los bloques pegados, sin repartir el aire) y el sobrante
+   queda al pie, que es donde flota el paso siguiente. */
 .match--live {
 	--cta-inset: max(var(--s-5), env(safe-area-inset-bottom));
-	justify-content: space-between;
-	transition: padding-bottom 0.2s ease;
-}
-
-/* El velo del paso siguiente mide `--cta-inset` + `--s-2` + el botón, y el tablero se
-   corre ese mismo alto: entra flotando y no tapa ninguna respuesta. */
-.match--live.is-reveal {
-	padding-bottom: calc(var(--s-2) + var(--key-h));
 }
 
 /* Tope de la columna: 4 teclas de 62 px más sus separaciones. */
@@ -1028,13 +1020,9 @@ input {
 	max-height: calc(62px * 4 + var(--s-3) * 3);
 }
 
+/* El aviso va pegado a las respuestas: el hueco de abajo es para el paso siguiente. */
 .match--live .match__foot {
 	margin-top: 0;
-}
-
-/* En pantallas bajas el tablero cede unos píxeles de sus teclas antes que scrollear. */
-.match--live.is-reveal .tile {
-	min-height: 44px;
 }
 
 .match__cta {
@@ -1050,10 +1038,15 @@ input {
 	animation: cta-in 0.18s ease-out;
 }
 
+/* Más baja que las teclas grandes: flota y no puede tapar la última respuesta. */
+.match__cta .btn {
+	min-height: 64px;
+	padding: 9px 20px;
+}
+
 @keyframes cta-in {
 	from {
 		opacity: 0;
-		transform: translateY(10px);
 	}
 }
 

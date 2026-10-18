@@ -139,7 +139,7 @@
 		</div>
 	</section>
 {:else}
-	<section class="match match--live" class:is-reveal={phase === 'reveal'}>
+	<section class="match match--live">
 		<div class="match__head">
 			<header class="brand">
 				<h1 class="wordmark">
