@@ -89,6 +89,7 @@ Body `{"rounds": 3|5|7, "seconds": 10|20|30}` (defaults `5` / `20`).
 ```
 
 `players` es un **número** (presencia viva en el proceso), no la lista de jugadores.
+`host_nick` identifica al host: el lobby lo usa para mostrar `start` solo a esa persona.
 `status`: `waiting` | `playing` | `finished` | `expired`. Sala vencida → `404 ROOM_NOT_FOUND`.
 
 ### `GET /leaderboard/arcade?period=all|week&limit=1..100`
@@ -211,6 +212,9 @@ Cliente → servidor: `start {}`, `answer {"round": n, "choice": 0..3}`, `ping {
   `0-0` hasta el próximo `round_result`; no inventar el puntaje desde el historial.
 - **`players` cuenta sillas, no conexiones.** `2/2` puede aparecer antes de que el otro esté
   listo; el servidor rechaza `start` con `NOT_READY` y el botón no debe asumirlo.
+- **No hay presencia por jugador.** Los elementos de `room_state.players` son `{id, nick}`,
+  sin `connected`: el lobby dibuja las sillas sin estado de conexión y no debe inventarlo.
+  El host se reconoce por `host_nick` de `GET /rooms/{code}`.
 - **`GET /rooms/{code}` devuelve `players` como número**, no como lista (el WS sí manda la lista).
 - **Las opciones llegan barajadas** en cada `round_start`/`arcade_question`: `choice` es el
   índice sobre el orden recibido, no el de la pregunta original.
@@ -232,13 +236,6 @@ pausa: el reloj no gasta la revelación. El final de partida no lleva pausa extr
 
 El cliente no retiene la ronda por su cuenta: dibuja el resultado y espera el próximo
 `round_start` / `arcade_question`.
-
-## Pedido pendiente al backend
-
-**Presencia en el lobby.** `room_state.players` lista las sillas, incluidas las
-desconectadas, pero no dice cuáles siguen conectadas. Para pintar el estado en el lobby
-hace falta un `connected: bool` por jugador (o el equivalente). Mientras tanto el cliente
-muestra las sillas sin estado.
 
 ## Códigos de error
 

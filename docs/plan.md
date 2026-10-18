@@ -63,7 +63,7 @@ ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # sin O, 0, I, 1
 ### Online (1v1)
 
 - **Lobby:** el host crea la sala (`POST /rooms`, estado `waiting`) y comparte el código;
-  los dos abren el WS. Con los dos conectados, el host manda `start`. Una sala `waiting`
+  los dos abren el WS. Con las dos sillas ocupadas, el host manda `start`. Una sala `waiting`
   sin arrancar expira a los 10 minutos.
 - **Ronda:** se elige una pregunta publicada no usada en la partida, categoría al azar,
   dificultad por tramo (rondas 0–1 → 1–2, 2–3 → 2–3, 4–5 → 3–4, 6+ → 4–5). Se manda
@@ -119,7 +119,7 @@ Cada categoría tiene su color y **manda** en el badge y en el feedback de acier
 |---|---|
 | Inicio | Nick obligatorio (1–16), dos botones (arcade como modo principal, después 1v1), enlace al ranking y elección del **color del jugador** |
 | Jugar | Una pantalla: crear sala (rondas y segundos) o unirse con el código |
-| Lobby | Código gigante, jugadores conectados, botón `start` solo para el host |
+| Lobby | Código gigante, las dos sillas (sin estado de conexión), botón `start` solo para el host |
 | Partida | Marca arriba, pregunta, 4 `AnswerTile` en columna, `TimerBadge` + barra de tiempo, cápsulas de ronda, marcador abierto y aviso de rival |
 | Revelación | Correcta, qué eligió cada uno y puntos; el paso siguiente flota al pie sin mover el tablero |
 | Fin | Ganador, resumen ronda a ronda y revancha |
