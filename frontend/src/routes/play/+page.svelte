@@ -132,20 +132,28 @@
 		</div>
 	</section>
 {:else}
-	<section class="match">
-		<div class="match__top">
-			<span class="sr-only">{t('play.round', { n: round + 1, total: DEMO_ROUNDS.length })}</span>
-			<div class="round-capsules" aria-hidden="true">
-				{#each DEMO_ROUNDS as _, index (index)}
-					<span
-						class="capsule"
-						class:is-won={capsuleState(index) === 'won'}
-						class:is-lost={capsuleState(index) === 'lost'}
-						class:is-current={capsuleState(index) === 'current'}
-					></span>
-				{/each}
+	<section class="match match--live">
+		<div class="match__head">
+			<header class="brand">
+				<h1 class="wordmark">
+					{t('home.wordmark_omni')}<span class="wordmark__accent">{t('home.wordmark_sapiens')}</span>
+				</h1>
+			</header>
+
+			<div class="match__top">
+				<span class="sr-only">{t('play.round', { n: round + 1, total: DEMO_ROUNDS.length })}</span>
+				<div class="round-capsules" aria-hidden="true">
+					{#each DEMO_ROUNDS as _, index (index)}
+						<span
+							class="capsule"
+							class:is-won={capsuleState(index) === 'won'}
+							class:is-lost={capsuleState(index) === 'lost'}
+							class:is-current={capsuleState(index) === 'current'}
+						></span>
+					{/each}
+				</div>
+				<TimerBadge {seconds} {alert} idle={phase !== 'question'} />
 			</div>
-			<TimerBadge {seconds} {alert} idle={phase !== 'question'} />
 		</div>
 
 		<Scoreboard

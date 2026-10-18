@@ -272,6 +272,22 @@ input {
 	text-shadow: 0 5px 0 var(--yellow-edge);
 }
 
+/* Marca compacta: el wordmark del inicio como cabecera de las pantallas de juego. */
+.brand {
+	display: flex;
+	justify-content: center;
+}
+
+.brand .wordmark {
+	font-size: clamp(1.6rem, 7.5vw, 2rem);
+	letter-spacing: -0.5px;
+	text-shadow: 0 3px 0 var(--card-edge);
+}
+
+.brand .wordmark__accent {
+	text-shadow: 0 3px 0 var(--yellow-edge);
+}
+
 .tagline {
 	max-width: 22ch;
 	color: var(--ink-3);
@@ -934,6 +950,12 @@ input {
 	gap: var(--s-3);
 }
 
+.match__head {
+	display: flex;
+	flex-direction: column;
+	gap: var(--s-3);
+}
+
 .match__top {
 	display: flex;
 	align-items: center;
@@ -981,6 +1003,21 @@ input {
 	flex-direction: column;
 	gap: var(--s-2);
 	margin-top: auto;
+}
+
+/* En juego: la cabecera arriba y el resto repartido, así el aire sobrante no cae
+   entero entre la última respuesta y el botón. */
+.match--live {
+	justify-content: space-between;
+}
+
+/* Tope de la columna: 4 teclas de 62 px más sus separaciones. */
+.match--live .match__tiles {
+	max-height: calc(62px * 4 + var(--s-3) * 3);
+}
+
+.match--live .match__foot {
+	margin-top: 0;
 }
 
 .tile__side {
