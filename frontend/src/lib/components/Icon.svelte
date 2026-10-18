@@ -1,5 +1,5 @@
 <script lang="ts">
-	type Name = 'check' | 'arrow' | 'trophy';
+	type Name = 'check' | 'x' | 'arrow' | 'trophy';
 
 	interface Props {
 		name: Name;
@@ -13,6 +13,14 @@
 	{#if name === 'check'}
 		<path
 			d="M5 12.5 10 17.5 19 7"
+			stroke="currentColor"
+			stroke-width="2.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		/>
+	{:else if name === 'x'}
+		<path
+			d="M7 7l10 10M17 7 7 17"
 			stroke="currentColor"
 			stroke-width="2.5"
 			stroke-linecap="round"

@@ -172,9 +172,10 @@ pasa a blanco sobre su color.
 | `Button` | `green/blue/slate` · dos líneas (título + subtítulo) · 78 px · press de 4 px · misma API en los dos estilos · `sheen` solo el principal |
 | `SkinSwitcher` | elegido en Inicio; escribe `data-skin` y `localStorage` (clave `omni-skin`) |
 | `CategoryBadge` | color `--cat-*` + etiqueta de `es.json` |
-| `AnswerTile` | idle/selected/correct/wrong/dim · ≥ 60 px · keycap `1`–`4` · verde/rojo al revelar |
+| `AnswerTile` | idle/selected/correct/wrong/dim · ≥ 60 px · keycap `1`–`4` · verde/rojo al revelar · tag de quién eligió |
+| `QuestionCard` | panel con badge de categoría y esticker "Responde" flotante |
 | `NickInput` | 1–16, pozo hundido, badge de check; muestra el error del servidor tal cual |
-| `TimerRing` | arco sobre `ends_at`; alerta y pulso en los últimos 5 s |
+| `TimerBadge` | cuenta atrás sobre `ends_at`; late y se pinta rojo en los últimos 5 s, se apaga fuera del turno |
 | `PlayerPanel` | nick, estado conectado/desconectado, puntos |
 | `Scoreboard` | `you` – `opponent`, números en display; avatares en Colorido |
 | `CodeInput` | 6 casillas, alfabeto sin `O/0/I/1`, pegado del código completo |
@@ -190,6 +191,8 @@ pasa a blanco sobre su color.
   pantalla de partida no se cierra (`docs/api.md`).
 - Mientras el rival no contestó, la elección propia queda bloqueada y marcada; nunca se
   insinúa si es correcta.
+- Mientras no exista el cliente WS, `/play` se dibuja con datos de ejemplo de `src/lib/demo/`;
+  esa carpeta se borra al conectar el servidor.
 
 ## Sonido
 
@@ -209,5 +212,5 @@ ranking · admin. El contenido de cada una está en `docs/plan.md`.
 - Contraste AA en ambos estilos: en Papel sobre el fondo y sobre cada color de categoría
   (blanco solo donde el ratio lo permita); en Colorido el texto de los botones es blanco
   sobre el degradado, con `text-shadow` para el filo.
-- `prefers-reduced-motion`: sin pulso de `TimerRing`, sin rebote del botón, sin destello,
+- `prefers-reduced-motion`: sin pulso de `TimerBadge`, sin rebote del botón, sin destello,
   sin transición de tile.

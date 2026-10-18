@@ -1,11 +1,5 @@
 <script lang="ts">
-	export type Category =
-		| 'science'
-		| 'geography'
-		| 'history'
-		| 'sports'
-		| 'entertainment'
-		| 'art';
+	import type { Category } from '#lib/categories';
 
 	interface Props {
 		category: Category;
