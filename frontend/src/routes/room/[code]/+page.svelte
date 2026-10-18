@@ -30,7 +30,6 @@
 	let starting = $state(false);
 	let copied = $state(false);
 	let copyTimer: ReturnType<typeof setTimeout> | null = null;
-	let revealTimer: ReturnType<typeof setTimeout> | null = null;
 	let now = $state(Date.now());
 	/** Opción marcada con `1`–`4`, a la espera de `Enter`. */
 	let selected = $state<number | null>(null);
@@ -92,12 +91,8 @@
 	$effect(() => {
 		const revealing = phase === 'reveal';
 		if (revealing && !lastReveal) {
-			sound.play('reveal');
 			const correct = result?.you.correct;
-			if (correct !== undefined) {
-				if (revealTimer) clearTimeout(revealTimer);
-				revealTimer = setTimeout(() => sound.play(correct ? 'correct' : 'wrong'), 120);
-			}
+			if (correct !== undefined) sound.play(correct ? 'correct' : 'wrong');
 		}
 		lastReveal = revealing;
 	});
@@ -156,7 +151,6 @@
 		return () => {
 			live?.close();
 			if (copyTimer) clearTimeout(copyTimer);
-			if (revealTimer) clearTimeout(revealTimer);
 		};
 	});
 
