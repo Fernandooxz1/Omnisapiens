@@ -14,11 +14,31 @@ from app.db import engine, session_factory
 from app.logging_config import configure_logging
 from app.redis import redis_client
 from app.runtime.live import Live, live_arcade_runs
-from app.runtime.room_manager import room_store
+from app.runtime.room_manager import InMemoryRoomStore, room_store
 from app.services.reaper import sweep
 from app.ws import arcade_ws, room_ws
 
 logger = logging.getLogger(__name__)
+
+
+def _check_process_scope() -> None:
+    """Fuera de `local`, el despliegue tiene que declarar un solo proceso (H-07).
+
+    Con `--workers 2` cada worker tendría su propio `room_store` y su propio
+    registro de corridas vivas: dos verdades para el mismo código de sala, y dos
+    jugadores que se ven como si el otro no hubiera llegado. Desde adentro del
+    proceso no hay forma de contar los workers, así que el guard exige que quien
+    despliega lo declare; el día que exista el `RoomStore` sobre Redis esta
+    comprobación se cae sola, porque el store deja de ser el en memoria.
+    """
+    if settings.env == "local" or settings.single_process:
+        return
+    if isinstance(room_store, InMemoryRoomStore):
+        raise RuntimeError(
+            "ENV != local con el estado vivo en memoria: corré un solo worker "
+            "(--workers 1) y declaralo con SINGLE_PROCESS=1, o implementá el "
+            "RoomStore sobre Redis (H-07 en docs/observaciones.md)."
+        )
 
 
 async def _sweep_once(*, startup: bool = False) -> None:
@@ -74,6 +94,9 @@ async def _reap_forever(interval_s: float) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Primero el guard, antes de configurar nada: una configuración que da dos
+    # verdades por sala no debería ni llegar a arrancar el barrido.
+    _check_process_scope()
     configure_logging()
     await _sweep_on_startup()
     reaper = asyncio.create_task(

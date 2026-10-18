@@ -14,9 +14,11 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). **Jugable y administrable**: HTTP, banco de preguntas e importador (CLI y HTTP), panel de admin con `X-Admin-Token`, motores puros, sala viva con WS, barrendero periódico, arcade con WS, persistencia y **ranking en Postgres**. 7 tablas, migraciones `0001`–`0003`, **543 tests en ~21 s**, cobertura **93 %**.
+Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). **Jugable y administrable**: HTTP, banco de preguntas e importador (CLI y HTTP), panel de admin con `X-Admin-Token`, motores puros, sala viva con WS, barrendero periódico, arcade con WS, persistencia y **ranking en Postgres**. 7 tablas, migraciones `0001`–`0003`, **547 tests en ~17 s**, cobertura **94 %**.
 
-El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A6), no en Redis. El plan del MVP está abajo y el diseño de datos en el **Anexo A**. Verificación estándar antes de commitear: `make up` una vez y `make lint` + `make cov`. El panel se prueba a mano con los `curl` del `README.md`.
+**La auditoría quedó cerrada** (`docs/observaciones.md`): H-01..H-25 resueltos, incluido H-07 (guard `SINGLE_PROCESS`) y los dos tests de concurrencia. Lo que queda en el plan del MVP es de acá para adelante: el frontend de verdad lo hace otra persona.
+
+El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A6), no en Redis. Verificación estándar antes de commitear: `make up` una vez y `make lint` + `make cov`. El panel se prueba a mano con los `curl` del `README.md`.
 
 La página de prueba vive en `frontend/dev/` (`index.html` + `app.js` + `style.css`) y se sirve con `make web` en `http://localhost:5173` (el API sigue en `:8000`; CORS ya permite ese origen). Es de desarrollo, no el producto: login de invitado, sala 1v1, revancha, arcade, ranking, **sección de admin** (token en `localStorage`) y log crudo de mensajes. No reconecta sola al recargar, el marcador local queda en `0-0` tras reconectar, y duplicar la pestaña puede compartir la sesión.
 
@@ -34,16 +36,16 @@ La página de prueba vive en `frontend/dev/` (`index.html` + `app.js` + `style.c
 - [x] Admin Fase 1: `GET /admin/questions` paginado y `POST /admin/questions/import` (multipart), con `X-Admin-Token`.
 - [x] Sección de admin en la página de prueba: token, listado con filtros y paginación, y subida de CSV/JSON con el informe.
 - [x] Curación de la semilla: 72 preguntas (12 por categoría) con los tramos de dificultad cubiertos (18/23/15/10/6), tres arreglos de contenido y los conteos alineados (tests, Makefile, README).
+- [x] H-07: guard en el `lifespan` (fuera de `local` hace falta `SINGLE_PROCESS=1`) y los dos tests de concurrencia.
 
 ### Próximos pasos
 
-**Ahora: cerrar los pendientes de la auditoría.** La semilla queda curada; lo que sigue son los huecos que `docs/observaciones.md` todavía tiene abiertos.
+**La auditoría está cerrada.** Lo que sigue es el plan del MVP de acá para adelante:
 
-- [ ] H-07: guard en el `lifespan` que impida arrancar con más de una instancia fuera de `local`.
-- [ ] Los dos tests de concurrencia que faltan (dos `answer` simultáneos de la misma silla y dos salas compartiendo el `Random`).
 - [ ] Fase 5 (visual; el frontend lo hace otra persona): componentes, íconos SVG, sonidos y teclado.
 - [ ] Fase 6: PWA, e2e (Playwright) y documentación.
 - [ ] Cerrar §20: repasar la "definición de terminado" del MVP.
+- [ ] Pendiente de backend, si aparece: `_pick` fuera del lock y una sola sesión por transición (notas al pie del Anexo, no urgen).
 
 > **Trampas y decisiones que no se re-descubren: Anexo B**, al final. Consultarlo por
 > `grep` cuando el paso en curso lo pida (auth, tests, reloj, outbox, persistencia, ranking).
@@ -99,7 +101,11 @@ docs/       plan.md  observaciones.md
 en `backend/.env` (ver `.env.example`): `ENV`, `LOG_LEVEL`, `DATABASE_URL`, `REDIS_URL`,
 `JWT_SECRET`, `JWT_TTL_DAYS`, `CORS_ORIGINS`, `ADMIN_TOKEN`, `RECONNECT_GRACE_SECONDS`,
 `ROOM_IDLE_TIMEOUT_SECONDS`, `STALE_MATCH_MINUTES`, `WS_IDLE_TIMEOUT_SECONDS`,
-`REAPER_INTERVAL_SECONDS`, `RATE_LIMIT_*`.
+`REAPER_INTERVAL_SECONDS`, `SINGLE_PROCESS`, `RATE_LIMIT_*`.
+
+Fuera de `local`, el despliegue tiene que declarar `SINGLE_PROCESS=1` o la API se niega a
+arrancar: el estado vivo (salas y arcade) es del proceso y dos workers serían dos verdades
+para el mismo código de sala (H-07).
 
 Comandos (`Makefile`): `make up|down`, `api` (:8000), `web` (:5173), `migrate`, `seed`,
 `import FILE=...`, `test`, `cov` (gate de cobertura), `lint`, `check-schema`.
@@ -421,7 +427,10 @@ shell; el juego **no** funciona offline. **i18n:** todas las cadenas en `es.ts` 
 | El diseño se vuelve genérico al crecer | las reglas duras de diseño y el criterio de la Fase 5 |
 
 Deploy (fuera del MVP): `Dockerfile` desde la Fase 0, toda la config por variables de
-entorno, estado de sala en memoria + Redis con Pub/Sub para escalar horizontalmente.
+entorno, estado de sala en memoria + Redis con Pub/Sub para escalar horizontalmente. Hoy el
+estado vivo es del proceso: fuera de `local` hay que declarar `SINGLE_PROCESS=1` (un solo
+worker) o la API se niega a arrancar (H-07); cuando el `RoomStore` sea el de Redis, esa
+declaración deja de hacer falta y se levanta sin tocar el resto.
 
 ---
 
@@ -654,6 +663,14 @@ El §Reglas sigue mandando en el producto y el protocolo; este anexo fija la cap
 - La última ronda emite `round_result` **y** `match_end` juntos.
 - El `RoomStore` es un `Protocol`; el estado vivo es **uno por proceso** (`room_store`,
   como `engine` y `redis_client`) y se apaga en el lifespan.
+- Por eso mismo, fuera de `local` la API **se niega a arrancar** sin `SINGLE_PROCESS=1`
+  (H-07): con `--workers 2` cada worker tendría su propio `room_store` y dos verdades para
+  el mismo código de sala. Desde adentro no se pueden contar los workers: lo declara quien
+  despliega. Cuando el `RoomStore` sea el de Redis, el guard se cae solo.
+- Dos salas en el mismo test comparten la `AsyncSession` de la fixture: una sesión no
+  soporta dos operaciones a la vez, así que la fábrica va con `_serializada` (cerrojo). Lo
+  que queda intercalado, que es lo que se quiere probar, son las transiciones y el `Random`
+  compartido; en producción cada `_pick`/`_persist` se lleva su propia sesión del pool.
 - `room.start` sólo se acepta desde `WAITING` (H-06): con la sala `finished`, el único
   camino es la revancha acordada. `disconnect` vuelve la sala a `WAITING`, así "se fue uno,
   entra otro, arrancamos" sigue andando.

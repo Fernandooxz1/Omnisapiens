@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     env: str = "local"
     # Nivel del root logger de la API. Los loggers de uvicorn mantienen el suyo.
     log_level: str = "INFO"
+    # El despliegue declara que corre un solo proceso. Fuera de `local` es
+    # obligatorio (H-07): el estado vivo es de este proceso y dos workers serían
+    # dos verdades para el mismo código de sala. Desde adentro no se pueden
+    # contar los workers, así que lo declara quien despliega.
+    single_process: bool = False
 
     database_url: str
     redis_url: str

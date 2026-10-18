@@ -16,11 +16,13 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.game.constants import BASE_POINTS, TIME_BONUS_MAX
 from app.game.match_engine import MatchConfig
 from app.game.protocols import (
     Error,
     MatchEnd,
     MatchStart,
+    OpponentAnswered,
     OpponentReturned,
     ReconnectPending,
     RematchWaiting,
@@ -50,6 +52,28 @@ async def _compartida(session: AsyncSession) -> AsyncIterator[AsyncSession]:
     tests de la partida ensuciarían `trivia_test`.
     """
     yield session
+
+
+def _serializada(
+    session: AsyncSession,
+) -> Callable[[], AbstractAsyncContextManager[AsyncSession]]:
+    """La sesión del test, de a una operación por vez.
+
+    Una `AsyncSession` no soporta dos operaciones a la vez, y acá dos salas
+    comparten la del test (en producción cada `_pick` y cada `_persist` se llevan
+    su propia sesión del pool, así que el problema no existe). El cerrojo
+    serializa el acceso a la base; lo que sigue intercalado es lo que importa:
+    las transiciones de las dos salas, con las tiradas del `Random` compartido
+    entre medio.
+    """
+    cerrojo = asyncio.Lock()
+
+    @asynccontextmanager
+    async def _abrir() -> AsyncIterator[AsyncSession]:
+        async with cerrojo:
+            yield session
+
+    return _abrir
 
 
 @pytest.fixture
@@ -723,3 +747,121 @@ async def test_live_reports_rooms_with_players_and_matches_playing(
     await h.store.disconnect(code=fila.code, user_id=str(beto.id), outbox=b_out)
 
     assert h.store.live().room_ids == frozenset()
+
+
+async def test_two_answers_of_the_same_seat_at_once_count_once(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    """Idempotencia bajo el lock: reenviar la respuesta no duplica nada.
+
+    El cliente puede reenviar el `answer` (reintento de red, doble click), y las
+    dos copias pasan por `_act`: el lock de la sala las ordena, la segunda ve la
+    ronda ya contestada y sale sin efectos.
+    """
+    h, ana, beto, fila = await sala_armada(session, abrir)
+    a_out, b_out = await sentar(h, fila, ana, beto)
+    await h.store.start(code=fila.code, user_id=str(ana.id))
+    primera = uno(drain(a_out), RoundStart)
+    drain(b_out)
+
+    await asyncio.gather(
+        h.store.answer(code=fila.code, user_id=str(ana.id), round_index=0, choice=1),
+        h.store.answer(code=fila.code, user_id=str(ana.id), round_index=0, choice=1),
+    )
+
+    # `uno` falla si el aviso llegó dos veces; Ana no recibe eco de lo suyo.
+    assert uno(drain(b_out), OpponentAnswered).round == 0
+    assert drain(a_out) == []
+
+    await correr(h, primera.total_seconds * 1000)
+
+    resultado = uno(drain(a_out), RoundResult)
+    assert resultado.you.correct is True
+    # 100 base + 50 de bonus máximo: la respuesta quedó registrada una sola vez,
+    # en el instante en que llegó la primera, y la ronda se resolvió una sola vez.
+    assert resultado.you.points == BASE_POINTS + TIME_BONUS_MAX
+    assert uno(drain(b_out), RoundResult).you.correct is False
+
+
+async def test_two_rooms_share_the_rng_and_nothing_else(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    """Dos salas a la vez sobre el mismo store y el mismo `Random` inyectado.
+
+    El `Random` es del proceso, no de la sala: dos partidas lo hacen tirar
+    intercalado (elegir pregunta, categoría, dificultad y mezclar opciones). Lo
+    que se prueba es que eso no mezcla el estado: cada sala resuelve sus rondas,
+    entrega a sus jugadores y escribe su propia fila.
+    """
+    h, ana, beto, fila = await sala_armada(
+        session, abrir, session_factory=_serializada(session)
+    )
+    caro, dora = user(nick="caro"), user(nick="dora")
+    session.add_all([caro, dora])
+    await session.flush()
+    otra = room(caro.id, config={"rounds": 3, "seconds": 10})
+    session.add(otra)
+    await session.flush()
+    await h.store.open(
+        code=otra.code,
+        room_id=str(otra.id),
+        config=MatchConfig(rounds=3, seconds=10),
+        host_id=str(caro.id),
+    )
+    a_out, b_out = await sentar(h, fila, ana, beto)
+    c_out, d_out = await sentar(h, otra, caro, dora)
+
+    # Los dos arranques caen juntos: el alta de cada partida, la elección de la
+    # ronda 0 y su entrega se intercalan.
+    await asyncio.gather(
+        h.store.start(code=fila.code, user_id=str(ana.id)),
+        h.store.start(code=otra.code, user_id=str(caro.id)),
+    )
+
+    arranque_a = uno(drain(a_out), MatchStart)
+    arranque_c = uno(drain(c_out), MatchStart)
+    assert arranque_a.match_id != arranque_c.match_id
+    assert uno(drain(b_out), RoundStart).round == 0
+    assert uno(drain(d_out), RoundStart).round == 0
+
+    # Las cuatro respuestas de cada ronda caen juntas, y también la resolución de
+    # una sala con la elección de la ronda siguiente de la otra.
+    for ronda in range(3):
+        await asyncio.gather(
+            h.store.answer(
+                code=fila.code, user_id=str(ana.id), round_index=ronda, choice=1
+            ),
+            h.store.answer(
+                code=fila.code, user_id=str(beto.id), round_index=ronda, choice=0
+            ),
+            h.store.answer(
+                code=otra.code, user_id=str(caro.id), round_index=ronda, choice=1
+            ),
+            h.store.answer(
+                code=otra.code, user_id=str(dora.id), round_index=ronda, choice=0
+            ),
+        )
+
+    # Cada jugador recibe un solo final: si una sala le entregara el final de la
+    # otra, `uno` vería dos y fallaría.
+    for outbox in (a_out, b_out, c_out, d_out):
+        assert uno(drain(outbox), MatchEnd).reason == "completed"
+
+    partidas = (await session.scalars(select(Match))).all()
+    # Cada partida terminó en su propia sala, con el id que solo se le anunció a
+    # los jugadores de esa sala.
+    assert {partida.id: partida.room_id for partida in partidas} == {
+        uuid.UUID(arranque_a.match_id): fila.id,
+        uuid.UUID(arranque_c.match_id): otra.id,
+    }
+    assert {partida.status for partida in partidas} == {"finished"}
+    # Tres rondas por partida y ninguna compartida entre las dos.
+    rondas = (await session.scalars(select(MatchRound))).all()
+    assert {
+        partida.id: sum(1 for r in rondas if r.match_id == partida.id)
+        for partida in partidas
+    } == {
+        uuid.UUID(arranque_a.match_id): 3,
+        uuid.UUID(arranque_c.match_id): 3,
+    }
+    assert h.store.live().match_ids == frozenset()

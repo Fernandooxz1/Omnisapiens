@@ -2,9 +2,11 @@
 
 > Auditoría hecha el 2026-10-17 leyendo todo `backend/` (app, tests, migraciones) contra
 > `docs/plan.md`. **Cerrada de punta a punta**: H-01..H-25 resueltos y verificados con
-> tests y sabotajes. Este documento quedó **comprimido a lo que sigue abierto**; el detalle
-> de cada hallazgo resuelto (evidencia, reproducción y arreglo) vive en el historial de
-> git, en la versión anterior de este archivo (`git log -p -- docs/observaciones.md`).
+> tests y sabotajes (H-07 incluido: guard de un solo proceso con `SINGLE_PROCESS`, más los
+> dos tests de concurrencia que faltaban). Este documento quedó **comprimido a lo que sigue
+> abierto**; el detalle de cada hallazgo resuelto (evidencia, reproducción y arreglo) vive en
+> el historial de git, en la versión anterior de este archivo
+> (`git log -p -- docs/observaciones.md`).
 
 ## Veredicto
 
@@ -14,15 +16,16 @@ problemas que importaban no eran de arquitectura sino de **cierre de ciclos de v
 socket que se va tarde, el reloj que muere callado, lo que nadie cierra al apagar): los dos
 P0 eran silenciosos y estaban en el camino "en vivo". Ya están todos corregidos.
 
-## Pendientes abiertos
+## Notas de implementación (nada pendiente)
+
+Tres cosas que hoy se sostienen por una razón fina. No son bugs: son el día en que hay que
+mirar de nuevo si el contexto cambia.
 
 | # | Qué | Dónde |
 |---|---|---|
-| H-07 | Nada impide `uvicorn --workers 2`: cada worker tendría su propio `room_store` y dos verdades con el mismo código de sala. Arreglo barato: un guard en el `lifespan` que, si `env != "local"` y el store es el en memoria, loguee en `error` (o se niegue a arrancar). Misma idea que la validación de `JWT_SECRET`. | `main.py` |
 | — | `open()` sin lock: el desalojo y el alta no tienen `await` en el medio → atómicos en el event loop, **pero solo por eso**. Si se agrega I/O ahí, va bajo lock. | `room_manager.py` |
 | — | `_pick`/`_serve_next` toman el lock de la sala durante I/O de Postgres: una base lenta bloquea sala **y** reloj. Con 60 preguntas es irrelevante; con banco grande, se elige la pregunta **antes** de tomar el lock. | `room_manager.py` |
 | — | Hasta 2 sesiones de base por transición (`_persist` y `_pick` abren la suya): con pool por defecto (5+10) y muchas salas, agotamiento del pool. | `room_manager.py` |
-| — | Dos tests de concurrencia faltantes: dos `answer` simultáneos de la misma silla (idempotencia ya implementada, sin prueba) y dos salas concurrentes compartiendo el `Random` inyectado. No hace falta suite de estrés: un par con `asyncio.gather` alcanza. | `tests/` |
 
 ## Calidad de datos: lo que la base no garantiza
 
@@ -79,6 +82,10 @@ El CI (`.github/workflows/ci.yml`) corre los mismos targets con Postgres y Redis
 `test_the_old_socket_closing_late_does_not_abandon_the_reconnected_player` (H-01),
 `test_the_clock_retries_*` (H-02), `test_the_room_row_follows_the_match_lifecycle` y
 `test_a_dead_room_is_evicted_when_another_one_opens` (H-03/H-04),
-`test_start_is_rejected_after_the_match_finished` (H-06), `tests/test_reaper.py`,
+`test_start_is_rejected_after_the_match_finished` (H-06),
+`test_the_lifespan_refuses_a_deployment_that_did_not_declare_one_process` (H-07),
+`test_two_answers_of_the_same_seat_at_once_count_once` y
+`test_two_rooms_share_the_rng_and_nothing_else` (concurrencia),
+`tests/test_reaper.py`,
 `tests/test_logging.py` (H-08/H-12), `test_shuffle_options_breaks_the_position_bias` y
 `test_serving_shuffles_the_options_and_the_correct_one_moves` (H-25).

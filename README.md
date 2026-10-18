@@ -102,7 +102,9 @@ Los errores tienen siempre la forma `{"error": {"code", "message"}}`.
 ## Decisiones que conviene no olvidar
 
 - El **estado vivo de las salas está en memoria**: hoy el backend corre en **una
-  sola instancia** (el código asume un proceso).
+  sola instancia** (el código asume un proceso). Fuera de `local` el proceso se
+  niega a arrancar si el despliegue no declara `SINGLE_PROCESS=1`: con más de un
+  worker habría dos verdades por código de sala (H-07).
 - El servidor es **autoritativo**: la respuesta correcta no viaja al cliente antes
   de contestar, y las opciones se barajan al servir.
 - El token del WS viaja en `?token=` (el navegador no deja headers en
