@@ -16,6 +16,28 @@ export interface AuthOut {
 
 export type MatchResult = 'win' | 'loss' | 'draw';
 
+/** Configuración de una sala 1v1 (`POST /rooms`). */
+export interface RoomConfig {
+	rounds: number;
+	seconds: number;
+}
+
+export interface RoomCreated {
+	code: string;
+	config: RoomConfig;
+}
+
+/** Vista previa pública de una sala (`GET /rooms/{code}`). */
+export interface RoomPreview {
+	code: string;
+	config: RoomConfig;
+	status: 'waiting' | 'playing' | 'finished' | 'expired';
+	host_nick: string;
+	expires_at: string;
+	/** Sillas ocupadas, no conexiones. */
+	players: number;
+}
+
 export interface ArcadeRun {
 	id: string;
 	score: number;

@@ -37,6 +37,16 @@ export interface LiveEnd {
 	reason: 'completed' | 'abandoned';
 }
 
+export interface LivePlayer {
+	id: string;
+	nick: string;
+}
+
+export interface LiveConfig {
+	rounds: number;
+	seconds: number;
+}
+
 export type LivePhase =
 	| 'connecting'
 	| 'waiting'
@@ -117,8 +127,12 @@ export function createLiveMatch(code: string, token: string) {
 	let notice = $state<string | null>(null);
 
 	let you = $state(session.user?.nick ?? '');
+	let youId = $state('');
 	let rival = $state('');
 	let rounds = $state(0);
+	let config = $state<LiveConfig>({ rounds: 0, seconds: 0 });
+	/** Sillas de la sala, en el orden del servidor (incluye desconectadas). */
+	let players = $state<LivePlayer[]>([]);
 	let question = $state<LiveQuestion | null>(null);
 	let picked = $state<number | null>(null);
 	let result = $state<LiveRoundResult | null>(null);
@@ -135,14 +149,19 @@ export function createLiveMatch(code: string, token: string) {
 			case 'room_state': {
 				const state = message.d as RoomState;
 				you = state.you.nick;
+				youId = state.you.id;
+				players = state.players;
+				config = state.config;
 				rival = state.players.find((player) => player.id !== state.you.id)?.nick ?? '';
 				rounds = state.config.rounds;
+				notice = null;
 				if (state.status === 'waiting') phase = 'waiting';
 				break;
 			}
 			case 'match_start': {
 				const start = message.d as MatchStart;
 				rounds = start.rounds_total;
+				config = start.config;
 				// Partida nueva: lo anterior era de la revancha pasada.
 				history = [];
 				scores = { you: 0, opponent: 0 };
@@ -226,6 +245,11 @@ export function createLiveMatch(code: string, token: string) {
 		phase = 'answered';
 	}
 
+	/** Solo el host puede; el servidor igual rechaza con `NOT_HOST`/`NOT_READY`. */
+	function start() {
+		return socket.send('start');
+	}
+
 	function rematch() {
 		if (socket.send('rematch')) rematchWaiting = true;
 	}
@@ -246,8 +270,17 @@ export function createLiveMatch(code: string, token: string) {
 		get you() {
 			return you;
 		},
+		get youId() {
+			return youId;
+		},
 		get rival() {
 			return rival;
+		},
+		get config() {
+			return config;
+		},
+		get players() {
+			return players;
 		},
 		get question() {
 			return question;
@@ -281,6 +314,7 @@ export function createLiveMatch(code: string, token: string) {
 			return Math.max(rounds, history.length, (question?.round ?? 0) + 1);
 		},
 		answer,
+		start,
 		rematch,
 		close: () => socket.close()
 	};

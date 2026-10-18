@@ -233,6 +233,13 @@ pausa: el reloj no gasta la revelación. El final de partida no lleva pausa extr
 El cliente no retiene la ronda por su cuenta: dibuja el resultado y espera el próximo
 `round_start` / `arcade_question`.
 
+## Pedido pendiente al backend
+
+**Presencia en el lobby.** `room_state.players` lista las sillas, incluidas las
+desconectadas, pero no dice cuáles siguen conectadas. Para pintar el estado en el lobby
+hace falta un `connected: bool` por jugador (o el equivalente). Mientras tanto el cliente
+muestra las sillas sin estado.
+
 ## Códigos de error
 
 | Código | HTTP | Cuándo |

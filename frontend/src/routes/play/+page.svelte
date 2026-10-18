@@ -2,56 +2,27 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import type { ApiError } from '#lib/api/client';
+	import { ApiError, NETWORK_ERROR } from '#lib/api/client';
+	import { createRoom, previewRoom } from '#lib/api/rooms';
 	import { session } from '#lib/api/session.svelte';
-	import AnswerTile, { type TileState } from '#lib/components/AnswerTile.svelte';
 	import Button from '#lib/components/Button.svelte';
-	import QuestionCard from '#lib/components/QuestionCard.svelte';
-	import Scoreboard from '#lib/components/Scoreboard.svelte';
-	import TimerBadge from '#lib/components/TimerBadge.svelte';
-	import { categoryKey } from '#lib/categories';
+	import CodeInput from '#lib/components/CodeInput.svelte';
 	import { t, type MessageKey } from '#lib/i18n';
-	import { createLiveMatch, type LiveMatch } from '#lib/match/live.svelte';
 
-	type Who = 'you' | 'rival';
+	const ROUNDS = [3, 5, 7] as const;
+	const SECONDS = [10, 20, 30] as const;
+	const CODE = /^[A-Z2-9]{6}$/;
 
-	/** La sala llega por query hasta que exista el lobby, que es quien la elige. */
-	const code = $derived(page.url.searchParams.get('code') ?? '');
-
-	let match = $state<LiveMatch | null>(null);
-	/** Antes de tener canal: falta el código o la sesión. */
+	let rounds = $state<number>(5);
+	let seconds = $state<number>(20);
+	let code = $state('');
+	let busy = $state<'create' | 'join' | null>(null);
+	let error = $state<MessageKey | null>(null);
 	let blocked = $state<MessageKey | null>(null);
-	let now = $state(Date.now());
 
-	const phase = $derived(match?.phase ?? 'connecting');
-	const question = $derived(match?.question ?? null);
-	const ended = $derived(match?.ended ?? null);
-	const problem = $derived(blocked ?? failureKey(match?.failure ?? null));
-
-	/** Segundos del `ends_at` del servidor: el cliente no calcula tiempo propio. */
-	const seconds = $derived(
-		question ? Math.max(0, Math.ceil((question.endsAt - now) / 1000)) : 0
-	);
-	const alert = $derived(phase === 'question' && seconds <= 5);
-	const timeLeft = $derived(
-		question ? Math.min(100, Math.round((seconds / question.totalSeconds) * 100)) : 0
-	);
-
-	const result = $derived(match?.result ?? null);
-	const picked = $derived(match?.picked ?? null);
-	const rivalPick = $derived(result?.opponent.choice ?? null);
-	const youRight = $derived(result?.you.correct ?? false);
-	const deltaText = $derived(
-		t('play.delta', {
-			you: delta(result?.you.points ?? 0),
-			name: match?.rival ?? '',
-			rival: delta(result?.opponent.points ?? 0)
-		})
-	);
+	const canJoin = $derived(CODE.test(code));
 
 	onMount(() => {
-		let live: LiveMatch | null = null;
-
 		(async () => {
 			await session.restore();
 
@@ -59,28 +30,61 @@
 				blocked = 'play.error_auth';
 				return;
 			}
-			if (!code) {
-				blocked = 'play.error_code';
+
+			// Enlace viejo: la sala ahora vive en su propia ruta.
+			const legacy = page.url.searchParams.get('code');
+			if (legacy) await goto(`/room/${legacy.toUpperCase()}`, { replaceState: true });
+		})();
+	});
+
+	async function create() {
+		if (!session.token || busy) return;
+
+		busy = 'create';
+		error = null;
+
+		try {
+			const room = await createRoom(session.token, { rounds, seconds });
+			await goto(`/room/${room.code}`);
+		} catch (failure) {
+			error = errorKey(failure);
+		} finally {
+			busy = null;
+		}
+	}
+
+	async function join(submitted?: string) {
+		const wanted = (submitted ?? code).toUpperCase();
+		if (!session.token || busy || !CODE.test(wanted)) return;
+
+		busy = 'join';
+		error = null;
+
+		try {
+			const room = await previewRoom(wanted);
+
+			if (room.status !== 'waiting') {
+				error = 'play.error_started';
+				return;
+			}
+			if (room.players >= 2) {
+				error = 'play.error_full';
 				return;
 			}
 
-			live = createLiveMatch(code, session.token);
-			match = live;
-		})();
+			await goto(`/room/${room.code}`);
+		} catch (failure) {
+			error = errorKey(failure);
+		} finally {
+			busy = null;
+		}
+	}
 
-		// Irse de la pantalla es abandonar: el rival ve su ventana de gracia.
-		return () => live?.close();
-	});
+	function errorKey(failure: unknown): MessageKey {
+		if (!(failure instanceof ApiError)) return 'play.error_generic';
+		if (failure.code === NETWORK_ERROR) return 'play.error_offline';
 
-	$effect(() => {
-		const id = setInterval(() => (now = Date.now()), 250);
-		return () => clearInterval(id);
-	});
-
-	function failureKey(error: ApiError | null): MessageKey | null {
-		if (!error) return null;
-
-		switch (error.code) {
+		switch (failure.code) {
 			case 'AUTH_REQUIRED':
 				return 'play.error_auth';
 			case 'ROOM_NOT_FOUND':
@@ -93,194 +97,179 @@
 				return 'play.error_generic';
 		}
 	}
-
-	function noticeKey(value: string): MessageKey {
-		return value === 'NO_QUESTIONS' ? 'play.error_no_questions' : 'play.error_generic';
-	}
-
-	/** Cápsula de cada ronda: ganada, perdida, la que corre o todavía vacía. */
-	function capsuleState(index: number): 'won' | 'lost' | 'current' | undefined {
-		if (index === question?.round && phase !== 'reveal') return 'current';
-		return match?.history[index];
-	}
-
-	/** Quiénes eligieron esta opción (el rival recién al revelar). */
-	function whoPicked(index: number): Who[] {
-		const who: Who[] = [];
-		if (index === picked) who.push('you');
-		if (phase === 'reveal' && index === rivalPick) who.push('rival');
-		return who;
-	}
-
-	function tileState(index: number): TileState {
-		if (phase === 'reveal') {
-			if (index === result?.correctIndex) return 'correct';
-			if (index === picked || index === rivalPick) return 'wrong';
-			return 'dim';
-		}
-		if (phase !== 'question' && index === picked) return 'selected';
-		return 'idle';
-	}
-
-	function tileTag(index: number): string | undefined {
-		const who = whoPicked(index);
-		if (who.length === 0) return undefined;
-		return who.map((one) => (one === 'you' ? t('play.you') : (match?.rival ?? ''))).join(' · ');
-	}
-
-	function tileMark(index: number): 'correct' | 'wrong' | undefined {
-		if (phase !== 'reveal' || whoPicked(index).length === 0) return undefined;
-		return index === result?.correctIndex ? 'correct' : 'wrong';
-	}
-
-	function delta(points: number) {
-		return points > 0 ? `+${points}` : '+0';
-	}
 </script>
 
-{#if problem}
-	<section class="match">
-		<div class="match__foot">
+{#if blocked}
+	<section class="play">
+		<div class="play__intro">
 			<h1 class="page-title">{t('play.title')}</h1>
-			<p class="muted">{t(problem)}</p>
+			<p class="muted">{t(blocked)}</p>
 		</div>
-		<div class="modes">
-			<Button variant="slate" title={t('common.back')} onclick={() => goto('/')} />
-		</div>
-	</section>
-{:else if phase === 'waiting' || phase === 'starting'}
-	<section class="match">
-		<div class="match__foot">
-			<h1 class="page-title">{t('play.waiting_room', { code })}</h1>
-			<p class="muted">
-				{phase === 'starting' ? t('play.starting') : t('play.waiting_rival')}
-			</p>
-		</div>
-		<div class="modes">
-			<Button variant="slate" title={t('common.back')} onclick={() => goto('/')} />
-		</div>
-	</section>
-{:else if phase === 'over' && ended}
-	<section class="match">
-		<div class="match__foot">
-			<h1 class="page-title">
-				{ended.winner === 'you'
-					? t('play.won')
-					: ended.winner === 'opponent'
-						? t('play.lost')
-						: t('play.tie')}
-			</h1>
-			<Scoreboard
-				you={{ nick: match?.you ?? '', points: match?.scores.you ?? 0 }}
-				rival={{ nick: match?.rival ?? '', points: match?.scores.opponent ?? 0 }}
-			/>
-			{#if ended.reason === 'abandoned'}
-				<p class="muted">{t('play.abandoned')}</p>
-			{/if}
-			{#if match?.rematchWaiting}
-				<p class="muted">{t('play.rematch_waiting')}</p>
-			{/if}
-		</div>
-		<div class="modes">
-			<Button
-				variant="green"
-				title={t('play.rematch')}
-				disabled={match?.rematchWaiting}
-				onclick={() => match?.rematch()}
-			/>
-			<Button variant="slate" title={t('common.back')} onclick={() => goto('/')} />
-		</div>
-	</section>
-{:else if question && match}
-	<section class="match match--live">
-		<div class="match__head">
-			<header class="brand">
-				<h1 class="wordmark">
-					{t('home.wordmark_omni')}<span class="wordmark__accent">{t('home.wordmark_sapiens')}</span>
-				</h1>
-			</header>
-
-			<div class="match__top">
-				<span class="sr-only">
-					{t('play.round', { n: question.round + 1, total: match.total })}
-				</span>
-				<div class="round-capsules" aria-hidden="true">
-					{#each { length: match.total } as _, index (index)}
-						<span
-							class="capsule"
-							class:is-won={capsuleState(index) === 'won'}
-							class:is-lost={capsuleState(index) === 'lost'}
-							class:is-current={capsuleState(index) === 'current'}
-						></span>
-					{/each}
-				</div>
-				<TimerBadge {seconds} {alert} idle={phase !== 'question'} />
-			</div>
-		</div>
-
-		<Scoreboard
-			you={{ nick: match.you, points: match.scores.you }}
-			rival={{ nick: match.rival, points: match.scores.opponent }}
-		/>
-
-		<div class="time-bar" aria-hidden="true">
-			<span
-				class="time-bar__fill"
-				class:is-warn={seconds <= 8 && seconds > 4}
-				class:is-alert={seconds <= 4}
-				style="width: {timeLeft}%"
-			></span>
-		</div>
-
-		<QuestionCard
-			category={question.category}
-			categoryLabel={t(categoryKey(question.category))}
-			prompt={question.prompt}
-			badge={phase === 'question' ? t('play.answer_badge') : undefined}
-		/>
-
-		<div class="match__tiles">
-			{#each question.options as option, index (index)}
-				<AnswerTile
-					keycap={String(index + 1)}
-					label={option}
-					state={tileState(index)}
-					tag={tileTag(index)}
-					mark={tileMark(index)}
-					disabled={phase !== 'question'}
-					onclick={() => match?.answer(index)}
-				/>
-			{/each}
-		</div>
-
-		<div class="match__foot" aria-live="polite">
-			{#if match.rivalGone !== null}
-				<p class="muted">{t('play.rival_gone', { nick: match.rival, n: match.rivalGone })}</p>
-			{:else if match.status === 'reconnecting'}
-				<p class="muted">{t('play.reconnecting')}</p>
-			{:else if match.notice}
-				<p class="muted">{t(noticeKey(match.notice))}</p>
-			{:else if phase === 'question'}
-				<p class="muted">
-					{match.rivalAnswered ? t('play.opponent_answered') : t('play.hint')}
-				</p>
-			{:else if phase === 'answered'}
-				<p class="muted">{t('play.waiting', { nick: match.rival })}</p>
-			{:else}
-				<p class="sr-only">{deltaText}. {youRight ? t('play.correct') : t('play.wrong')}</p>
-			{/if}
-		</div>
-
-		{#if phase === 'reveal'}
-			<div class="match__cta">
-				<p class="muted">{deltaText}</p>
-			</div>
-		{/if}
+		<a class="rank-link" href="/">{t('common.back')}</a>
 	</section>
 {:else}
-	<section class="match">
-		<div class="match__foot">
-			<p class="muted">{t('play.connecting')}</p>
+	<section class="play">
+		<header class="play__intro">
+			<h1 class="page-title">{t('play.title')}</h1>
+			<p class="muted">{t('play.subtitle')}</p>
+		</header>
+
+		{#if error}
+			<p class="play__error" role="alert">{t(error)}</p>
+		{/if}
+
+		<div class="play__card">
+			<h2 class="play__title">{t('play.create_title')}</h2>
+
+			<div class="choice">
+				<span class="choice__label">{t('play.rounds')}</span>
+				<div class="segmented" role="group" aria-label={t('play.rounds')}>
+					{#each ROUNDS as value (value)}
+						<button
+							type="button"
+							class="segment"
+							class:is-on={rounds === value}
+							aria-pressed={rounds === value}
+							onclick={() => (rounds = value)}
+						>
+							{t('play.rounds_value', { n: value })}
+						</button>
+					{/each}
+				</div>
+			</div>
+
+			<div class="choice">
+				<span class="choice__label">{t('play.seconds')}</span>
+				<div class="segmented" role="group" aria-label={t('play.seconds')}>
+					{#each SECONDS as value (value)}
+						<button
+							type="button"
+							class="segment"
+							class:is-on={seconds === value}
+							aria-pressed={seconds === value}
+							onclick={() => (seconds = value)}
+						>
+							{t('play.seconds_value', { n: value })}
+						</button>
+					{/each}
+				</div>
+			</div>
+
+			<Button
+				variant="green"
+				title={busy === 'create' ? t('play.creating') : t('play.create')}
+				disabled={busy !== null}
+				onclick={() => create()}
+			/>
 		</div>
+
+		<p class="play__or" aria-hidden="true">{t('play.or')}</p>
+
+		<div class="play__card">
+			<h2 class="play__title">{t('play.join_title')}</h2>
+
+			<CodeInput label={t('play.code_label')} bind:value={code} oncomplete={(value) => join(value)} />
+
+			<Button
+				variant="blue"
+				title={busy === 'join' ? t('play.joining') : t('play.join')}
+				disabled={!canJoin || busy !== null}
+				onclick={() => join()}
+			/>
+		</div>
+
+		<a class="rank-link" href="/">{t('common.back')}</a>
 	</section>
 {/if}
+
+<style>
+	.play {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		gap: var(--s-4);
+	}
+
+	.play__intro {
+		display: flex;
+		flex-direction: column;
+		gap: var(--s-2);
+		padding-top: var(--s-4);
+	}
+
+	.play__card {
+		display: flex;
+		flex-direction: column;
+		gap: var(--s-4);
+		padding: var(--s-4);
+		border-radius: var(--r-lg);
+		background: var(--panel-bg);
+		box-shadow: 0 5px 0 var(--panel-edge);
+	}
+
+	.play__title {
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: 1.2rem;
+	}
+
+	.play__or {
+		color: var(--ink-3);
+		font-family: var(--font-display);
+		font-size: 0.78rem;
+		font-weight: 700;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		text-align: center;
+	}
+
+	.play__error {
+		color: var(--red-ink);
+		font-size: 0.9rem;
+		font-weight: 600;
+		text-align: center;
+	}
+
+	.choice {
+		display: flex;
+		flex-direction: column;
+		gap: var(--s-2);
+	}
+
+	.choice__label {
+		color: var(--ink-3);
+		font-size: 0.8125rem;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.segmented {
+		display: flex;
+		gap: var(--s-1);
+		padding: 4px;
+		border-radius: var(--r-md);
+		background: var(--well-bg);
+		box-shadow: inset 0 3px 0 rgb(0 0 0 / 0.35);
+	}
+
+	.segment {
+		flex: 1;
+		min-height: 44px;
+		padding: 0 var(--s-2);
+		border: 0;
+		border-radius: var(--r-sm);
+		background: transparent;
+		color: var(--ink-3);
+		font-family: var(--font-display);
+		font-size: 0.95rem;
+		font-weight: 700;
+		cursor: pointer;
+	}
+
+	.segment.is-on {
+		background: var(--panel-bg);
+		box-shadow: 0 3px 0 var(--panel-edge);
+		color: var(--ink);
+	}
+</style>

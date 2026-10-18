@@ -5,11 +5,10 @@
 
 ## Ahora
 
-- [ ] Crear/unirse a sala y lobby con código gigante.
+- [ ] Fin de partida: resumen ronda a ronda (ganador, marcador y revancha ya andan).
 
 ## Después
 
-- [ ] Fin de partida + revancha contra el servidor (la pantalla ya existe con datos de ejemplo).
 - [ ] Arcade completo (`LifeStrip`, fin con ranking).
 - [ ] Ranking global/semanal.
 - [ ] Admin de preguntas (token, listado, subida).
