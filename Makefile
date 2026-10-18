@@ -13,6 +13,10 @@ api:
 web:
 	cd backend && uv run python -m http.server 5173 --bind 127.0.0.1 --directory ../frontend/dev
 
+# SPA real en :5173 (el API sigue en :8000).
+front:
+	cd frontend && npm run dev
+
 migrate:
 	cd backend && uv run alembic upgrade head
 

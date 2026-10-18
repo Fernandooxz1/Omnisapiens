@@ -1,0 +1,161 @@
+/* Solo subconjunto latino: la interfaz está en español y no hay contenido externo. */
+@font-face {
+	font-family: 'Fredoka';
+	src: url('/fonts/fredoka-latin.woff2') format('woff2');
+	font-weight: 300 700;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Instrument Sans';
+	src: url('/fonts/instrument-sans-latin.woff2') format('woff2');
+	font-weight: 400 700;
+	font-style: normal;
+	font-display: swap;
+}
+
+:root {
+	/* Candidata A (docs/diseno.md). La tarea de paleta puede reemplazar estos valores. */
+	--ink: #101828;
+	--ink-2: #344054;
+	--ink-3: #667085;
+	--paper: #fcf8f0;
+	--paper-2: #f2eadf;
+	--white: #ffffff;
+	--correct: #2fa36b;
+	--correct-dark: #1e7a4d;
+	--wrong: #e14b4b;
+	--wrong-dark: #a32f2f;
+	--brand: #2f6bff;
+	--brand-dark: #1e4fd1;
+	--gold: #d99b1c;
+	--cat-geography: #2e9e5b;
+	--cat-history: #c77b2e;
+	--cat-science: #2a6fd6;
+	--cat-art: #8a4fd3;
+	--cat-entertainment: #e0498f;
+	--cat-sports: #1e9e9e;
+
+	/* Forma */
+	--r-sm: 10px;
+	--r-md: 14px;
+	--r-full: 999px;
+	--border-w: 2.5px;
+	--shadow-hard: 4px 4px 0 0 var(--ink);
+	--shadow-press: 1px 1px 0 0 var(--ink);
+	--edge-h: 6px;
+
+	/* Espaciado */
+	--s-1: 4px;
+	--s-2: 8px;
+	--s-3: 12px;
+	--s-4: 16px;
+	--s-5: 24px;
+	--s-6: 32px;
+	--s-7: 48px;
+	--s-8: 64px;
+
+	/* Tipografía */
+	--font-display: 'Fredoka', system-ui, sans-serif;
+	--font-ui: 'Instrument Sans', system-ui, sans-serif;
+
+	--shell-max: 480px;
+	color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	margin: 0;
+	min-height: 100dvh;
+	background: var(--paper);
+	color: var(--ink);
+	font-family: var(--font-ui);
+	font-size: 1rem;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-weight: 700;
+	line-height: 1.05;
+	letter-spacing: -0.02em;
+}
+
+p {
+	margin: 0;
+}
+
+a {
+	color: inherit;
+}
+
+button,
+input {
+	font: inherit;
+	color: inherit;
+}
+
+:focus-visible {
+	outline: 3px solid var(--ink);
+	outline-offset: 3px;
+}
+
+.shell {
+	display: flex;
+	flex-direction: column;
+	gap: var(--s-5);
+	width: 100%;
+	max-width: var(--shell-max);
+	min-height: 100dvh;
+	margin-inline: auto;
+	padding: var(--s-5) var(--s-4);
+	padding-top: max(var(--s-5), env(safe-area-inset-top));
+	padding-bottom: max(var(--s-5), env(safe-area-inset-bottom));
+}
+
+.shell--center {
+	justify-content: center;
+}
+
+/* Marcador de posición hasta que existan los componentes de docs/diseno.md. */
+.link-tile {
+	display: flex;
+	flex-direction: column;
+	gap: var(--s-1);
+	min-height: 64px;
+	padding: var(--s-4);
+	border: var(--border-w) solid var(--ink);
+	border-radius: var(--r-md);
+	background: var(--white);
+	box-shadow: var(--shadow-hard);
+	text-decoration: none;
+}
+
+.link-tile:active {
+	transform: translate(3px, 3px);
+	box-shadow: var(--shadow-press);
+}
+
+.link-tile strong {
+	font-family: var(--font-display);
+	font-size: 1.25rem;
+}
+
+.link-tile span {
+	color: var(--ink-2);
+	font-size: 0.9375rem;
+}

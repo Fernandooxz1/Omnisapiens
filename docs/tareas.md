@@ -5,13 +5,11 @@
 
 ## Ahora
 
-- [ ] **Esqueleto de `frontend/`**: SvelteKit + TypeScript strict, rutas, `npm run check`
-      y `npm run build`, layout base (columna 480 px), `app/i18n/es.json`.
+- [ ] Fijar la paleta: probar el `Button` "juicy" con la candidata A (Preguntados) y B
+      (oscura de `frontend/design/referencia-botones.html`) y quedarse con una.
 
 ## Después
 
-- [ ] Fijar la paleta: probar el `Button` "juicy" con la candidata A (Preguntados) y B
-      (oscura de `frontend/design/referencia-botones.html`) y quedarse con una.
 - [ ] Tokens de `docs/diseno.md` en CSS y componentes `Button` + `CategoryBadge`.
 - [ ] Cliente HTTP + sesión (`POST /auth/guest`, token en `sessionStorage`, `GET /me`).
 - [ ] Inicio: dos botones (jugar 1v1 / arcade) y nick.
@@ -24,4 +22,5 @@
 - [ ] Admin de preguntas (token, listado, subida).
 - [ ] Sonido, teclado (`1`–`4`, `Enter`) y PWA.
 - [ ] Playwright: una partida 1v1 completa y un arcade hasta el final.
+- [ ] Errores: `+error.svelte`, `Toast` con `code`/`message` y aviso de API caída.
 - [ ] Borrar `frontend/dev/` cuando lobby + arcade anden en SvelteKit.

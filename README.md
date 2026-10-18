@@ -18,6 +18,21 @@ make api         # uvicorn con reload en http://localhost:8000
 Comprobación: `GET http://localhost:8000/health` → `{"api":"ok","db":"ok","redis":"ok"}`.
 Documentación interactiva: `http://localhost:8000/docs`.
 
+## Levantar el frontend
+
+Requisitos: **Node 22+**.
+
+```bash
+cd frontend
+npm ci
+npm run dev     # http://localhost:5173 (el API tiene que estar en :8000)
+make front      # lo mismo, desde la raíz
+```
+
+`npm run check` corre `svelte-check` y `npm run build` deja la SPA estática en
+`frontend/build/`. El cliente no tiene SSR: el token de invitado vive en `sessionStorage`.
+Todas las cadenas visibles están en `frontend/src/lib/i18n/es.json`.
+
 ## Página de prueba del backend
 
 ```bash
@@ -39,6 +54,7 @@ compartiría la sesión.
 | `make import FILE=mi.csv` | Importa un CSV propio (`draft` por defecto) |
 | `make api` | API en `:8000` con reload |
 | `make web` | Página de prueba en `:5173` |
+| `make front` | SPA real en `:5173` (`npm run dev`) |
 | `make test` / `make cov` | Tests rápidos / con umbral de cobertura (85 %) |
 | `make lint` | `ruff` + `mypy --strict` |
 | `make check-schema` | Falla si modelos y migraciones se desincronizaron |

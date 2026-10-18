@@ -1,0 +1,13 @@
+{
+	"app.title": "Omnisapiens",
+	"app.description": "Trivia online: duelo 1v1 por código y arcade con ranking.",
+	"common.back": "Volver",
+	"common.coming_soon": "En construcción.",
+	"home.tagline": "Trivia para dos, o para uno contra todos.",
+	"home.play_online": "Jugar 1v1",
+	"home.play_online_hint": "Creá una sala y compartí el código.",
+	"home.play_arcade": "Arcade",
+	"home.play_arcade_hint": "Tres vidas, dificultad creciente y ranking.",
+	"arcade.title": "Arcade",
+	"play.title": "Jugar 1v1"
+}
