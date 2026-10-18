@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
     jwt_secret: str
+    # No es un usuario: es el pase único del panel de preguntas. El endpoint lo
+    # recibe en `X-Admin-Token` y lo compara sin cortar en el primer byte.
+    admin_token: str
     cors_origins: str
 
     jwt_ttl_days: int = 30
@@ -35,10 +38,15 @@ class Settings(BaseSettings):
     ws_idle_timeout_seconds: int = 45
 
     @model_validator(mode="after")
-    def _secret_long_outside_local(self) -> "Settings":
-        # En dev el secreto puede ser corto; en cualquier otro entorno, no.
-        if self.env != "local" and len(self.jwt_secret.encode()) < 32:
-            raise ValueError("JWT_SECRET tiene que medir al menos 32 bytes")
+    def _secrets_long_outside_local(self) -> "Settings":
+        if not self.admin_token:
+            raise ValueError("ADMIN_TOKEN no puede estar vacío")
+        # En dev los secretos pueden ser cortos; en cualquier otro entorno, no.
+        if self.env != "local":
+            if len(self.jwt_secret.encode()) < 32:
+                raise ValueError("JWT_SECRET tiene que medir al menos 32 bytes")
+            if len(self.admin_token.encode()) < 32:
+                raise ValueError("ADMIN_TOKEN tiene que medir al menos 32 bytes")
         return self
 
 

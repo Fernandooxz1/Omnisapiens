@@ -5,12 +5,14 @@ o `OptionalUserDep` y FastAPI resuelve el resto.
 """
 
 from collections.abc import AsyncIterator
+from secrets import compare_digest
 from typing import Annotated
 
 from fastapi import Depends, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.errors import ApiError
+from app.config import settings
 from app.db import session_factory
 from app.models import User
 from app.security.tokens import InvalidToken, read_guest_token
@@ -92,3 +94,22 @@ async def get_current_user(usuario: OptionalUserDep) -> User:
 
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
+
+
+async def require_admin(
+    x_admin_token: Annotated[str | None, Header()] = None,
+) -> None:
+    """El pase del panel: `X-Admin-Token` igual al de la configuración.
+
+    `compare_digest` compara en tiempo constante; un `!=` filtra cuántos bytes
+    acertaste en el tiempo de respuesta. Se comparan bytes porque la versión de
+    `str` explota con caracteres no ASCII, y el header es texto libre.
+
+    Un token ausente y uno inválido dan el mismo 401: distinguirlos no le sirve
+    a quien tiene el pase y le cuenta a quien lo busca.
+    """
+    if x_admin_token is not None and compare_digest(
+        x_admin_token.encode("utf-8"), settings.admin_token.encode("utf-8")
+    ):
+        return
+    raise ApiError(401, "ADMIN_REQUIRED", "Se necesita el token de administración.")

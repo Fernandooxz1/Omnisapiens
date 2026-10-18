@@ -14,7 +14,7 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). **Sala 1v1 y arcade completos**: HTTP, banco de preguntas e importador, motores puros, sala viva con WS, barrendero periódico, arcade con WS, persistencia y **ranking en Postgres**. 7 tablas, migraciones `0001`–`0003`, **511 tests en ~17 s**, cobertura **93 %**.
+Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). **Sala 1v1 y arcade completos**: HTTP, banco de preguntas e importador, motores puros, sala viva con WS, barrendero periódico, arcade con WS, persistencia y **ranking en Postgres**. 7 tablas, migraciones `0001`–`0003`, **531 tests en ~17 s**, cobertura **93 %**.
 
 El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en Redis. El plan del MVP está abajo en este archivo y el diseño de datos en el **Anexo A**: se consultan por fragmento (`grep` o `read` con `offset`/`limit`), no hace falta leerlos enteros. Verificación estándar antes de commitear: `make up` una vez y `make lint` + `make cov`.
 
@@ -33,13 +33,14 @@ Pendientes conocidos de la página (no bloquean, es de prueba): no reconecta sol
 - [x] Barrendero periódico (`REAPER_INTERVAL_SECONDS=60`) con lo vivo en memoria excluido (`runtime/live.py` y `RoomStore.live()`), cancelado limpio en el shutdown.
 - [x] Auditoría H-01..H-25, README y calidad (ruff/mypy/cobertura/CI).
 - [x] Página de prueba (`frontend/dev/`, `make web`): dos pestañas, sala + revancha, arcade y ranking.
+- [x] Admin Fase 1: `GET /admin/questions` paginado y filtrable con `X-Admin-Token`; `ADMIN_TOKEN` de vuelta en `config.py`.
 
 ### Próximos pasos
 
-**Ahora: Fase 1 del panel de preguntas.** El backend ya está completo para jugar; sigue el primer endpoint de administración con `X-Admin-Token`.
+**Ahora: cerrar la Fase 1 del panel.** Falta el import por HTTP; el listado ya existe.
 
-- [ ] Fase 1: `GET /admin/questions` paginado con `X-Admin-Token`.
-- [ ] Fase 1: `POST /admin/questions/import` y devolver `X-Admin-Token` a `config.py`.
+- [ ] Fase 1: `POST /admin/questions/import` (multipart CSV/JSON) con el mismo informe que la CLI.
+- [ ] Fase 1: pantalla mínima de admin en `frontend/dev/` para listar y probar el import.
 - [ ] Fase 6: PWA, e2e y documentación (la parte de frontend es de otra persona).
 - [ ] Repasar `docs/observaciones.md` por pendientes P3 sin cerrar.
 

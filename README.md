@@ -76,7 +76,17 @@ SQLite ni mocks. Por eso `make up` tiene que estar corriendo.
   manda `arcade_start`, `arcade_question`, `arcade_result`, `arcade_end`).
 - `GET /leaderboard/arcade?period=all|week&limit=50` → tabla del ranking.
 - `GET /leaderboard/arcade/me` → posición y marca del jugador en ambos períodos.
+- `GET /admin/questions?status=&category=&difficulty=&q=&page=&page_size=` →
+  listado del banco para curar (incluye la respuesta correcta). Requiere
+  `X-Admin-Token` con el `ADMIN_TOKEN` del `.env`.
 - `GET /health` → 503 si falta Postgres o Redis.
+
+Ejemplo del panel:
+
+```bash
+curl -H "X-Admin-Token: dev-admin-token-de-32-bytes-o-mas" \
+  "http://localhost:8000/admin/questions?status=draft&page=1&page_size=20"
+```
 
 Los errores tienen siempre la forma `{"error": {"code", "message"}}`.
 
