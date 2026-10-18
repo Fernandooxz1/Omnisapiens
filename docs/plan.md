@@ -14,11 +14,11 @@ persona; acá solo se toca `backend/`).
 
 ### Dónde estamos
 
-Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). **Sala 1v1 y arcade completos**: HTTP, banco de preguntas e importador, motores puros, sala viva con WS, barrendero periódico, arcade con WS, persistencia y **ranking en Postgres**. 7 tablas, migraciones `0001`–`0003`, **531 tests en ~17 s**, cobertura **93 %**.
+Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `docker compose`). **Jugable y administrable**: HTTP, banco de preguntas e importador (CLI y HTTP), panel de admin con `X-Admin-Token`, motores puros, sala viva con WS, barrendero periódico, arcade con WS, persistencia y **ranking en Postgres**. 7 tablas, migraciones `0001`–`0003`, **543 tests en ~21 s**, cobertura **93 %**.
 
-El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en Redis. El plan del MVP está abajo en este archivo y el diseño de datos en el **Anexo A**: se consultan por fragmento (`grep` o `read` con `offset`/`limit`), no hace falta leerlos enteros. Verificación estándar antes de commitear: `make up` una vez y `make lint` + `make cov`.
+El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en Redis. El panel de preguntas tiene sus dos endpoints (§13.4) y `ADMIN_TOKEN` en `config.py`. El plan del MVP está abajo en este archivo y el diseño de datos en el **Anexo A**: se consultan por fragmento (`grep` o `read` con `offset`/`limit`), no hace falta leerlos enteros. Verificación estándar antes de commitear: `make up` una vez y `make lint` + `make cov`. El panel se prueba a mano con los `curl` del `README.md`.
 
-La página de prueba vive en `frontend/dev/` y se sirve con `make web` en `http://localhost:5173` (el API sigue en `:8000`; CORS ya permite ese origen). Es de desarrollo, no el producto: una pantalla con login de invitado, sala 1v1, revancha, arcade, ranking y log crudo de mensajes. Verificada con Chromium en dos pestañas.
+La página de prueba vive en `frontend/dev/` (`index.html` + `app.js` + `style.css`) y se sirve con `make web` en `http://localhost:5173` (el API sigue en `:8000`; CORS ya permite ese origen). Es de desarrollo, no el producto: una pantalla con login de invitado, sala 1v1, revancha, arcade, ranking y log crudo de mensajes. Verificada con Chromium en dos pestañas. **No tiene todavía la sección de admin.**
 
 Pendientes conocidos de la página (no bloquean, es de prueba): no reconecta sola al recargar, el marcador local queda en `0-0` tras reconectar hasta el próximo resultado, y duplicar la pestaña puede compartir la sesión.
 
@@ -37,9 +37,10 @@ Pendientes conocidos de la página (no bloquean, es de prueba): no reconecta sol
 
 ### Próximos pasos
 
-**Ahora: probar el panel a mano.** Los dos endpoints existen; falta la pantalla mínima para verlos.
+**Ahora: la sección de admin de la página de prueba.** El panel HTTP está completo (`GET`/`POST /admin/questions`, §13.4) y verificado con `curl`; falta verlo desde el navegador.
 
-- [ ] Pantalla mínima de admin en `frontend/dev/` (listado con filtros y subida de archivo).
+- [ ] `frontend/dev/`: sección con token, listado con filtros y paginación, y subir CSV/JSON mostrando el informe (imported/duplicated/rejected).
+- [ ] Fase 1 (curación): revisar la semilla y publicar lo que corresponda desde el panel.
 - [ ] Fase 6: PWA, e2e y documentación (la parte de frontend es de otra persona).
 - [ ] Repasar `docs/observaciones.md` por pendientes P3 sin cerrar.
 
@@ -762,8 +763,8 @@ Todas las respuestas en JSON. Los errores siguen el formato `{"error": {"code": 
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| `GET` | `/admin/questions?status=&category=&difficulty=&q=&page=` | Listado paginado. Requiere `X-Admin-Token`. |
-| `POST` | `/admin/questions/import` | Importa un CSV o JSON y devuelve un informe. Requiere `X-Admin-Token`. |
+| `GET` | `/admin/questions?status=&category=&difficulty=&q=&page=&page_size=` | Listado paginado. Requiere `X-Admin-Token`. Contrato en §13.4. |
+| `POST` | `/admin/questions/import` | Importa un CSV o JSON (multipart) y devuelve un informe. Requiere `X-Admin-Token`. Contrato en §13.4. |
 | `GET` | `/health` | Estado de la API, la base y Redis. |
 
 ### WebSocket
@@ -831,6 +832,27 @@ Cuando se agregue "adiviná la canción" o "adiviná la película", el cambio es
 - Nueva categoría de contenido y nuevos tipos de pregunta, cosa que ya soportan `media_type` y `media_url`.
 - El motor de juego no cambia: sigue siendo elegir 1 de 4 opciones.
 - Lo único que se agrega es subir archivos a `static/assets/media/` o a un bucket, y que la tarjeta de pregunta sepa renderizar un reproductor de audio o una imagen.
+
+### 13.4 Panel de administración (implementado)
+
+Vive en `backend/app/api/routers/admin.py`. Los dos endpoints piden el header
+`X-Admin-Token` igual al `ADMIN_TOKEN` del `.env`; la dependencia cuelga del router
+`/admin` entero, así que una ruta nueva nace protegida.
+
+**`GET /admin/questions`** — filtros `status`, `category`, `difficulty`, `q`
+(substring, mayúsculas ignoradas, tildes **no**) y paginación `page`/`page_size`
+(20 por defecto, tope 100). Devuelve `{items, page, page_size, total, pages}`; cada
+`item` trae el `correct_index` —es la vista de curación, no la de juego— y el orden
+es `created_at DESC, id DESC`. Categoría desconocida: 422 `VALIDATION_ERROR`. Pasarse
+de página: 200 con la lista vacía.
+
+**`POST /admin/questions/import`** — multipart con `file` (CSV o JSON; el formato
+sale de la extensión) y `status` opcional (`draft` por defecto, `published` para que
+entren al banco). Devuelve el mismo informe que la CLI:
+`{total, imported, duplicated, rejected: [{row, reason}]}`. Los errores de archivo
+(extensión, encabezado, JSON roto, bytes no UTF-8) son 400 `IMPORT_FORMAT` con el
+motivo; los de fila siguen yendo en `rejected`. El cuerpo está acotado a 1 MB por el
+middleware (unas 6.000 preguntas por carga).
 
 ---
 
@@ -1358,7 +1380,7 @@ El **§9 del plan** sigue mandando en el producto, las reglas del juego y el pro
 - El reloj **no muere con el primer error de base**: reintenta con backoff y, agotados `MAX_EXPIRY_FAILURES`, avisa `ROOM_CLOCK_DOWN` a los sentados y se rinde (una sala sin reloj tiene que cortar, no quedarse muda). `_tick` aísla *una* vuelta del reloj para que el `except` del loop envuelva exactamente una y el `else` resetee el contador. Reintentar es seguro porque `_step` ya dejó el estado en memoria coherente con Postgres. Si una transición queda **debiendo** la ronda siguiente (la consulta de `_pick` falló), `retry_serve` la hace servir en la vuelta siguiente: no alcanza con mirar `needs_next_round`, porque `NO_QUESTIONS` también lo deja en `True` y ahí hay que esperar, no girar en vacío.
 - `room.start` sólo se acepta desde `WAITING` (H-06): con la sala `finished`, el único camino a otra partida es la revancha acordada; un `start` ahí la arrancaba salteando el acuerdo. Como `disconnect` devuelve la sala a `WAITING`, el flujo "se fue uno, entra otro, arrancamos" sigue andando.
 - `GET /rooms/{code}` informa `players` desde el `RoomStore` (presencia viva), no desde la base: la fila de `rooms` no sabe de conexiones. Por eso el store global es el mismo objeto que usa el WebSocket.
-- **La barra de calidad es un gate, no un adorno**: `ruff` con `select` (incluye `ASYNC`, `B`, `SIM`, `PT`), `mypy strict` y **92 % de cobertura** contra un umbral de 85 %. La cobertura **no** va en `addopts` a propósito: si estuviera, `pytest tests/test_room.py` fallaría por la cobertura global; `make test` corre rápido y `make cov` es el gate que usa el CI. `N818` queda ignorado: `NickTaken`/`InvalidTransition` se leen mejor sin el sufijo `Error`.
+- **La barra de calidad es un gate, no un adorno**: `ruff` con `select` (incluye `ASYNC`, `B`, `SIM`, `PT`), `mypy strict` y **93 % de cobertura** contra un umbral de 85 %. La cobertura **no** va en `addopts` a propósito: si estuviera, `pytest tests/test_room.py` fallaría por la cobertura global; `make test` corre rápido y `make cov` es el gate que usa el CI. `N818` queda ignorado: `NickTaken`/`InvalidTransition` se leen mejor sin el sufijo `Error`.
 - El token del WS viaja en `?token=` (el navegador no deja headers en `new WebSocket`), y uvicorn loguea el handshake con la URL completa en `uvicorn.error`. `logging_config._HideWebSocketTokens` descarta los registros cuyos argumentos son `/ws/...` o contienen `?token=`; el resto de `uvicorn.error` (arranque, errores) sigue visible. El filtro va por logger, no por handler, porque uvicorn escribe esos renglones directamente en `uvicorn.access`/`uvicorn.error`.
 - Las opciones se barajan **al servir** (`shuffle_options`) y `correct_index` se remapea en la misma copia: `RoundStart` y `match_rounds` ven el índice nuevo, y la pregunta guardada no se toca. Se barajan **índices**, no textos, para que un banco con opciones repetidas no desplace la respuesta. El `RoomStore` acepta `shuffle_served_options=False` para los tests que necesitan predecir la letra; producción lo deja en `True`.
 - El desempate tiene tope (`MAX_TIEBREAK_ROUNDS = 3`): si tras tres rondas extra siguen empatados, la partida termina **en empate** (`FINISHED`, `winner=None`). `MatchState` sólo acepta un terminado sin ganador si `round_index >= config.rounds + MAX_TIEBREAK_ROUNDS`; antes del tope sigue siendo inválido. `MatchEnd` ya traducía `winner=None` a `"tie"`.
@@ -1400,3 +1422,7 @@ El **§9 del plan** sigue mandando en el producto, las reglas del juego y el pro
 - La semana corta los lunes 00:00 en `America/Argentina/Buenos_Aires` con `zoneinfo` y se compara como `timestamptz`: un run del domingo 23:59:59 local sigue en la semana anterior aunque en UTC ya sea lunes.
 - `personal_best`/`is_new_best` miran la mejor corrida **anterior** de ese usuario (sin la actual): empatar el récord no es un récord nuevo, y `personal_best` igual incluye la corrida actual porque es el máximo. Si el ranking falla, `arcade_end` sale con esos campos en `None` pero la corrida ya quedó guardada.
 - El `arcade_end` lo completa el borde con `dataclasses.replace` después de cerrar la fila; la máquina pura sigue sin saber de base. Y el JSON de `/leaderboard/arcade/me` usa `global` por `serialization_alias`: `global` no puede ser nombre de campo en Python.
+- **El panel de preguntas (`/admin`) es lo único que devuelve `correct_index`**, y es a propósito: `RoundQuestion` sigue sin el campo. La auth es `X-Admin-Token` contra `ADMIN_TOKEN`, comparado con `compare_digest` sobre **bytes** (la versión de texto explota con no-ASCII); token ausente y token inválido dan el mismo 401 `ADMIN_REQUIRED`. La dependencia va en el router, no en cada endpoint: una ruta `/admin` nueva nace protegida.
+- `admin_token` volvió a `config.py` con el panel (era H-16) y ahora es **obligatorio**: vacío se rechaza siempre y con menos de 32 bytes se rechaza fuera de `local`. `.env.example` y el workflow de CI lo traen; un `.env` viejo sin `ADMIN_TOKEN` no arranca.
+- El **import por HTTP es un borde sobre `services/importer.py`**, no un segundo importador: `parse_text` lo comparten la CLI y el endpoint, el formato sale de la extensión y el default sigue siendo `draft`. Errores de **archivo** (extensión, encabezado, JSON roto, no-UTF-8) son 400 `IMPORT_FORMAT` con el motivo; los de **fila** no abortan y viajan en `rejected`. `python-multipart` volvió a las dependencias (FastAPI la necesita para `UploadFile`), y el upload comparte el tope de 1 MB del middleware: subirlo es cambiar `MAX_BODY_BYTES`.
+- El listado ordena `created_at DESC, id DESC`: dos preguntas importadas en el mismo lote comparten `created_at`, y sin el desempate la página 2 repite una fila de la 1. La búsqueda `q` es `ILIKE` con `%` y `_` escapados (sin eso, buscar `%` devuelve el banco entero) y es **sensible a tildes**: `rio` no encuentra `río`, porque hacerla insensible pide `unaccent` en Postgres.

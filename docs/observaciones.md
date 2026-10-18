@@ -14,6 +14,11 @@
 > `GET /rooms/{code}` y el **barrendero**. Van marcados con ✅ en su título; el resto
 > sigue vigente tal como está escrito. El detalle de cada arreglo quedó en
 > `docs/plan.md` (sección *Estado de sesión*).
+>
+> **Después de la auditoría** (mismas fechas, sesiones siguientes) llegaron el arcade
+> completo, el ranking en SQL, `/me` con historial, el barrendero periódico, la página
+> de prueba y el **panel de admin** (`GET`/`POST /admin/questions`). Las tablas de §2
+> son el retrato del momento de la auditoría: el estado vivo está en `docs/plan.md`.
 
 ---
 
