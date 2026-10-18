@@ -15,7 +15,7 @@ color ni temas alternativos; lo que cambia es el **acento** del jugador.
 | Superficie | panel `#2E2A42` con base sólida `0 6px 0 #181524`; sombra dura de texto `#12101B` |
 | Profundidad | bisel de luz arriba (`inset 0 2px 0 rgb(255 255 255 / .28)`) + base dura del color del filo |
 | Radios | `24` paneles · `20` botones · `18` respuestas y pozos · `14` pastillas |
-| Tamaños | botón de modo 78 px · respuesta ≥ 56 px (crece hasta 88 px) · táctiles ≥ 44 px |
+| Tamaños | botón de modo 78 px · respuesta ≥ 48 px (crece hasta 62 px) · táctiles ≥ 44 px |
 | Texto | mayúsculas en botones y badges · `Plus Jakarta Sans` + `Fredoka` |
 | Tiles de respuesta | **teclas blancas chatas**, una por fila, con la tecla `1`–`4` en un keycap a la izquierda |
 | Extras | sello del logo, tarjeta de perfil con avatar y swatches, marcador abierto con corona |
@@ -149,11 +149,12 @@ squircle verde de 34 px con relieve propio (`inset 0 2px 0 rgb(255 255 255 / .4)
 ## Respuestas (teclado mecánico)
 
 Las cuatro opciones van **en una columna**: una tecla por fila, y la columna se reparte el
-alto libre de la pantalla (`min-height: 56px`, `max-height: 88px`). Son teclas blancas
-(`#F8FAFC`), sin borde, radio 18 px y una base de 4 px; el volumen es chato, un bisel de luz
-arriba (`inset 0 3px 0 #FFF`) y **sin sombra proyectada**. El número `1`–`4` vive en un
-**keycap** de 26×26 px a la izquierda, con su propio relieve (`0 2px 0 #CBD5E1`) y el número
-en azul. La etiqueta va centrada para que **no se mueva** cuando aparecen las marcas.
+alto libre de la pantalla (`min-height: 48px`, `max-height: 62px`). Son teclas **bajas** y
+anchas: blancas (`#F8FAFC`), sin borde, radio 18 px y una base de 4 px; el volumen es chato,
+un bisel de luz arriba (`inset 0 3px 0 #FFF`) y **sin sombra proyectada**. El número `1`–`4`
+vive en un **keycap** de 26×26 px a la izquierda, con su propio relieve (`0 2px 0 #CBD5E1`) y
+el número en azul. La etiqueta (`1.1rem`) va centrada para que **no se mueva** cuando
+aparecen las marcas.
 
 Lo único que cambia entre estados es el **color**: elegido = borde azul, acierto = **verde**,
 fallo = **rojo** con una sacudida horizontal de `0.36s`. El cuerpo es el mismo en los tres
