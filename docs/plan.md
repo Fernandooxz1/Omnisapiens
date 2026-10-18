@@ -120,8 +120,8 @@ Cada categoría tiene su color y **manda** en el badge y en el feedback de acier
 | Inicio | Nick obligatorio (1–16), dos botones (arcade como modo principal, después 1v1), enlace al ranking y elección del **color del jugador** |
 | Jugar | Una pantalla: crear sala (rondas y segundos) o unirse con el código |
 | Lobby | Código gigante, jugadores conectados, botón `start` solo para el host |
-| Partida | Pregunta, 4 `AnswerTile` en columna, `TimerBadge` + barra de tiempo, cápsulas de ronda, marcador abierto y aviso de rival |
-| Revelación | Correcta, qué eligió cada uno y puntos |
+| Partida | Marca arriba, pregunta, 4 `AnswerTile` en columna, `TimerBadge` + barra de tiempo, cápsulas de ronda, marcador abierto y aviso de rival |
+| Revelación | Correcta, qué eligió cada uno y puntos; el paso siguiente flota al pie sin mover el tablero |
 | Fin | Ganador, resumen ronda a ronda y revancha |
 | Arcade | Pregunta, vidas (`LifeStrip`), racha, puntaje y tiempo |
 | Fin de arcade | Puntaje, aciertos, mejor racha, mejor marca y posición |

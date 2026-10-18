@@ -15,7 +15,7 @@ color ni temas alternativos; lo que cambia es el **acento** del jugador.
 | Superficie | panel `#2E2A42` con base sólida `0 6px 0 #181524`; sombra dura de texto `#12101B` |
 | Profundidad | bisel de luz arriba (`inset 0 2px 0 rgb(255 255 255 / .28)`) + base dura del color del filo |
 | Radios | `24` paneles · `20` botones · `18` respuestas y pozos · `14` pastillas |
-| Tamaños | botón de modo 78 px · respuesta ≥ 48 px (crece hasta 62 px) · táctiles ≥ 44 px |
+| Tamaños | botón de modo 78 px · paso siguiente flotante 64 px · respuesta ≥ 48 px (crece hasta 62 px) · táctiles ≥ 44 px |
 | Texto | mayúsculas en botones y badges · `Plus Jakarta Sans` + `Fredoka` |
 | Tiles de respuesta | **teclas blancas chatas**, una por fila, con la tecla `1`–`4` en un keycap a la izquierda |
 | Extras | sello del logo, tarjeta de perfil con avatar y swatches, marcador abierto con corona |
@@ -47,6 +47,7 @@ color ni temas alternativos; lo que cambia es el **acento** del jugador.
   --page-bg: #191724;  --card-bg: #232033;  --card-edge: #12101B;
   --panel-bg: #2E2A42; --panel-edge: #181524;
   --well-bg: #181523;  --well-border: #3B3654;
+  --veil-bg: rgb(25 23 36 / .66);   /* velo del paso siguiente flotante */
   --ink: #FFFFFF; --ink-2: #D8D2E8; --ink-3: #9B94B8;
 
   --green: #1EC765;  --green-edge: #13964B;
@@ -90,6 +91,7 @@ El jugador no elige un tema, elige **su color**: `AccentPicker` escribe `data-ac
 :root {
   --r-sm: 10px; --r-md: 14px; --r-lg: 24px; --r-key: 20px; --r-tile: 18px;
   --border-w: 2.5px; --depth-key: 6px;
+  --key-h: 78px; --key-h-sm: 64px;   /* botón de modo · paso siguiente flotante */
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px;
   --font-display: 'Fredoka', system-ui, sans-serif;
 }
@@ -172,7 +174,7 @@ la **barra de tiempo** (verde → amarillo → rojo) como cuenta atrás visual.
 
 | Componente | Notas |
 |---|---|
-| `Button` | `green/blue/slate` · dos líneas (título + subtítulo) · 78 px · press de 4 px · `aside` opcional a la derecha |
+| `Button` | `green/blue/slate` · dos líneas (título + subtítulo) · 78 px · press de 4 px · `aside` opcional a la derecha · variante flotante del paso siguiente: 64 px |
 | `AccentPicker` | swatches del acento del jugador; escribe `data-accent` y `localStorage` (clave `omni-accent`) |
 | `Avatar` | squircle 44 px con la inicial; acento propio o naranja del rival; corona al que va ganando |
 | `CategoryBadge` | pastilla `--r-full` con color `--cat-*` + etiqueta de `es.json` |
@@ -198,6 +200,14 @@ la **barra de tiempo** (verde → amarillo → rojo) como cuenta atrás visual.
 - Arriba van las **cápsulas de ronda** (ganada / perdida / en curso), la pastilla del reloj y,
   debajo del marcador, la **barra de tiempo**; la ronda también se anuncia para lectores de
   pantalla.
+- Sobre todo eso, la **marca**: el wordmark del inicio, al mismo tamaño, centrado como cabecera.
+- El **paso siguiente** flota al pie sobre un velo `--veil-bg` con `backdrop-filter: blur(7px)`
+  (el único blur del sistema; no es un `Modal`) y entra con un fundido de `0.18s`. Está fuera
+  del flujo: no empuja el tablero ni tapa una respuesta.
+- El tablero se **centra** en el alto que deja libre el velo (`100dvh` menos los bordes del
+  `shell` y el botón), con `min-height: min-content` como piso; la columna de respuestas se
+  reparte ese alto entre 48 y 62 px. Así el aire sobra igual arriba y abajo y la partida nunca
+  scrollea.
 - Mientras no exista el cliente WS, `/play` se dibuja con datos de ejemplo de `src/lib/demo/`;
   esa carpeta se borra al conectar el servidor.
 
