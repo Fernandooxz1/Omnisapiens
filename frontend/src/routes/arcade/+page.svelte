@@ -13,10 +13,15 @@
 	import TimerBadge from '#lib/components/TimerBadge.svelte';
 	import { categoryKey } from '#lib/categories';
 	import { t, type MessageKey } from '#lib/i18n';
+	import { bindAnswerKeys } from '#lib/keyboard.svelte';
+	import { sound } from '#lib/sound.svelte';
 
 	let run = $state<ArcadeRun | null>(null);
 	let blocked = $state<MessageKey | null>(null);
 	let now = $state(Date.now());
+	/** Opción marcada con `1`–`4`, a la espera de `Enter`. */
+	let selected = $state<number | null>(null);
+	let revealTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const phase = $derived(run?.phase ?? 'connecting');
 	const question = $derived(run?.question ?? null);
@@ -34,6 +39,61 @@
 		question ? Math.min(100, Math.round((seconds / question.seconds) * 100)) : 0
 	);
 
+	/** Cada pregunta nueva empieza sin marca de teclado. */
+	$effect(() => {
+		if (question) selected = null;
+	});
+
+	let lastTick = 0;
+	$effect(() => {
+		if (phase !== 'question') {
+			lastTick = 0;
+			return;
+		}
+		if (seconds > 0 && seconds <= 5 && seconds !== lastTick) {
+			lastTick = seconds;
+			sound.play('tick');
+		}
+	});
+
+	let lastPhase = 'connecting';
+	$effect(() => {
+		const next = phase;
+		if (next === 'starting' && lastPhase !== 'starting') sound.play('match_start');
+		lastPhase = next;
+	});
+
+	let lastReveal = false;
+	$effect(() => {
+		const revealing = phase === 'reveal';
+		if (revealing && !lastReveal) {
+			sound.play('reveal');
+			const correct = result?.you.correct;
+			if (correct !== undefined) {
+				if (revealTimer) clearTimeout(revealTimer);
+				revealTimer = setTimeout(() => sound.play(correct ? 'correct' : 'wrong'), 120);
+			}
+		}
+		lastReveal = revealing;
+	});
+
+	let lastEnd: unknown = null;
+	$effect(() => {
+		if (phase !== 'over' || !end || end === lastEnd) return;
+		lastEnd = end;
+		sound.play(end.isNewBest ? 'best_score' : 'match_lose');
+	});
+
+	bindAnswerKeys({
+		enabled: () => phase === 'question' && question !== null,
+		count: () => question?.options.length ?? 0,
+		select: (index) => (selected = index),
+		confirm: () => {
+			if (selected === null) return;
+			choose(selected);
+		}
+	});
+
 	onMount(() => {
 		let live: ArcadeRun | null = null;
 
@@ -50,13 +110,21 @@
 		})();
 
 		// Irse de la pantalla abandona la corrida: el servidor la invalida.
-		return () => live?.close();
+		return () => {
+			live?.close();
+			if (revealTimer) clearTimeout(revealTimer);
+		};
 	});
 
 	$effect(() => {
 		const id = setInterval(() => (now = Date.now()), 250);
 		return () => clearInterval(id);
 	});
+
+	function choose(index: number) {
+		selected = null;
+		run?.answer(index);
+	}
 
 	function failureKey(error: ApiError | null): MessageKey | null {
 		if (!error) return null;
@@ -89,6 +157,7 @@
 			if (index === picked) return 'wrong';
 			return 'dim';
 		}
+		if (index === selected) return 'selected';
 		if (phase !== 'question' && index === picked) return 'selected';
 		return 'idle';
 	}
@@ -209,7 +278,7 @@
 					label={option}
 					state={tileState(index)}
 					disabled={phase !== 'question'}
-					onclick={() => run?.answer(index)}
+					onclick={() => choose(index)}
 				/>
 			{/each}
 		</div>

@@ -8,6 +8,7 @@
 	import Button from '#lib/components/Button.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import NickInput from '#lib/components/NickInput.svelte';
+	import SoundToggle from '#lib/components/SoundToggle.svelte';
 	import { t, type MessageKey } from '#lib/i18n';
 
 	/** Falla del campo: se marca el pozo del nick en vez de avisar suelto. */
@@ -62,6 +63,10 @@
 
 <div class="home">
 	<div class="home__main">
+		<div class="home__tools">
+			<SoundToggle />
+		</div>
+
 		<header class="hero">
 			<span class="wordmark-badge">{t('home.badge')}</span>
 			<h1 class="wordmark">
@@ -136,9 +141,16 @@
 	}
 
 	.home__main {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: var(--s-5);
+	}
+
+	.home__tools {
+		position: absolute;
+		top: 0;
+		right: 0;
 	}
 
 	.home__error {

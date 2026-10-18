@@ -3,6 +3,8 @@
 	"app.description": "Trivia online: duelo 1v1 por código y arcade con ranking.",
 	"common.back": "Volver al inicio",
 	"common.coming_soon": "En construcción.",
+	"sound.enable": "Activar sonido",
+	"sound.mute": "Silenciar sonido",
 	"cat.science": "Ciencia",
 	"cat.geography": "Geografía",
 	"cat.history": "Historia",

@@ -1,5 +1,14 @@
 <script lang="ts">
-	type Name = 'check' | 'x' | 'arrow' | 'trophy' | 'crown' | 'heart' | 'clock';
+	type Name =
+		| 'check'
+		| 'x'
+		| 'arrow'
+		| 'trophy'
+		| 'crown'
+		| 'heart'
+		| 'clock'
+		| 'sound-on'
+		| 'sound-off';
 
 	interface Props {
 		name: Name;
@@ -60,6 +69,22 @@
 	{:else if name === 'clock'}
 		<path
 			d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 7v5.2l3.6 2.1"
+			stroke="currentColor"
+			stroke-width="2.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		/>
+	{:else if name === 'sound-on'}
+		<path
+			d="M4 9.5h3.2L12 5.5v13l-4.8-4H4v-5ZM15.5 8.5a5 5 0 0 1 0 7M18.3 6a8.5 8.5 0 0 1 0 12"
+			stroke="currentColor"
+			stroke-width="2.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		/>
+	{:else if name === 'sound-off'}
+		<path
+			d="M4 9.5h3.2L12 5.5v13l-4.8-4H4v-5ZM16 9.5l5 5M21 9.5l-5 5"
 			stroke="currentColor"
 			stroke-width="2.5"
 			stroke-linecap="round"

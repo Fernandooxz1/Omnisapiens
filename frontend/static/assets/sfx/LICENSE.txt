@@ -1,0 +1,5 @@
+The sound effects in this directory were synthesized for Omnisapiens and are released
+under CC0 1.0 Universal (public domain dedication):
+https://creativecommons.org/publicdomain/zero/1.0/
+
+They can be copied, modified and distributed without attribution.

@@ -138,8 +138,8 @@ Componentes, tokens y reglas visuales: `docs/diseno.md`.
   `data-accent` sobre `<html>` + `localStorage`, clave `omni-accent`).
 - **Estado:** stores `sessionStore` / `matchStore` / `arcadeStore` como máquinas de estados;
   `ws.ts` con reconexión y heartbeat.
-- **PWA:** manifest + service worker (`generateSW`), cachea el app shell; el juego **no**
-  funciona offline.
+- **PWA:** manifest + service worker nativo (`src/service-worker.ts`), cachea el app shell;
+  el juego **no** funciona offline.
 - **i18n:** todas las cadenas en `app/i18n/es.json`; ninguna cadena visible en un componente.
 - **Presupuesto:** JS por debajo de 250 KB.
 

@@ -14,7 +14,9 @@
 	import TimerBadge from '#lib/components/TimerBadge.svelte';
 	import { categoryKey } from '#lib/categories';
 	import { t, type MessageKey } from '#lib/i18n';
+	import { bindAnswerKeys } from '#lib/keyboard.svelte';
 	import { createLiveMatch, type LiveMatch } from '#lib/match/live.svelte';
+	import { sound } from '#lib/sound.svelte';
 
 	type Who = 'you' | 'rival';
 
@@ -28,7 +30,10 @@
 	let starting = $state(false);
 	let copied = $state(false);
 	let copyTimer: ReturnType<typeof setTimeout> | null = null;
+	let revealTimer: ReturnType<typeof setTimeout> | null = null;
 	let now = $state(Date.now());
+	/** Opción marcada con `1`–`4`, a la espera de `Enter`. */
+	let selected = $state<number | null>(null);
 
 	const phase = $derived(match?.phase ?? 'connecting');
 	const question = $derived(match?.question ?? null);
@@ -58,6 +63,63 @@
 			rival: delta(result?.opponent.points ?? 0)
 		})
 	);
+
+	/** Una pregunta nueva empieza sin marca de teclado. */
+	$effect(() => {
+		if (question) selected = null;
+	});
+
+	let lastTick = 0;
+	$effect(() => {
+		if (phase !== 'question') {
+			lastTick = 0;
+			return;
+		}
+		if (seconds > 0 && seconds <= 5 && seconds !== lastTick) {
+			lastTick = seconds;
+			sound.play('tick');
+		}
+	});
+
+	let lastPhase = 'connecting';
+	$effect(() => {
+		const next = phase;
+		if (next === 'starting' && lastPhase !== 'starting') sound.play('match_start');
+		lastPhase = next;
+	});
+
+	let lastReveal = false;
+	$effect(() => {
+		const revealing = phase === 'reveal';
+		if (revealing && !lastReveal) {
+			sound.play('reveal');
+			const correct = result?.you.correct;
+			if (correct !== undefined) {
+				if (revealTimer) clearTimeout(revealTimer);
+				revealTimer = setTimeout(() => sound.play(correct ? 'correct' : 'wrong'), 120);
+			}
+		}
+		lastReveal = revealing;
+	});
+
+	let lastEnded: unknown = null;
+	$effect(() => {
+		if (phase !== 'over' || !ended || ended === lastEnded) return;
+		lastEnded = ended;
+		sound.play(
+			ended.winner === 'you' ? 'match_win' : ended.winner === 'opponent' ? 'match_lose' : 'reveal'
+		);
+	});
+
+	bindAnswerKeys({
+		enabled: () => phase === 'question' && question !== null,
+		count: () => question?.options.length ?? 0,
+		select: (index) => (selected = index),
+		confirm: () => {
+			if (selected === null) return;
+			choose(selected);
+		}
+	});
 
 	onMount(() => {
 		let live: LiveMatch | null = null;
@@ -94,6 +156,7 @@
 		return () => {
 			live?.close();
 			if (copyTimer) clearTimeout(copyTimer);
+			if (revealTimer) clearTimeout(revealTimer);
 		};
 	});
 
@@ -110,6 +173,11 @@
 	function startMatch() {
 		if (starting || !match) return;
 		starting = match.start();
+	}
+
+	function choose(index: number) {
+		selected = null;
+		match?.answer(index);
 	}
 
 	async function copyCode() {
@@ -173,6 +241,7 @@
 			if (index === picked || index === rivalPick) return 'wrong';
 			return 'dim';
 		}
+		if (index === selected) return 'selected';
 		if (phase !== 'question' && index === picked) return 'selected';
 		return 'idle';
 	}
@@ -382,7 +451,7 @@
 					tag={tileTag(index)}
 					mark={tileMark(index)}
 					disabled={phase !== 'question'}
-					onclick={() => match?.answer(index)}
+					onclick={() => choose(index)}
 				/>
 			{/each}
 		</div>
