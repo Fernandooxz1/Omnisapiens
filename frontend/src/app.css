@@ -1044,9 +1044,10 @@ input {
 	width: 100%;
 	max-width: var(--shell-max);
 	margin-inline: auto;
-	padding: 0 var(--s-4) var(--shell-pad-bottom);
+	padding: var(--s-3) var(--s-4) var(--shell-pad-bottom);
 	background: var(--veil-bg);
 	backdrop-filter: blur(7px);
+	text-align: center;
 	animation: cta-in 0.18s ease-out;
 }
 

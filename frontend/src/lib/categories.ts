@@ -12,6 +12,10 @@ export const CATEGORIES: readonly Category[] = [
 	'art'
 ];
 
+export function isCategory(value: unknown): value is Category {
+	return CATEGORIES.includes(value as Category);
+}
+
 /** Clave de i18n del nombre de la categoría (`cat.science`…). */
 export function categoryKey(category: Category): MessageKey {
 	return `cat.${category}`;

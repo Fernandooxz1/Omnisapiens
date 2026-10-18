@@ -5,12 +5,10 @@
 
 ## Ahora
 
-- [ ] Conectar la partida al servidor: reemplazar `src/lib/demo/` por el estado real (ronda,
-      `ends_at`, revelación de 2,5 s) y borrar la carpeta demo.
+- [ ] Crear/unirse a sala y lobby con código gigante.
 
 ## Después
 
-- [ ] Crear/unirse a sala y lobby con código gigante.
 - [ ] Fin de partida + revancha contra el servidor (la pantalla ya existe con datos de ejemplo).
 - [ ] Arcade completo (`LifeStrip`, fin con ranking).
 - [ ] Ranking global/semanal.

@@ -1,121 +1,136 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import type { ApiError } from '#lib/api/client';
+	import { session } from '#lib/api/session.svelte';
 	import AnswerTile, { type TileState } from '#lib/components/AnswerTile.svelte';
 	import Button from '#lib/components/Button.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
 	import Scoreboard from '#lib/components/Scoreboard.svelte';
 	import TimerBadge from '#lib/components/TimerBadge.svelte';
 	import { categoryKey } from '#lib/categories';
-	import {
-		DEMO_POINTS,
-		DEMO_RIVAL,
-		DEMO_ROUNDS,
-		DEMO_YOU,
-		ROUND_SECONDS
-	} from '#lib/demo/partida';
-	import { t } from '#lib/i18n';
+	import { t, type MessageKey } from '#lib/i18n';
+	import { createLiveMatch, type LiveMatch } from '#lib/match/live.svelte';
 
-	type Phase = 'question' | 'waiting' | 'reveal';
 	type Who = 'you' | 'rival';
 
-	let round = $state(0);
-	let phase = $state<Phase>('question');
-	let picked = $state<number | null>(null);
-	let pointsYou = $state(0);
-	let pointsRival = $state(0);
-	let results = $state<('won' | 'lost')[]>([]);
-	let endsAt = $state(Date.now() + ROUND_SECONDS * 1000);
+	/** La sala llega por query hasta que exista el lobby, que es quien la elige. */
+	const code = $derived(page.url.searchParams.get('code') ?? '');
+
+	let match = $state<LiveMatch | null>(null);
+	/** Antes de tener canal: falta el código o la sesión. */
+	let blocked = $state<MessageKey | null>(null);
 	let now = $state(Date.now());
 
-	const current = $derived(DEMO_ROUNDS[Math.min(round, DEMO_ROUNDS.length - 1)]);
-	const finished = $derived(round >= DEMO_ROUNDS.length);
-	const seconds = $derived(Math.max(0, Math.ceil((endsAt - now) / 1000)));
+	const phase = $derived(match?.phase ?? 'connecting');
+	const question = $derived(match?.question ?? null);
+	const ended = $derived(match?.ended ?? null);
+	const problem = $derived(blocked ?? failureKey(match?.failure ?? null));
+
+	/** Segundos del `ends_at` del servidor: el cliente no calcula tiempo propio. */
+	const seconds = $derived(
+		question ? Math.max(0, Math.ceil((question.endsAt - now) / 1000)) : 0
+	);
 	const alert = $derived(phase === 'question' && seconds <= 5);
-	const youRight = $derived(picked === current.correct);
-	const timeLeft = $derived(phase === 'reveal' ? 0 : Math.round((seconds / ROUND_SECONDS) * 100));
+	const timeLeft = $derived(
+		question ? Math.min(100, Math.round((seconds / question.totalSeconds) * 100)) : 0
+	);
+
+	const result = $derived(match?.result ?? null);
+	const picked = $derived(match?.picked ?? null);
+	const rivalPick = $derived(result?.opponent.choice ?? null);
+	const youRight = $derived(result?.you.correct ?? false);
 	const deltaText = $derived(
 		t('play.delta', {
-			you: delta(youRight ? DEMO_POINTS : 0),
-			name: DEMO_RIVAL,
-			rival: delta(current.rivalPick === current.correct ? DEMO_POINTS : 0)
+			you: delta(result?.you.points ?? 0),
+			name: match?.rival ?? '',
+			rival: delta(result?.opponent.points ?? 0)
 		})
 	);
 
-	// Demo: en el juego real el cliente solo dibuja el `ends_at` que manda el servidor.
+	onMount(() => {
+		let live: LiveMatch | null = null;
+
+		(async () => {
+			await session.restore();
+
+			if (!session.token) {
+				blocked = 'play.error_auth';
+				return;
+			}
+			if (!code) {
+				blocked = 'play.error_code';
+				return;
+			}
+
+			live = createLiveMatch(code, session.token);
+			match = live;
+		})();
+
+		// Irse de la pantalla es abandonar: el rival ve su ventana de gracia.
+		return () => live?.close();
+	});
+
 	$effect(() => {
 		const id = setInterval(() => (now = Date.now()), 250);
 		return () => clearInterval(id);
 	});
 
-	$effect(() => {
-		if (phase === 'question' && !finished && seconds === 0) reveal();
-	});
+	function failureKey(error: ApiError | null): MessageKey | null {
+		if (!error) return null;
 
-	function pick(index: number) {
-		if (phase !== 'question' || finished) return;
-		picked = index;
-		phase = 'waiting';
-		setTimeout(reveal, 900);
+		switch (error.code) {
+			case 'AUTH_REQUIRED':
+				return 'play.error_auth';
+			case 'ROOM_NOT_FOUND':
+				return 'play.error_room';
+			case 'ROOM_FULL':
+				return 'play.error_full';
+			case 'RATE_LIMITED':
+				return 'play.error_limited';
+			default:
+				return 'play.error_generic';
+		}
 	}
 
-	function reveal() {
-		if (phase === 'reveal' || finished) return;
-		phase = 'reveal';
-		results[round] = picked === current.correct ? 'won' : 'lost';
-		if (picked === current.correct) pointsYou += DEMO_POINTS;
-		if (current.rivalPick === current.correct) pointsRival += DEMO_POINTS;
-	}
-
-	function next() {
-		round += 1;
-		picked = null;
-		phase = 'question';
-		endsAt = Date.now() + ROUND_SECONDS * 1000;
-	}
-
-	function restart() {
-		round = 0;
-		picked = null;
-		phase = 'question';
-		pointsYou = 0;
-		pointsRival = 0;
-		results = [];
-		endsAt = Date.now() + ROUND_SECONDS * 1000;
+	function noticeKey(value: string): MessageKey {
+		return value === 'NO_QUESTIONS' ? 'play.error_no_questions' : 'play.error_generic';
 	}
 
 	/** Cápsula de cada ronda: ganada, perdida, la que corre o todavía vacía. */
 	function capsuleState(index: number): 'won' | 'lost' | 'current' | undefined {
-		if (index === round && phase !== 'reveal') return 'current';
-		return results[index];
+		if (index === question?.round && phase !== 'reveal') return 'current';
+		return match?.history[index];
 	}
 
 	/** Quiénes eligieron esta opción (el rival recién al revelar). */
 	function whoPicked(index: number): Who[] {
 		const who: Who[] = [];
 		if (index === picked) who.push('you');
-		if (phase === 'reveal' && index === current.rivalPick) who.push('rival');
+		if (phase === 'reveal' && index === rivalPick) who.push('rival');
 		return who;
 	}
 
 	function tileState(index: number): TileState {
 		if (phase === 'reveal') {
-			if (index === current.correct) return 'correct';
-			if (index === picked || index === current.rivalPick) return 'wrong';
+			if (index === result?.correctIndex) return 'correct';
+			if (index === picked || index === rivalPick) return 'wrong';
 			return 'dim';
 		}
-		if (phase === 'waiting' && index === picked) return 'selected';
+		if (phase !== 'question' && index === picked) return 'selected';
 		return 'idle';
 	}
 
 	function tileTag(index: number): string | undefined {
 		const who = whoPicked(index);
 		if (who.length === 0) return undefined;
-		return who.map((one) => (one === 'you' ? t('play.you') : DEMO_RIVAL)).join(' · ');
+		return who.map((one) => (one === 'you' ? t('play.you') : (match?.rival ?? ''))).join(' · ');
 	}
 
 	function tileMark(index: number): 'correct' | 'wrong' | undefined {
 		if (phase !== 'reveal' || whoPicked(index).length === 0) return undefined;
-		return index === current.correct ? 'correct' : 'wrong';
+		return index === result?.correctIndex ? 'correct' : 'wrong';
 	}
 
 	function delta(points: number) {
@@ -123,22 +138,60 @@
 	}
 </script>
 
-{#if finished}
+{#if problem}
 	<section class="match">
 		<div class="match__foot">
-			<h1 class="page-title">{t('play.finish')}</h1>
-			<Scoreboard
-				you={{ nick: DEMO_YOU, points: pointsYou }}
-				rival={{ nick: DEMO_RIVAL, points: pointsRival }}
-			/>
-			<p class="muted">{t('play.demo')}</p>
+			<h1 class="page-title">{t('play.title')}</h1>
+			<p class="muted">{t(problem)}</p>
 		</div>
 		<div class="modes">
-			<Button variant="green" title={t('play.rematch')} onclick={restart} />
 			<Button variant="slate" title={t('common.back')} onclick={() => goto('/')} />
 		</div>
 	</section>
-{:else}
+{:else if phase === 'waiting' || phase === 'starting'}
+	<section class="match">
+		<div class="match__foot">
+			<h1 class="page-title">{t('play.waiting_room', { code })}</h1>
+			<p class="muted">
+				{phase === 'starting' ? t('play.starting') : t('play.waiting_rival')}
+			</p>
+		</div>
+		<div class="modes">
+			<Button variant="slate" title={t('common.back')} onclick={() => goto('/')} />
+		</div>
+	</section>
+{:else if phase === 'over' && ended}
+	<section class="match">
+		<div class="match__foot">
+			<h1 class="page-title">
+				{ended.winner === 'you'
+					? t('play.won')
+					: ended.winner === 'opponent'
+						? t('play.lost')
+						: t('play.tie')}
+			</h1>
+			<Scoreboard
+				you={{ nick: match?.you ?? '', points: match?.scores.you ?? 0 }}
+				rival={{ nick: match?.rival ?? '', points: match?.scores.opponent ?? 0 }}
+			/>
+			{#if ended.reason === 'abandoned'}
+				<p class="muted">{t('play.abandoned')}</p>
+			{/if}
+			{#if match?.rematchWaiting}
+				<p class="muted">{t('play.rematch_waiting')}</p>
+			{/if}
+		</div>
+		<div class="modes">
+			<Button
+				variant="green"
+				title={t('play.rematch')}
+				disabled={match?.rematchWaiting}
+				onclick={() => match?.rematch()}
+			/>
+			<Button variant="slate" title={t('common.back')} onclick={() => goto('/')} />
+		</div>
+	</section>
+{:else if question && match}
 	<section class="match match--live">
 		<div class="match__head">
 			<header class="brand">
@@ -148,9 +201,11 @@
 			</header>
 
 			<div class="match__top">
-				<span class="sr-only">{t('play.round', { n: round + 1, total: DEMO_ROUNDS.length })}</span>
+				<span class="sr-only">
+					{t('play.round', { n: question.round + 1, total: match.total })}
+				</span>
 				<div class="round-capsules" aria-hidden="true">
-					{#each DEMO_ROUNDS as _, index (index)}
+					{#each { length: match.total } as _, index (index)}
 						<span
 							class="capsule"
 							class:is-won={capsuleState(index) === 'won'}
@@ -164,8 +219,8 @@
 		</div>
 
 		<Scoreboard
-			you={{ nick: DEMO_YOU, points: pointsYou }}
-			rival={{ nick: DEMO_RIVAL, points: pointsRival }}
+			you={{ nick: match.you, points: match.scores.you }}
+			rival={{ nick: match.rival, points: match.scores.opponent }}
 		/>
 
 		<div class="time-bar" aria-hidden="true">
@@ -178,14 +233,14 @@
 		</div>
 
 		<QuestionCard
-			category={current.category}
-			categoryLabel={t(categoryKey(current.category))}
-			prompt={current.prompt}
+			category={question.category}
+			categoryLabel={t(categoryKey(question.category))}
+			prompt={question.prompt}
 			badge={phase === 'question' ? t('play.answer_badge') : undefined}
 		/>
 
 		<div class="match__tiles">
-			{#each current.options as option, index (index)}
+			{#each question.options as option, index (index)}
 				<AnswerTile
 					keycap={String(index + 1)}
 					label={option}
@@ -193,16 +248,24 @@
 					tag={tileTag(index)}
 					mark={tileMark(index)}
 					disabled={phase !== 'question'}
-					onclick={() => pick(index)}
+					onclick={() => match?.answer(index)}
 				/>
 			{/each}
 		</div>
 
 		<div class="match__foot" aria-live="polite">
-			{#if phase === 'question'}
-				<p class="muted">{t('play.hint')}</p>
-			{:else if phase === 'waiting'}
-				<p class="muted">{t('play.waiting', { nick: DEMO_RIVAL })}</p>
+			{#if match.rivalGone !== null}
+				<p class="muted">{t('play.rival_gone', { nick: match.rival, n: match.rivalGone })}</p>
+			{:else if match.status === 'reconnecting'}
+				<p class="muted">{t('play.reconnecting')}</p>
+			{:else if match.notice}
+				<p class="muted">{t(noticeKey(match.notice))}</p>
+			{:else if phase === 'question'}
+				<p class="muted">
+					{match.rivalAnswered ? t('play.opponent_answered') : t('play.hint')}
+				</p>
+			{:else if phase === 'answered'}
+				<p class="muted">{t('play.waiting', { nick: match.rival })}</p>
 			{:else}
 				<p class="sr-only">{deltaText}. {youRight ? t('play.correct') : t('play.wrong')}</p>
 			{/if}
@@ -210,8 +273,14 @@
 
 		{#if phase === 'reveal'}
 			<div class="match__cta">
-				<Button variant="blue" title={t('play.next')} sub={deltaText} onclick={next} />
+				<p class="muted">{deltaText}</p>
 			</div>
 		{/if}
+	</section>
+{:else}
+	<section class="match">
+		<div class="match__foot">
+			<p class="muted">{t('play.connecting')}</p>
+		</div>
 	</section>
 {/if}
