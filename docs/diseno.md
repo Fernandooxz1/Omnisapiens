@@ -16,12 +16,14 @@ cambio **recarga la página**.
 | Idea | Juguete de mesa: papel, tinta, teclas | Preguntados / Clash: squircle 3D sobre un lienzo iluminado |
 | Fondo | papel cálido plano `#FCF8F0` | viñeta radial índigo `#312E81 → #1E1B4B → #0F172A` |
 | Superficie | blanca, borde de tinta `2.5px`, sombra dura `4px 4px 0` | panel translúcido, borde índigo 30 %, radio 24 px, sombra suave |
-| Botón | borde de tinta, degradado leve, sombra dura | sin borde, degradado de volumen, bisel interno de 2 px, **base sólida** de 6 px, glow al hover |
-| Radio | `10` chips · `14` botones y tarjetas | `14–16` chips · `18–22` botones · `24` paneles |
+| Botón | borde de tinta, degradado leve, sombra dura | sin borde, degradado de volumen, bisel interno de 2 px, **base sólida** de 5–6 px, glow al hover |
+| Radio | `10` chips · `14` botones y tarjetas | `14` chips y tiles · `14` botones · `24` paneles |
+| Tamaños | `lg` 84 px · `md` 60 px | `lg` 74 px · `md` 60 px · tiles 56 px |
 | Texto | frase normal, `Instrument Sans` + `Fredoka` | mayúsculas en botones/badges, `Plus Jakarta Sans` + `Fredoka` |
-| Tiles de respuesta | teclas blancas, tecla `1`–`4` a la izquierda | cuatro botones de color, etiqueta centrada, tecla `1`–`4` en chip |
+| Tiles de respuesta | teclas blancas, tecla `1`–`4` a la izquierda | **un solo violeta** para los cuatro, etiqueta centrada, tecla `1`–`4` en chip |
 | Acierto | tile pintado con el color de la **categoría** | tile en **verde**, el fallo en **rojo** (`✓`/`✗`), el color de categoría queda en el badge |
-| Extras | ninguno | esticker sobre la pregunta, avatares en el marcador, botón de ranking |
+| Paleta de controles | azul (acción) · blanco (secundario) | **verde** = acción principal y acierto · **violeta** = el resto de lo presionable · gris índigo = fantasma |
+| Extras | ninguno | esticker sobre la pregunta, avatares en el marcador, fila de ranking |
 
 Ningún estilo se mezcla con el otro: los componentes comparten markup y se visten por
 bloques `body[data-skin='…']`. **Sin librería de UI y sin Tailwind**: CSS propio.
@@ -66,7 +68,7 @@ body[data-skin='colorido'] {
   --ink: #F8FAFC; --ink-2: #CBD5E1; --ink-3: #94A3B8; --on-bg-dim: #A5B4FC;
   --timer-arc: #FFBE26; --timer-alert: #F87171;
   --font-ui: 'Plus Jakarta Sans', system-ui, sans-serif;
-  /* las seis categorías son los seis colores del botón */
+  /* los seis colores pintan solo el badge de categoría, nunca los botones */
   --cat-geography: #2ED573; --cat-history: #FFBE26; --cat-science: #38BDF8;
   --cat-art: #A855F7; --cat-entertainment: #F87171; --cat-sports: #FB923C;
 }
@@ -77,6 +79,20 @@ Cada color tiene su terna (arriba, abajo, base) y su glow, como variantes del bo
 `yellow #FFBE26/#F39C12/#C27803` · `purple #A855F7/#7E22CE/#581C87` ·
 `orange #FB923C/#EA580C/#9A3412` · `red #F87171/#DC2626/#991B1B`.
 Sobre estos fondos el texto va **siempre en blanco**, con `text-shadow: 0 2px 0 <base>`.
+
+**Pero esos seis colores solo viven en el badge de categoría.** Lo presionable usa dos
+familias y nada más, para que la pantalla no sea un circo:
+
+- `violet #7C6DF8/#5B54E8/#3730A3` — el resto: arcade, tiles de respuesta, chip elegido.
+- `green #2ED573/#26AF61/#1B8A4B` — la acción principal (jugar 1v1) y el acierto.
+- `red #F87171/#DC2626/#991B1B` — solo el fallo al revelar.
+- `ghost` — superficies translúcidas con borde índigo y sin base: filas secundarias
+  (ranking) y chip no elegido.
+
+Los tiles de respuesta son **todos del mismo violeta**: la única diferencia entre estados es
+la marca de elegido, la atenuación de los descartados y el verde/rojo del reveal. La etiqueta
+va centrada en una grilla `1fr auto 1fr` (tecla · texto · marcas) para que **no se mueva** al
+aparecer el chip del jugador.
 
 ## Forma y tipografía (compartidas)
 
@@ -97,17 +113,17 @@ autoalojadas en `frontend/static/fonts/` (woff2, `font-display: swap`).
 
 ```css
 .button {
-  --j-top: var(--brand); --j-bottom: var(--brand-dark); --j-edge: #1E4FD1;
+  --j-top: #7C6DF8; --j-bottom: #5B54E8; --j-edge: #3730A3;
   display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
-  min-height: 48px; padding: 16px 32px;
-  font: 700 1.1rem/1 var(--font-display); letter-spacing: .6px; text-transform: uppercase;
-  color: #FFF; border: none; border-radius: var(--r-lg); cursor: pointer;
+  min-height: 60px; padding: 12px 20px;
+  font: 700 1.0625rem/1 var(--font-display); letter-spacing: .4px; text-transform: uppercase;
+  color: #FFF; border: none; border-radius: var(--r-md); cursor: pointer;
   background: linear-gradient(180deg, var(--j-top), var(--j-bottom));
   box-shadow:
     inset 0 2px 0 rgb(255 255 255 / .38),
     inset 0 -2px 0 rgb(0 0 0 / .12),
-    0 6px 0 var(--j-edge),
-    0 11px 15px -3px rgb(0 0 0 / .35);
+    0 5px 0 var(--j-edge),
+    0 10px 14px -3px rgb(0 0 0 / .35);
   text-shadow: 0 2px 0 var(--j-edge);
   transition: transform .07s cubic-bezier(.34,1.56,.64,1), box-shadow .07s ease, filter .15s ease;
 }
@@ -118,17 +134,18 @@ autoalojadas en `frontend/static/fonts/` (woff2, `font-display: swap`).
 .button:disabled { filter: grayscale(.6) opacity(.5); cursor: not-allowed; }
 ```
 
-Variantes: `primary` (green), `secondary` (blue), `gold` (ranking), `danger` (red),
-`ghost` (sin volumen). El `:focus-visible` es `outline: 3px solid #FFF; outline-offset: 4px`
-(Colorido) o `3px solid var(--ink); outline-offset: 3px` (Papel).
+Variantes: `primary` (green), `secondary` (violet), `danger` (red), `ghost` (sin volumen).
+El `:focus-visible` es `outline: 3px solid #FFF; outline-offset: 4px` (Colorido) o
+`3px solid var(--ink); outline-offset: 3px` (Papel). El mismo componente con `md` (60 px) ya
+alcanza: no hay botones gigantes.
 
 ## Componentes
 
 | Componente | Notas |
 |---|---|
-| `Button` | `primary/secondary/gold/danger/ghost` · `md/lg` · press de 4 px · misma API en los dos estilos |
+| `Button` | `primary/secondary/danger/ghost` · `md/lg` · press de 4 px · misma API en los dos estilos |
 | `SkinSwitcher` | elegido en Inicio; escribe `data-skin` y `localStorage`, luego recarga |
-| `AnswerTile` | idle/selected/correct/wrong · ≥ 64 px · tecla `1`–`4` visible · Papel: color de categoría al revelar; Colorido: verde/rojo |
+| `AnswerTile` | idle/selected/correct/wrong · ≥ 56 px · tecla `1`–`4` visible · Papel: color de categoría al revelar; Colorido: violeta, verde/rojo al revelar |
 | `CategoryBadge` | color `--cat-*` + etiqueta de `es.json` |
 | `TimerRing` | arco sobre `ends_at`; alerta y pulso en los últimos 5 s |
 | `PlayerPanel` | nick, estado conectado/desconectado, puntos |
