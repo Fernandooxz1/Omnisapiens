@@ -5,14 +5,17 @@
 
 ## Ahora
 
-- [ ] **Proof de identidad**: mostrar `frontend/design/proof-inicio-partida.html` (inicio +
-      partida, paleta A, Fredoka vs Bricolage) y que el usuario elija el display.
+- [ ] **Proof de estilos**: aprobar `frontend/design/proof-inicio-partida.html` (inicio +
+      partida, tres estados, en Papel y Colorido) y el lenguaje del estilo Colorido tomado de
+      `frontend/design/laboratorio_de_botones_juicy_ui.html`.
 
 ## Después
 
-- [ ] Tokens de `docs/diseno.md` en CSS y componentes `Button` + `CategoryBadge`.
+- [ ] `app.css` como dos pieles (`data-skin`) + componentes `Button`, `SkinSwitcher` y
+      `CategoryBadge`.
 - [ ] Cliente HTTP + sesión (`POST /auth/guest`, token en `sessionStorage`, `GET /me`).
-- [ ] Inicio: nick obligatorio, dos botones (jugar 1v1 / arcade) y enlace al ranking.
+- [ ] Inicio: nick obligatorio, dos botones (jugar 1v1 / arcade), enlace al ranking y
+      selector de estilo.
 - [ ] Crear/unirse a sala y lobby con código gigante.
 - [ ] Cliente WS (`ws.ts`) con reconexión y heartbeat.
 - [ ] Pantalla de partida: `AnswerTile`, `TimerRing`, marcador y revelación (espera la pausa

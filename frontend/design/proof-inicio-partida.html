@@ -3,21 +3,13 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Omnisapiens · proof: inicio y partida</title>
-		<!-- Fuentes autoalojadas: las mismas woff2 que va a usar la app. -->
+		<title>Omnisapiens · proof: estilos, inicio y partida</title>
+		<!-- Fuentes autoalojadas: las mismas woff2 que usa la app. -->
 		<style>
 			@font-face {
 				font-family: 'Fredoka';
 				src: url('../static/fonts/fredoka-latin.woff2') format('woff2');
 				font-weight: 300 700;
-				font-style: normal;
-				font-display: swap;
-			}
-
-			@font-face {
-				font-family: 'Bricolage Grotesque';
-				src: url('../static/fonts/bricolage-grotesque-latin.woff2') format('woff2');
-				font-weight: 400 800;
 				font-style: normal;
 				font-display: swap;
 			}
@@ -30,19 +22,57 @@
 				font-display: swap;
 			}
 
-			:root {
+			@font-face {
+				font-family: 'Plus Jakarta Sans';
+				src: url('../static/fonts/plus-jakarta-sans-latin.woff2') format('woff2');
+				font-weight: 400 700;
+				font-style: normal;
+				font-display: swap;
+			}
+
+			/* ============================================================
+			   ESTILO "PAPEL" — juguete de mesa: papel, tinta, sombra dura
+			   ============================================================ */
+
+			body[data-skin='papel'] {
+				--bg: #fcf8f0;
+				--on-bg: #101828;
+				--on-bg-dim: #475467;
+
+				--surface: #ffffff;
+				--surface-2: #f2eadf;
+				--surface-line: #101828;
+
 				--ink: #101828;
 				--ink-2: #344054;
 				--ink-3: #667085;
-				--paper: #fcf8f0;
-				--paper-2: #f2eadf;
-				--white: #ffffff;
-				--correct: #2fa36b;
-				--wrong: #e14b4b;
-				--wrong-dark: #a32f2f;
-				--brand: #2f6bff;
-				--brand-dark: #1e4fd1;
-				--gold: #d99b1c;
+
+				--shadow: 4px 4px 0 0 #101828;
+				--shadow-press: 1px 1px 0 0 #101828;
+
+				--key-primary-top: #3d78ff;
+				--key-primary-bottom: #2f6bff;
+				--key-primary-edge: #1e4fd1;
+				--key-primary-ink: #ffffff;
+
+				--key-secondary-top: #ffffff;
+				--key-secondary-bottom: #f5eee2;
+				--key-secondary-edge: #d8ccb8;
+				--key-secondary-ink: #101828;
+				--key-secondary-line: #101828;
+
+				--tag-bg: #ffffff;
+				--tag-ink: #101828;
+				--tag-line: #101828;
+
+				--timer-arc: #2f6bff;
+				--timer-alert: #e1484b;
+
+				--chip-on-bg: #ffffff;
+				--chip-on-ink: #101828;
+				--round-ink: #344054;
+				--points-ink: #101828;
+
 				--cat-geography: #2e9e5b;
 				--cat-history: #c77b2e;
 				--cat-science: #2a6fd6;
@@ -50,12 +80,68 @@
 				--cat-entertainment: #e0498f;
 				--cat-sports: #1e9e9e;
 
+				--cat-geography-on: #101828;
+				--cat-history-on: #101828;
+				--cat-science-on: #ffffff;
+				--cat-art-on: #ffffff;
+				--cat-entertainment-on: #101828;
+				--cat-sports-on: #101828;
+
+				--font-ui: 'Instrument Sans', system-ui, sans-serif;
+			}
+
+			/* ============================================================
+			   ESTILO "COLORIDO" — Preguntados / Clash: squircle 3D, bisel,
+			   profundidad sólida y glow sobre un lienzo índigo iluminado
+			   ============================================================ */
+
+			body[data-skin='colorido'] {
+				--bg: radial-gradient(circle at 50% 0%, #312e81 0%, #1e1b4b 62%, #0f172a 100%);
+				--on-bg: #f8fafc;
+				--on-bg-dim: #a5b4fc;
+
+				--surface: rgb(15 23 42 / 0.55);
+				--surface-2: rgb(30 27 75 / 0.85);
+				--surface-line: rgb(129 140 248 / 0.3);
+
+				--ink: #f8fafc;
+				--ink-2: #cbd5e1;
+				--ink-3: #94a3b8;
+
+				--tag-bg: rgb(15 23 42 / 0.8);
+				--tag-ink: #f8fafc;
+				--tag-line: rgb(129 140 248 / 0.45);
+
+				--timer-arc: #ffbe26;
+				--timer-alert: #f87171;
+
+				--round-ink: #a5b4fc;
+				--points-ink: #ffffff;
+
+				/* Las seis categorías son los seis colores del laboratorio. */
+				--cat-geography: #2ed573;
+				--cat-history: #ffbe26;
+				--cat-science: #38bdf8;
+				--cat-art: #a855f7;
+				--cat-entertainment: #f87171;
+				--cat-sports: #fb923c;
+
+				--cat-geography-on: #ffffff;
+				--cat-history-on: #ffffff;
+				--cat-science-on: #ffffff;
+				--cat-art-on: #ffffff;
+				--cat-entertainment-on: #ffffff;
+				--cat-sports-on: #ffffff;
+
+				--font-ui: 'Plus Jakarta Sans', system-ui, sans-serif;
+			}
+
+			:root {
 				--r-sm: 10px;
 				--r-md: 14px;
+				--r-lg: 22px;
 				--r-full: 999px;
 				--border-w: 2.5px;
-				--shadow-hard: 4px 4px 0 0 var(--ink);
-				--shadow-press: 1px 1px 0 0 var(--ink);
 
 				--s-1: 4px;
 				--s-2: 8px;
@@ -65,11 +151,6 @@
 				--s-6: 32px;
 
 				--font-display: 'Fredoka', system-ui, sans-serif;
-				--font-ui: 'Instrument Sans', system-ui, sans-serif;
-			}
-
-			body[data-display='bricolage'] {
-				--font-display: 'Bricolage Grotesque', system-ui, sans-serif;
 			}
 
 			*,
@@ -81,9 +162,9 @@
 			body {
 				margin: 0;
 				padding: var(--s-5);
-				background: #e7e1d6;
-				color: var(--ink);
-				font-family: var(--font-ui);
+				background: #d9d2c5;
+				color: #101828;
+				font-family: 'Instrument Sans', system-ui, sans-serif;
 			}
 
 			/* ---------- chrome del proof (no es producto) ---------- */
@@ -96,17 +177,23 @@
 				gap: var(--s-4);
 				max-width: 1040px;
 				margin: 0 auto var(--s-5);
+				padding: var(--s-4);
+				border: 2px solid #101828;
+				border-radius: 16px;
+				background: #f4f1ea;
+				box-shadow: 4px 4px 0 0 #101828;
+				color: #101828;
 			}
 
 			.proof h1 {
 				margin: 0;
-				font: 700 1.5rem/1.1 var(--font-ui);
+				font: 700 1.375rem/1.1 'Instrument Sans', system-ui, sans-serif;
 			}
 
 			.proof p {
 				margin: var(--s-1) 0 0;
-				max-width: 46ch;
-				color: var(--ink-2);
+				max-width: 58ch;
+				color: #344054;
 				font-size: 0.875rem;
 			}
 
@@ -120,9 +207,9 @@
 				display: flex;
 				gap: 2px;
 				padding: 3px;
-				border: 2px solid var(--ink);
+				border: 2px solid #101828;
 				border-radius: var(--r-full);
-				background: var(--paper);
+				background: #fff;
 			}
 
 			.controls button {
@@ -130,13 +217,14 @@
 				border: 0;
 				border-radius: var(--r-full);
 				background: transparent;
-				font: 600 0.8125rem/1 var(--font-ui);
+				color: #101828;
+				font: 600 0.8125rem/1 'Instrument Sans', system-ui, sans-serif;
 				cursor: pointer;
 			}
 
 			.controls button[aria-pressed='true'] {
-				background: var(--ink);
-				color: var(--white);
+				background: #101828;
+				color: #fff;
 			}
 
 			.stage {
@@ -157,20 +245,23 @@
 			}
 
 			.caption {
+				align-self: flex-start;
 				margin: 0;
-				color: var(--ink-2);
-				font: 600 0.8125rem/1.2 var(--font-ui);
-				letter-spacing: 0.04em;
+				padding: 6px 12px;
+				border: 2px solid #101828;
+				border-radius: var(--r-full);
+				background: #f4f1ea;
+				color: #101828;
+				font: 600 0.75rem/1 'Instrument Sans', system-ui, sans-serif;
+				letter-spacing: 0.06em;
 				text-transform: uppercase;
 			}
 
 			.frame {
 				width: 100%;
 				height: 800px;
-				border: var(--border-w) solid var(--ink);
+				border: 3px solid rgb(255 255 255 / 0.55);
 				border-radius: 26px;
-				background: var(--paper);
-				box-shadow: 8px 8px 0 0 rgb(16 24 40 / 0.16);
 				overflow: hidden;
 			}
 
@@ -179,7 +270,8 @@
 				flex-direction: column;
 				height: 100%;
 				padding: var(--s-5) var(--s-4);
-				background: var(--paper);
+				background: var(--bg);
+				font-family: var(--font-ui);
 			}
 
 			@media (max-width: 1080px) {
@@ -195,7 +287,6 @@
 				gap: var(--s-5);
 			}
 
-			/* El bloque principal se centra solo; el ranking queda pegado abajo. */
 			.home-main {
 				display: flex;
 				flex-direction: column;
@@ -209,13 +300,14 @@
 
 			.wordmark {
 				margin: 0;
+				color: var(--on-bg);
 				font: 700 clamp(2.75rem, 9vw, 3.75rem) / 0.95 var(--font-display);
 				letter-spacing: -0.03em;
 			}
 
 			.tagline {
 				margin: var(--s-3) 0 0;
-				color: var(--ink-2);
+				color: var(--on-bg-dim);
 				font-size: 1.0625rem;
 				line-height: 1.4;
 			}
@@ -233,10 +325,10 @@
 			}
 
 			.nick label {
+				color: var(--on-bg);
 				font: 600 0.8125rem/1 var(--font-ui);
 				letter-spacing: 0.06em;
 				text-transform: uppercase;
-				color: var(--ink-2);
 			}
 
 			.nick-field {
@@ -248,16 +340,17 @@
 			.nick input {
 				width: 100%;
 				min-height: 56px;
-				padding: 0 48px 0 14px;
-				border: var(--border-w) solid var(--ink);
+				padding: 0 48px 0 16px;
+				border: var(--border-w) solid var(--surface-line);
 				border-radius: var(--r-md);
-				background: var(--white);
-				box-shadow: var(--shadow-hard);
+				background: var(--surface);
+				box-shadow: var(--shadow);
+				color: var(--ink);
 				font: 600 1.125rem/1 var(--font-ui);
 			}
 
 			.nick input:focus-visible {
-				outline: 3px solid var(--ink);
+				outline: 3px solid var(--on-bg);
 				outline-offset: 3px;
 			}
 
@@ -266,16 +359,16 @@
 				right: 12px;
 				display: grid;
 				place-items: center;
-				width: 24px;
-				height: 24px;
+				width: 26px;
+				height: 26px;
 				border-radius: var(--r-full);
-				background: var(--correct);
-				color: var(--white);
+				background: #2ed573;
+				color: #0f172a;
 			}
 
 			.hint {
 				margin: 0;
-				color: var(--ink-3);
+				color: var(--on-bg-dim);
 				font-size: 0.8125rem;
 			}
 
@@ -286,10 +379,6 @@
 			}
 
 			.key {
-				--key-top: var(--white);
-				--key-bottom: var(--paper-2);
-				--key-edge: #d8ccb8;
-				--key-ink: var(--ink);
 				position: relative;
 				display: flex;
 				flex-direction: column;
@@ -299,15 +388,19 @@
 				width: 100%;
 				min-height: 84px;
 				padding: 14px 20px;
-				border: var(--border-w) solid var(--ink);
+				border: var(--border-w) solid var(--surface-line);
 				border-radius: var(--r-md);
-				background: linear-gradient(180deg, var(--key-top), var(--key-bottom));
+				background: linear-gradient(
+					180deg,
+					var(--key-secondary-top),
+					var(--key-secondary-bottom)
+				);
 				box-shadow:
 					inset 0 2px 0 rgb(255 255 255 / 0.45),
 					inset 0 -2px 0 rgb(0 0 0 / 0.08),
-					0 6px 0 var(--key-edge),
+					0 6px 0 var(--key-secondary-edge),
 					0 10px 15px -3px rgb(0 0 0 / 0.3);
-				color: var(--key-ink);
+				color: var(--key-secondary-ink);
 				text-align: left;
 				cursor: pointer;
 				transition:
@@ -323,36 +416,91 @@
 				transform: translateY(4px);
 				box-shadow:
 					inset 0 1px 0 rgb(255 255 255 / 0.2),
-					0 2px 0 var(--key-edge),
+					0 2px 0 var(--key-secondary-edge),
 					0 4px 6px -2px rgb(0 0 0 / 0.2);
 			}
 
 			.key:focus-visible {
-				outline: 3px solid var(--ink);
+				outline: 3px solid var(--on-bg);
 				outline-offset: 3px;
 			}
 
 			.key--primary {
-				--key-top: #4a80ff;
-				--key-bottom: var(--brand);
-				--key-edge: var(--brand-dark);
-				--key-ink: var(--white);
-				border-color: var(--brand-dark);
-				text-shadow: 0 2px 0 var(--brand-dark);
+				border-color: var(--key-secondary-line);
+				background: linear-gradient(180deg, var(--key-primary-top), var(--key-primary-bottom));
+				box-shadow:
+					inset 0 2px 0 rgb(255 255 255 / 0.45),
+					inset 0 -2px 0 rgb(0 0 0 / 0.1),
+					0 6px 0 var(--key-primary-edge),
+					0 10px 15px -3px rgb(0 0 0 / 0.3);
+				color: var(--key-primary-ink);
+				text-shadow: 0 2px 0 var(--key-primary-edge);
+			}
+
+			.key--primary:active {
+				box-shadow:
+					inset 0 1px 0 rgb(255 255 255 / 0.2),
+					0 2px 0 var(--key-primary-edge),
+					0 4px 6px -2px rgb(0 0 0 / 0.2);
 			}
 
 			.key-title {
 				font: 700 1.375rem/1 var(--font-display);
-				letter-spacing: 0.01em;
 			}
 
 			.key-hint {
 				font: 500 0.875rem/1.25 var(--font-ui);
-				opacity: 0.9;
+				opacity: 0.85;
 			}
 
 			.key--primary .key-hint {
 				text-shadow: none;
+				opacity: 0.78;
+			}
+
+			.themes {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				flex-wrap: wrap;
+				gap: var(--s-2);
+				min-height: 44px;
+			}
+
+			.themes-label {
+				color: var(--on-bg-dim);
+				font: 600 0.75rem/1 var(--font-ui);
+				letter-spacing: 0.06em;
+				text-transform: uppercase;
+			}
+
+			.theme-chip {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				min-height: 44px;
+				padding: 0 14px;
+				border: var(--border-w) solid var(--on-bg-dim);
+				border-radius: var(--r-full);
+				background: transparent;
+				color: var(--on-bg);
+				font: 600 0.9375rem/1 var(--font-ui);
+				cursor: pointer;
+			}
+
+			.theme-chip[aria-pressed='true'] {
+				border-color: var(--surface-line);
+				background: var(--chip-on-bg);
+				box-shadow: var(--shadow);
+				color: var(--chip-on-ink);
+			}
+
+			.theme-chip .check {
+				display: none;
+			}
+
+			.theme-chip[aria-pressed='true'] .check {
+				display: block;
 			}
 
 			.rank-link {
@@ -362,25 +510,21 @@
 				align-self: center;
 				min-height: 44px;
 				padding: 0 10px;
-				color: var(--ink-2);
+				color: var(--on-bg);
 				font: 600 0.9375rem/1 var(--font-ui);
 				text-decoration: underline;
 				text-decoration-thickness: 2px;
 				text-underline-offset: 4px;
 			}
 
-			.rank-link:hover {
-				color: var(--ink);
-			}
-
-			.rank-link svg {
-				flex: none;
+			.rank-link .rank-icon {
+				display: none;
 			}
 
 			/* ---------- partida ---------- */
 
 			.screen--match {
-				gap: var(--s-4);
+				gap: var(--s-3);
 			}
 
 			.match-top {
@@ -391,9 +535,9 @@
 			}
 
 			.round-label {
-				color: var(--ink-3);
-				font: 600 0.8125rem/1 var(--font-ui);
-				letter-spacing: 0.08em;
+				color: var(--round-ink);
+				font: 700 0.8125rem/1 var(--font-display);
+				letter-spacing: 0.1em;
 				text-transform: uppercase;
 			}
 
@@ -401,8 +545,12 @@
 				position: relative;
 				display: grid;
 				place-items: center;
-				width: 58px;
-				height: 58px;
+				width: 62px;
+				height: 62px;
+				border: var(--border-w) solid var(--surface-line);
+				border-radius: var(--r-full);
+				background: var(--surface);
+				box-shadow: var(--shadow);
 			}
 
 			.timer svg {
@@ -413,28 +561,24 @@
 
 			.timer .track {
 				fill: none;
-				stroke: var(--paper-2);
+				stroke: var(--surface-2);
 				stroke-width: 6;
 			}
 
 			.timer .arc {
 				fill: none;
-				stroke: var(--brand);
+				stroke: var(--timer-arc);
 				stroke-width: 6;
 				stroke-linecap: round;
 				transition: stroke-dashoffset 0.9s linear;
-			}
-
-			.timer.is-alert .arc {
-				stroke: var(--wrong);
 			}
 
 			.timer.is-alert {
 				animation: pulse 0.9s ease-in-out infinite;
 			}
 
-			.screen--match:not([data-state='question']) .timer {
-				opacity: 0.45;
+			.timer.is-alert .arc {
+				stroke: var(--timer-alert);
 			}
 
 			@keyframes pulse {
@@ -445,8 +589,21 @@
 
 			.timer-value {
 				position: relative;
+				color: var(--ink);
 				font: 700 1.25rem/1 var(--font-display);
 				font-variant-numeric: tabular-nums;
+			}
+
+			.screen--match:not([data-state='question']) .timer {
+				opacity: 0.55;
+			}
+
+			.card {
+				padding: var(--s-3) var(--s-4);
+				border: var(--border-w) solid var(--surface-line);
+				border-radius: var(--r-md);
+				background: var(--surface);
+				box-shadow: var(--shadow);
 			}
 
 			.scoreboard {
@@ -455,36 +612,62 @@
 				justify-content: space-between;
 				gap: var(--s-3);
 				padding: 10px var(--s-4);
-				border: var(--border-w) solid var(--ink);
-				border-radius: var(--r-md);
-				background: var(--white);
-				box-shadow: var(--shadow-hard);
 			}
 
 			.score {
+				display: flex;
+				align-items: center;
+				gap: var(--s-2);
+				min-width: 0;
+			}
+
+			.score--right {
+				flex-direction: row-reverse;
+				text-align: right;
+			}
+
+			.score-lines {
 				display: flex;
 				flex-direction: column;
 				gap: 2px;
 				min-width: 0;
 			}
 
-			.score--right {
+			.score--right .score-lines {
 				align-items: flex-end;
-				text-align: right;
+			}
+
+			.avatar {
+				display: none;
+				place-items: center;
+				flex: none;
+				width: 40px;
+				height: 40px;
+				border-radius: var(--r-full);
+				background: linear-gradient(180deg, #a855f7, #7e22ce);
+				box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.35), 0 3px 0 #581c87;
+				color: #fff;
+				font: 700 1.125rem/1 var(--font-display);
+			}
+
+			.avatar--rival {
+				background: linear-gradient(180deg, #38bdf8, #0284c7);
+				box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.35), 0 3px 0 #0369a1;
 			}
 
 			.who {
-				max-width: 150px;
+				max-width: 140px;
 				overflow: hidden;
-				color: var(--ink-2);
-				font: 600 0.75rem/1 var(--font-ui);
-				letter-spacing: 0.06em;
+				color: var(--ink-3);
+				font: 700 0.75rem/1 var(--font-ui);
+				letter-spacing: 0.08em;
 				text-overflow: ellipsis;
 				text-transform: uppercase;
 				white-space: nowrap;
 			}
 
 			.points {
+				color: var(--points-ink);
 				font: 700 2rem/1 var(--font-display);
 				font-variant-numeric: tabular-nums;
 			}
@@ -495,25 +678,33 @@
 			}
 
 			.question {
+				position: relative;
 				display: flex;
 				flex-direction: column;
 				align-items: flex-start;
 				gap: var(--s-2);
-				padding-top: var(--s-1);
+			}
+
+			.sticker {
+				display: none;
 			}
 
 			.badge {
 				padding: 6px 11px;
 				border-radius: var(--r-full);
-				background: var(--cat-science);
-				color: var(--white);
 				font: 700 0.75rem/1 var(--font-display);
 				letter-spacing: 0.08em;
 				text-transform: uppercase;
 			}
 
+			.badge[data-cat='science'] {
+				background: var(--cat-science);
+				color: var(--cat-science-on);
+			}
+
 			.prompt {
 				margin: 0;
+				color: var(--ink);
 				font: 600 1.25rem/1.3 var(--font-ui);
 				letter-spacing: -0.01em;
 			}
@@ -530,10 +721,10 @@
 				gap: var(--s-3);
 				min-height: 64px;
 				padding: 10px 14px;
-				border: var(--border-w) solid var(--ink);
+				border: var(--border-w) solid var(--surface-line);
 				border-radius: var(--r-md);
-				background: var(--white);
-				box-shadow: 3px 3px 0 0 var(--ink);
+				background: var(--surface);
+				box-shadow: var(--shadow);
 				color: var(--ink);
 				font: 600 1.0625rem/1.25 var(--font-ui);
 				text-align: left;
@@ -550,7 +741,7 @@
 			}
 
 			.tile:focus-visible {
-				outline: 3px solid var(--ink);
+				outline: 3px solid var(--on-bg);
 				outline-offset: 3px;
 			}
 
@@ -560,25 +751,23 @@
 				flex: none;
 				width: 30px;
 				height: 30px;
-				border: 2px solid var(--ink);
+				border: 2px solid currentColor;
 				border-radius: 8px;
-				background: var(--paper-2);
+				background: var(--surface-2);
+				color: var(--ink-2);
 				font: 700 0.875rem/1 var(--font-display);
-			}
-
-			.tile-label {
-				min-width: 0;
 			}
 
 			.tag {
 				display: none;
 				flex: none;
+				align-items: center;
 				margin-left: auto;
 				padding: 4px 9px;
-				border: 2px solid var(--ink);
+				border: 2px solid var(--tag-line);
 				border-radius: var(--r-full);
-				background: var(--white);
-				color: var(--ink);
+				background: var(--tag-bg);
+				color: var(--tag-ink);
 				font: 700 0.6875rem/1 var(--font-ui);
 				letter-spacing: 0.04em;
 				text-transform: uppercase;
@@ -592,20 +781,19 @@
 			.explain {
 				display: none;
 				padding: 10px 12px;
-				border-left: 4px solid var(--cat-science);
-				border-radius: var(--r-sm);
-				background: var(--paper-2);
+				border: var(--border-w) solid var(--surface-line);
+				border-left: 6px solid var(--cat-current);
+				border-radius: var(--r-md);
+				background: var(--surface);
+				color: var(--ink);
+				box-shadow: var(--shadow);
 				font-size: 0.9375rem;
 				line-height: 1.35;
 			}
 
-			.explain strong {
-				font-weight: 700;
-			}
-
 			.waiting {
 				display: none;
-				color: var(--ink-2);
+				color: var(--on-bg);
 				font: 600 0.9375rem/1.3 var(--font-ui);
 			}
 
@@ -638,39 +826,33 @@
 
 			.hint-foot {
 				margin: 0;
-				color: var(--ink-3);
+				color: var(--on-bg-dim);
 				font: 500 0.9375rem/1.3 var(--font-ui);
+			}
+
+			.delta {
+				display: none;
+				color: var(--on-bg-dim);
+				font: 600 0.8125rem/1.2 var(--font-ui);
 			}
 
 			.screen--match:not([data-state='question']) .hint-foot {
 				display: none;
 			}
 
-			.delta {
-				display: none;
-				color: var(--ink-3);
-				font: 600 0.8125rem/1.2 var(--font-ui);
-			}
-
-			/* pregunta: todo neutro y sin marcas */
-			.screen--match[data-state='question'] .tile {
-				cursor: pointer;
-			}
-
-			/* esperando: elección bloqueada, rival todavía no contestó */
 			.screen--match[data-state='waiting'] .tile {
 				cursor: default;
 			}
 
 			.screen--match[data-state='waiting'] .tile:not(.is-chosen) {
-				opacity: 0.45;
+				opacity: 0.5;
 			}
 
 			.screen--match[data-state='waiting'] .tile.is-chosen {
-				border-color: var(--brand);
+				border-color: var(--timer-arc);
 				box-shadow:
-					0 0 0 2px var(--brand),
-					3px 3px 0 0 var(--ink);
+					0 0 0 3px var(--timer-arc),
+					var(--shadow);
 			}
 
 			.screen--match[data-state='waiting'] .tag--you,
@@ -678,43 +860,37 @@
 				display: inline-flex;
 			}
 
-			/* revelación: correcta con el color de la categoría */
 			.screen--match[data-state='reveal'] .tile {
 				cursor: default;
 			}
 
 			.screen--match[data-state='reveal'] .tile.is-correct {
-				border-color: var(--ink);
-				background: var(--cat-science);
-				color: var(--white);
+				border-color: var(--surface-line);
+				background: var(--cat-current);
+				color: var(--cat-current-on);
 			}
 
 			.screen--match[data-state='reveal'] .tile.is-wrong {
-				border-color: var(--ink);
-				background: var(--wrong-dark);
-				color: var(--white);
+				border-color: var(--surface-line);
+				background: #a32f2f;
+				color: #ffffff;
 			}
 
 			.screen--match[data-state='reveal'] .tile:not(.is-correct):not(.is-wrong) {
-				opacity: 0.45;
+				opacity: 0.5;
 			}
 
 			.screen--match[data-state='reveal'] .tile.is-correct .tile-key,
 			.screen--match[data-state='reveal'] .tile.is-wrong .tile-key {
-				border-color: rgb(255 255 255 / 0.75);
-				background: rgb(255 255 255 / 0.18);
-				color: var(--white);
+				border-color: currentColor;
+				background: rgb(255 255 255 / 0.22);
+				color: currentColor;
 			}
 
 			.screen--match[data-state='reveal'] .tag,
 			.screen--match[data-state='reveal'] .mark,
-			.screen--match[data-state='reveal'] .explain,
-			.screen--match[data-state='reveal'] .delta {
+			.screen--match[data-state='reveal'] .explain {
 				display: inline-flex;
-			}
-
-			.screen--match[data-state='reveal'] .tag {
-				align-items: center;
 			}
 
 			.screen--match[data-state='reveal'] .explain,
@@ -722,9 +898,372 @@
 				display: block;
 			}
 
+			/* ============================================================
+			   ESTILO "COLORIDO" — overrides de componentes
+			   ============================================================ */
+
+			body[data-skin='colorido'] .wordmark {
+				color: #ffffff;
+				text-shadow: 0 3px 0 #1e1b4b;
+			}
+
+			body[data-skin='colorido'] .nick input {
+				border-width: 2px;
+				border-radius: 16px;
+				background: rgb(15 23 42 / 0.6);
+				box-shadow: inset 0 2px 6px rgb(0 0 0 / 0.45);
+				color: #f8fafc;
+			}
+
+			body[data-skin='colorido'] .nick-ok {
+				box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.4), 0 3px 0 #1b8a4b;
+			}
+
+			/* La tecla "juicy": gradiente de volumen, bisel de 2 px, base sólida y glow. */
+			body[data-skin='colorido'] .key,
+			body[data-skin='colorido'] .tile,
+			body[data-skin='colorido'] .theme-chip,
+			body[data-skin='colorido'] .rank-link {
+				--j-top: #64748b;
+				--j-bottom: #475569;
+				--j-edge: #334155;
+				--j-glow: rgb(100 116 139 / 0.4);
+				align-items: flex-start;
+				border: none;
+				border-radius: var(--r-lg);
+				background: linear-gradient(180deg, var(--j-top) 0%, var(--j-bottom) 100%);
+				box-shadow:
+					inset 0 2px 0 rgb(255 255 255 / 0.38),
+					inset 0 -2px 0 rgb(0 0 0 / 0.12),
+					0 6px 0 var(--j-edge),
+					0 11px 15px -3px rgb(0 0 0 / 0.35);
+				color: #ffffff;
+				text-shadow: 0 2px 0 var(--j-edge);
+				transition:
+					transform 0.07s cubic-bezier(0.34, 1.56, 0.64, 1),
+					box-shadow 0.07s cubic-bezier(0.34, 1.56, 0.64, 1),
+					filter 0.15s ease;
+			}
+
+			body[data-skin='colorido'] .key:hover:not(:disabled),
+			body[data-skin='colorido'] .tile:hover:not(:disabled),
+			body[data-skin='colorido'] .theme-chip:hover:not(:disabled),
+			body[data-skin='colorido'] .rank-link:hover {
+				filter: brightness(1.05);
+				transform: translateY(-1px);
+				box-shadow:
+					inset 0 2px 0 rgb(255 255 255 / 0.48),
+					inset 0 -2px 0 rgb(0 0 0 / 0.12),
+					0 7px 0 var(--j-edge),
+					0 14px 20px -2px var(--j-glow);
+			}
+
+			body[data-skin='colorido'] .key:active:not(:disabled),
+			body[data-skin='colorido'] .tile:active:not(:disabled),
+			body[data-skin='colorido'] .theme-chip:active:not(:disabled),
+			body[data-skin='colorido'] .rank-link:active {
+				transform: translateY(4px);
+				box-shadow:
+					inset 0 1px 0 rgb(255 255 255 / 0.2),
+					inset 0 -1px 0 rgb(0 0 0 / 0.15),
+					0 2px 0 var(--j-edge),
+					0 3px 6px -2px rgb(0 0 0 / 0.25);
+			}
+
+			body[data-skin='colorido'] .key:focus-visible,
+			body[data-skin='colorido'] .tile:focus-visible,
+			body[data-skin='colorido'] .rank-link:focus-visible {
+				outline: 3px solid #ffffff;
+				outline-offset: 4px;
+			}
+
+			body[data-skin='colorido'] .key {
+				align-items: center;
+				min-height: 92px;
+				padding: 16px 24px;
+				text-align: center;
+			}
+
+			body[data-skin='colorido'] .key-title {
+				font: 700 1.375rem/1 var(--font-display);
+				letter-spacing: 0.6px;
+				text-transform: uppercase;
+			}
+
+			body[data-skin='colorido'] .key-hint {
+				font: 500 0.875rem/1.2 var(--font-ui);
+				letter-spacing: 0;
+				opacity: 0.9;
+				text-shadow: none;
+				text-transform: none;
+			}
+
+			body[data-skin='colorido'] .card {
+				border: 2px solid rgb(129 140 248 / 0.3);
+				border-radius: 24px;
+				background: rgb(15 23 42 / 0.55);
+				box-shadow: 0 18px 40px -26px rgb(0 0 0 / 0.95);
+			}
+
+			body[data-skin='colorido'] .avatar {
+				display: grid;
+			}
+
+			body[data-skin='colorido'] .scoreboard {
+				padding: 12px var(--s-3);
+			}
+
+			body[data-skin='colorido'] .who {
+				color: #cbd5e1;
+			}
+
+			body[data-skin='colorido'] .points {
+				color: #ffffff;
+				text-shadow: 0 3px 0 #1e1b4b;
+			}
+
+			body[data-skin='colorido'] .vs {
+				color: #a5b4fc;
+			}
+
+			body[data-skin='colorido'] .timer {
+				border-width: 3px;
+				border-color: rgb(129 140 248 / 0.5);
+				background: rgb(15 23 42 / 0.7);
+				box-shadow: 0 8px 18px -8px rgb(0 0 0 / 0.9);
+			}
+
+			body[data-skin='colorido'] .timer .track {
+				stroke: rgb(129 140 248 / 0.25);
+			}
+
+			body[data-skin='colorido'] .timer-value {
+				color: #ffffff;
+				text-shadow: 0 2px 0 #1e1b4b;
+			}
+
+			body[data-skin='colorido'] .badge {
+				padding: 6px 12px;
+				background: linear-gradient(180deg, var(--cat-current), var(--cat-current));
+				box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.4), 0 3px 0 rgb(15 23 42 / 0.8);
+				text-shadow: 0 2px 0 rgb(15 23 42 / 0.35);
+			}
+
+			body[data-skin='colorido'] .prompt {
+				color: #ffffff;
+				font: 700 1.3rem/1.35 var(--font-ui);
+			}
+
+			body[data-skin='colorido'] .sticker {
+				position: absolute;
+				top: -14px;
+				right: -6px;
+				z-index: 2;
+				display: inline-flex;
+				align-items: center;
+				padding: 5px 11px;
+				border: 2px solid #fda4af;
+				border-radius: var(--r-full);
+				background: #f43f5e;
+				box-shadow: 0 4px 0 #9f1239;
+				color: #ffffff;
+				font: 700 0.6875rem/1 var(--font-display);
+				letter-spacing: 0.06em;
+				text-shadow: 0 2px 0 #9f1239;
+				text-transform: uppercase;
+				transform: rotate(3deg);
+			}
+
+			body[data-skin='colorido'] .screen--match:not([data-state='question']) .sticker {
+				display: none;
+			}
+
+			/* Tiles: botones de color, centrados, como en Preguntados. */
+			body[data-skin='colorido'] .tile {
+				justify-content: center;
+				min-height: 72px;
+				padding: 12px 18px;
+				font: 700 1.1875rem/1.2 var(--font-display);
+				letter-spacing: 0.4px;
+				text-align: center;
+				text-transform: uppercase;
+			}
+
+			body[data-skin='colorido'] .tile-key {
+				position: absolute;
+				left: 14px;
+				width: 28px;
+				height: 28px;
+				border: 2px solid rgb(255 255 255 / 0.5);
+				border-radius: 9px;
+				background: rgb(15 23 42 / 0.35);
+				color: #ffffff;
+				font: 700 0.8125rem/1 var(--font-display);
+			}
+
+			body[data-skin='colorido'] .tiles .tile:nth-child(1) {
+				--j-top: #38bdf8;
+				--j-bottom: #0284c7;
+				--j-edge: #0369a1;
+				--j-glow: rgb(56 189 248 / 0.4);
+			}
+
+			body[data-skin='colorido'] .tiles .tile:nth-child(2) {
+				--j-top: #a855f7;
+				--j-bottom: #7e22ce;
+				--j-edge: #581c87;
+				--j-glow: rgb(168 85 247 / 0.4);
+			}
+
+			body[data-skin='colorido'] .tiles .tile:nth-child(3) {
+				--j-top: #fb923c;
+				--j-bottom: #ea580c;
+				--j-edge: #9a3412;
+				--j-glow: rgb(251 146 60 / 0.4);
+			}
+
+			body[data-skin='colorido'] .tiles .tile:nth-child(4) {
+				--j-top: #ffbe26;
+				--j-bottom: #f39c12;
+				--j-edge: #c27803;
+				--j-glow: rgb(243 156 18 / 0.4);
+			}
+
+			body[data-skin='colorido'] .screen--match[data-state='waiting'] .tile.is-chosen {
+				outline: 3px solid #ffffff;
+				outline-offset: 3px;
+			}
+
+			body[data-skin='colorido'] .screen--match[data-state='waiting'] .tile:not(.is-chosen) {
+				opacity: 0.45;
+				filter: grayscale(0.6);
+			}
+
+			body[data-skin='colorido'] .screen--match[data-state='reveal'] .tile.is-correct {
+				--j-top: #2ed573;
+				--j-bottom: #26af61;
+				--j-edge: #1b8a4b;
+				border: none;
+				background: linear-gradient(180deg, var(--j-top), var(--j-bottom));
+				color: #ffffff;
+			}
+
+			body[data-skin='colorido'] .screen--match[data-state='reveal'] .tile.is-wrong {
+				--j-top: #f87171;
+				--j-bottom: #dc2626;
+				--j-edge: #991b1b;
+				border: none;
+				background: linear-gradient(180deg, var(--j-top), var(--j-bottom));
+				color: #ffffff;
+			}
+
+			body[data-skin='colorido'] .screen--match[data-state='reveal'] .tile:not(.is-correct):not(.is-wrong) {
+				opacity: 0.45;
+				filter: grayscale(0.6);
+			}
+
+			body[data-skin='colorido'] .screen--match[data-state='reveal'] .tile.is-correct .tile-key,
+			body[data-skin='colorido'] .screen--match[data-state='reveal'] .tile.is-wrong .tile-key {
+				border-color: rgb(255 255 255 / 0.5);
+				background: rgb(15 23 42 / 0.35);
+				color: #ffffff;
+			}
+
+			body[data-skin='colorido'] .tag {
+				border-color: var(--tag-line);
+				background: var(--tag-bg);
+				color: #ffffff;
+				text-shadow: none;
+			}
+
+			body[data-skin='colorido'] .explain {
+				border: 2px solid rgb(129 140 248 / 0.3);
+				border-left: 6px solid var(--cat-current);
+				border-radius: 18px;
+				background: rgb(15 23 42 / 0.6);
+				box-shadow: none;
+				color: #e2e8f0;
+			}
+
+			body[data-skin='colorido'] .theme-chip {
+				min-height: 46px;
+				padding: 0 18px;
+				border-radius: 16px;
+				font: 700 0.9375rem/1 var(--font-display);
+				letter-spacing: 0.4px;
+				text-transform: uppercase;
+			}
+
+			body[data-skin='colorido'] .theme-chip[aria-pressed='false'] {
+				--j-top: #334155;
+				--j-bottom: #1e293b;
+				--j-edge: #0f172a;
+				--j-glow: rgb(15 23 42 / 0.5);
+				color: #cbd5e1;
+			}
+
+			body[data-skin='colorido'] .theme-chip[aria-pressed='true'] {
+				--j-top: #2ed573;
+				--j-bottom: #26af61;
+				--j-edge: #1b8a4b;
+				--j-glow: rgb(46 213 115 / 0.4);
+				border: none;
+				box-shadow:
+					inset 0 2px 0 rgb(255 255 255 / 0.38),
+					inset 0 -2px 0 rgb(0 0 0 / 0.12),
+					0 6px 0 var(--j-edge),
+					0 11px 15px -3px rgb(0 0 0 / 0.35);
+				color: #ffffff;
+			}
+
+			body[data-skin='colorido'] .rank-link {
+				align-self: stretch;
+				justify-content: center;
+				min-height: 58px;
+				padding: 14px 26px;
+				border-radius: 18px;
+				background: linear-gradient(180deg, #ffbe26 0%, #f39c12 100%);
+				box-shadow:
+					inset 0 2px 0 rgb(255 255 255 / 0.38),
+					inset 0 -2px 0 rgb(0 0 0 / 0.12),
+					0 6px 0 #c27803,
+					0 11px 15px -3px rgb(0 0 0 / 0.35);
+				color: #ffffff;
+				font: 700 1.1rem/1 var(--font-display);
+				letter-spacing: 0.6px;
+				text-decoration: none;
+				text-transform: uppercase;
+				text-shadow: 0 2px 0 #c27803;
+			}
+
+			body[data-skin='colorido'] .rank-link .rank-icon {
+				display: block;
+			}
+
+			body[data-skin='colorido'] .rank-link .rank-arrow {
+				display: none;
+			}
+
+			/* Colores por variante del estilo colorido. */
+			body[data-skin='colorido'] .j-green {
+				--j-top: #2ed573;
+				--j-bottom: #26af61;
+				--j-edge: #1b8a4b;
+				--j-glow: rgb(46 213 115 / 0.4);
+			}
+
+			body[data-skin='colorido'] .j-blue {
+				--j-top: #38bdf8;
+				--j-bottom: #0284c7;
+				--j-edge: #0369a1;
+				--j-glow: rgb(56 189 248 / 0.4);
+			}
+
 			@media (prefers-reduced-motion: reduce) {
 				.key,
 				.tile,
+				.theme-chip,
+				.rank-link,
 				.timer .arc {
 					transition: none;
 				}
@@ -738,32 +1277,23 @@
 					content: '...';
 				}
 			}
-
-			.proof-foot {
-				max-width: 1040px;
-				margin: var(--s-5) auto 0;
-				color: var(--ink-2);
-				font-size: 0.8125rem;
-				line-height: 1.5;
-			}
 		</style>
 	</head>
-	<body data-display="fredoka">
+	<body data-skin="papel">
 		<header class="proof">
 			<div>
-				<h1>Proof · inicio y partida</h1>
+				<h1>Proof · estilos, inicio y partida</h1>
 				<p>
-					Paleta A decidida. La interfaz usa Instrument Sans en las dos variantes; cambia solo
-					el display. En escritorio, esta columna de 480 px va centrada sobre
-					<code>--paper</code>.
+					Dos estilos completos sobre el mismo layout, no dos paletas. <strong>Papel</strong>
+					(juguete de mesa: tinta, borde de 2,5 px y sombra dura) y <strong>Colorido</strong>
+					(estilo Preguntados / Clash: squircle, bisel de 2 px, profundidad sólida y glow, Plus
+					Jakarta Sans). El cambio de estilo recarga la página, como va a hacer el producto.
 				</p>
 			</div>
 			<div class="controls">
-				<div role="group" aria-label="Tipografía display">
-					<button type="button" data-display-option="fredoka" aria-pressed="true">Fredoka</button>
-					<button type="button" data-display-option="bricolage" aria-pressed="false">
-						Bricolage Grotesque
-					</button>
+				<div role="group" aria-label="Estilo">
+					<button type="button" data-skin-option="papel" aria-pressed="true">Papel</button>
+					<button type="button" data-skin-option="colorido" aria-pressed="false">Colorido</button>
 				</div>
 				<div role="group" aria-label="Estado de la partida">
 					<button type="button" data-state-option="question" aria-pressed="true">Pregunta</button>
@@ -775,7 +1305,7 @@
 
 		<main class="stage">
 			<section class="board">
-				<p class="caption">Inicio · nick obligatorio, dos modos</p>
+				<p class="caption">Inicio · nick, modos y estilo</p>
 				<div class="frame">
 					<div class="screen screen--home">
 						<div class="home-main">
@@ -790,11 +1320,11 @@
 									<div class="nick-field">
 										<input id="nick-input" value="Ana" maxlength="16" autocomplete="off" />
 										<span class="nick-ok" aria-hidden="true">
-											<svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+											<svg width="15" height="15" viewBox="0 0 24 24" fill="none">
 												<path
 													d="M5 12.5 10 17.5 19 7"
 													stroke="currentColor"
-													stroke-width="3"
+													stroke-width="3.2"
 													stroke-linecap="round"
 													stroke-linejoin="round"
 												/>
@@ -805,11 +1335,11 @@
 								</form>
 
 								<div class="modes">
-									<button class="key key--primary" type="button">
+									<button class="key key--primary j-green" type="button">
 										<span class="key-title">Jugar 1v1</span>
 										<span class="key-hint">Crea una sala o entra con un código.</span>
 									</button>
-									<button class="key" type="button">
+									<button class="key j-blue" type="button">
 										<span class="key-title">Arcade</span>
 										<span class="key-hint">Tres vidas y dificultad creciente.</span>
 									</button>
@@ -817,9 +1347,46 @@
 							</div>
 						</div>
 
+						<div class="themes" role="group" aria-label="Estilo de la interfaz">
+							<span class="themes-label">Estilo</span>
+							<button class="theme-chip" type="button" data-skin-option="papel" aria-pressed="true">
+								Papel
+								<svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+									<path
+										d="M5 12.5 10 17.5 19 7"
+										stroke="currentColor"
+										stroke-width="3"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									/>
+								</svg>
+							</button>
+							<button class="theme-chip" type="button" data-skin-option="colorido" aria-pressed="false">
+								Colorido
+								<svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+									<path
+										d="M5 12.5 10 17.5 19 7"
+										stroke="currentColor"
+										stroke-width="3"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									/>
+								</svg>
+							</button>
+						</div>
+
 						<a class="rank-link" href="#ranking">
+							<svg class="rank-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+								<path
+									d="M7 4h10v4a5 5 0 0 1-10 0V4ZM5 5h2v3a3 3 0 0 1-2-3ZM19 5h-2v3a3 3 0 0 0 2-3ZM12 13v4M8 20h8M9 20a3 3 0 0 1 6 0"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								/>
+							</svg>
 							Ranking semanal
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+							<svg class="rank-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
 								<path
 									d="M5 12h14M13 6l6 6-6 6"
 									stroke="currentColor"
@@ -836,32 +1403,46 @@
 			<section class="board">
 				<p class="caption">Partida 1v1 · sin scroll</p>
 				<div class="frame">
-					<div class="screen screen--match" data-state="question">
+					<div
+						class="screen screen--match"
+						data-state="question"
+						style="
+							--cat-current: var(--cat-science);
+							--cat-current-on: var(--cat-science-on);
+						"
+					>
 						<div class="match-top">
 							<span class="round-label">Ronda 3 de 5</span>
 							<div class="timer" id="timer">
-								<svg viewBox="0 0 58 58" aria-hidden="true">
-									<circle class="track" cx="29" cy="29" r="25" />
-									<circle class="arc" id="timer-arc" cx="29" cy="29" r="25" />
+								<svg viewBox="0 0 62 62" aria-hidden="true">
+									<circle class="track" cx="31" cy="31" r="26" />
+									<circle class="arc" id="timer-arc" cx="31" cy="31" r="26" />
 								</svg>
 								<span class="timer-value" id="timer-value">14</span>
 							</div>
 						</div>
 
-						<div class="scoreboard">
+						<div class="card scoreboard">
 							<div class="score">
-								<span class="who">Ana</span>
-								<span class="points">348</span>
+								<span class="avatar" aria-hidden="true">A</span>
+								<span class="score-lines">
+									<span class="who">Ana</span>
+									<span class="points">348</span>
+								</span>
 							</div>
 							<span class="vs" aria-hidden="true">—</span>
 							<div class="score score--right">
-								<span class="who">Beto</span>
-								<span class="points">296</span>
+								<span class="avatar avatar--rival" aria-hidden="true">B</span>
+								<span class="score-lines">
+									<span class="who">Beto</span>
+									<span class="points">296</span>
+								</span>
 							</div>
 						</div>
 
-						<div class="question">
-							<span class="badge">Ciencia</span>
+						<div class="card question">
+							<span class="sticker">Respondé</span>
+							<span class="badge" data-cat="science">Ciencia</span>
 							<p class="prompt">¿Cuál es el símbolo químico del oro?</p>
 						</div>
 
@@ -870,14 +1451,7 @@
 								<span class="tile-key">1</span>
 								<span class="tile-label">Au</span>
 								<span class="tag tag--opponent">Beto</span>
-								<svg
-									class="mark"
-									width="22"
-									height="22"
-									viewBox="0 0 24 24"
-									fill="none"
-									aria-hidden="true"
-								>
+								<svg class="mark" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
 									<path
 										d="M5 12.5 10 17.5 19 7"
 										stroke="currentColor"
@@ -891,20 +1465,8 @@
 								<span class="tile-key">2</span>
 								<span class="tile-label">Ag</span>
 								<span class="tag tag--you">Tú</span>
-								<svg
-									class="mark"
-									width="22"
-									height="22"
-									viewBox="0 0 24 24"
-									fill="none"
-									aria-hidden="true"
-								>
-									<path
-										d="M7 7l10 10M17 7 7 17"
-										stroke="currentColor"
-										stroke-width="3"
-										stroke-linecap="round"
-									/>
+								<svg class="mark" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+									<path d="M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
 								</svg>
 							</button>
 							<button class="tile" type="button">
@@ -928,25 +1490,36 @@
 			</section>
 		</main>
 
-		<footer class="proof-foot">
-			La revelación usa el color de la categoría en la correcta y rojo en la elección
-			equivocada. La explicación aparece solo cuando el jugador falló y la pausa es de 2,5 s.
-			El anillo se pone rojo en los últimos 5 s y se detiene al contestar.
-		</footer>
-
 		<script>
+			const SKIN_KEY = 'omni-skin';
+
+			// El producto cambia de estilo recargando: acá se hace igual, con el hash.
+			function currentSkin() {
+				return location.hash.replace('#', '') === 'colorido' ? 'colorido' : 'papel';
+			}
+
 			const body = document.body;
 			const match = document.querySelector('.screen--match');
 			const timer = document.getElementById('timer');
 			const arc = document.getElementById('timer-arc');
 			const value = document.getElementById('timer-value');
 
-			// 2 * PI * 25: la circunferencia del anillo en el viewBox de 58.
-			const circumference = 2 * Math.PI * 25;
+			body.dataset.skin = currentSkin();
+			for (const button of document.querySelectorAll('[data-skin-option]')) {
+				button.setAttribute('aria-pressed', String(button.dataset.skinOption === currentSkin()));
+				button.addEventListener('click', () => {
+					if (button.dataset.skinOption === currentSkin()) return;
+					location.hash = button.dataset.skinOption === 'colorido' ? '#colorido' : '#papel';
+					location.reload();
+				});
+			}
+
+			// 2 * PI * 26: la circunferencia del anillo en el viewBox de 62.
+			const circumference = 2 * Math.PI * 26;
 			arc.style.strokeDasharray = String(circumference);
 
-			let secondsLeft = 14;
 			const totalSeconds = 14;
+			let secondsLeft = totalSeconds;
 
 			function paintTimer() {
 				arc.style.strokeDashoffset = String(circumference * (1 - secondsLeft / totalSeconds));
@@ -955,32 +1528,17 @@
 			}
 
 			setInterval(() => {
-				if (match.dataset.state !== 'question') return;
-				if (secondsLeft === 0) return;
+				if (match.dataset.state !== 'question' || secondsLeft === 0) return;
 				secondsLeft -= 1;
 				paintTimer();
 			}, 1000);
 
 			paintTimer();
 
-			for (const button of document.querySelectorAll('[data-display-option]')) {
-				button.addEventListener('click', () => {
-					body.dataset.display = button.dataset.displayOption;
-					for (const other of document.querySelectorAll('[data-display-option]')) {
-						other.setAttribute(
-							'aria-pressed',
-							String(other.dataset.displayOption === button.dataset.displayOption)
-						);
-					}
-				});
-			}
-
 			for (const button of document.querySelectorAll('[data-state-option]')) {
 				button.addEventListener('click', () => {
 					match.dataset.state = button.dataset.stateOption;
-					if (match.dataset.state === 'question') {
-						secondsLeft = totalSeconds;
-					}
+					if (match.dataset.state === 'question') secondsLeft = totalSeconds;
 					paintTimer();
 					for (const other of document.querySelectorAll('[data-state-option]')) {
 						other.setAttribute(
@@ -989,6 +1547,13 @@
 						);
 					}
 				});
+			}
+
+			// Permite abrir el proof ya en un estado: ?state=reveal
+			const requestedState = new URLSearchParams(location.search).get('state');
+			if (requestedState) {
+				const target = document.querySelector(`[data-state-option="${requestedState}"]`);
+				target?.click();
 			}
 		</script>
 	</body>

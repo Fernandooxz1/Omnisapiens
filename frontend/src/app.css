@@ -15,8 +15,17 @@
 	font-display: swap;
 }
 
+/* Estilo Colorido (docs/diseno.md). */
+@font-face {
+	font-family: 'Plus Jakarta Sans';
+	src: url('/fonts/plus-jakarta-sans-latin.woff2') format('woff2');
+	font-weight: 400 700;
+	font-style: normal;
+	font-display: swap;
+}
+
 :root {
-	/* Paleta A (docs/diseno.md). */
+	/* Provisional: base del estilo Papel. Se parte en dos pieles por data-skin. */
 	--ink: #101828;
 	--ink-2: #344054;
 	--ink-3: #667085;

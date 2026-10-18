@@ -117,7 +117,7 @@ Cada categoría tiene su color y **manda** en el badge y en el feedback de acier
 
 | Pantalla | Contenido |
 |---|---|
-| Inicio | Nick obligatorio (1–16), dos botones (jugar 1v1 / arcade) y enlace discreto al ranking |
+| Inicio | Nick obligatorio (1–16), dos botones (jugar 1v1 / arcade), enlace discreto al ranking y selector de estilo |
 | Jugar | Una pantalla: crear sala (rondas y segundos) o unirse con el código |
 | Lobby | Código gigante, jugadores conectados, botón `start` solo para el host |
 | Partida | Pregunta, 4 `AnswerTile`, `TimerRing`, marcador y aviso de rival |
@@ -133,6 +133,9 @@ Componentes, tokens y reglas visuales: `docs/diseno.md`.
 ## Frontend
 
 - **Mobile first**, columna máx. 480 px, sin scroll en partida, táctiles ≥ 44 px.
+- **Dos estilos completos** (Papel y Colorido), elegidos en Inicio con `SkinSwitcher`,
+  guardados en `localStorage` y aplicados con `data-skin` sobre `<html>`; el cambio recarga
+  la página. Detalle en `docs/diseno.md`.
 - **Estado:** stores `sessionStore` / `matchStore` / `arcadeStore` como máquinas de estados;
   `ws.ts` con reconexión y heartbeat.
 - **PWA:** manifest + service worker (`generateSW`), cachea el app shell; el juego **no**
