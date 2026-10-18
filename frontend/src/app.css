@@ -279,20 +279,10 @@ input {
 	text-shadow: 0 5px 0 var(--yellow-edge);
 }
 
-/* Marca compacta: el wordmark del inicio como cabecera de las pantallas de juego. */
+/* Marca: el mismo wordmark del inicio, sólo que centrado como cabecera de la partida. */
 .brand {
 	display: flex;
 	justify-content: center;
-}
-
-.brand .wordmark {
-	font-size: clamp(1.6rem, 7.5vw, 2rem);
-	letter-spacing: -0.5px;
-	text-shadow: 0 3px 0 var(--card-edge);
-}
-
-.brand .wordmark__accent {
-	text-shadow: 0 3px 0 var(--yellow-edge);
 }
 
 .tagline {
@@ -960,7 +950,7 @@ input {
 .match__head {
 	display: flex;
 	flex-direction: column;
-	gap: var(--s-3);
+	gap: var(--s-2);
 }
 
 .match__top {
@@ -1017,16 +1007,16 @@ input {
    el velo, así el aire se reparte arriba y abajo y nada queda debajo del botón. */
 .match--live {
 	flex: 0 1 auto;
-	height: calc(
-		100dvh - var(--shell-pad-top) - var(--shell-pad-bottom) - var(--s-2) - var(--key-h-sm)
-	);
+	height: calc(100dvh - var(--shell-pad-top) - var(--shell-pad-bottom) - var(--key-h-sm));
 	min-height: min-content;
 	justify-content: center;
 }
 
-/* La columna de respuestas no crece: se queda en su tope. */
+/* La columna de respuestas reparte el alto: crece hasta la tecla más alta y encoge
+   hasta la más baja, así siempre entra el pie del velo. */
 .match--live .match__tiles {
-	flex: 0 1 calc(62px * 4 + var(--s-3) * 3);
+	flex: 1 1 calc(48px * 4 + var(--s-3) * 3);
+	max-height: calc(62px * 4 + var(--s-3) * 3);
 }
 
 /* El aviso va pegado a las respuestas: el hueco de abajo es para el paso siguiente. */
@@ -1041,7 +1031,7 @@ input {
 	width: 100%;
 	max-width: var(--shell-max);
 	margin-inline: auto;
-	padding: var(--s-2) var(--s-4) var(--shell-pad-bottom);
+	padding: 0 var(--s-4) var(--shell-pad-bottom);
 	background: var(--veil-bg);
 	backdrop-filter: blur(7px);
 	animation: cta-in 0.18s ease-out;
