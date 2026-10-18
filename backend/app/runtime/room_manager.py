@@ -172,6 +172,7 @@ class InMemoryRoomStore:
         *,
         session_factory: SessionFactory,
         grace_seconds: int,
+        reveal_seconds: float = settings.reveal_seconds,
         now_ms: Clock | None = None,
         sleep: Sleeper | None = None,
         rng: Random | None = None,
@@ -182,6 +183,7 @@ class InMemoryRoomStore:
     ) -> None:
         self._sessions = session_factory
         self._grace_seconds = grace_seconds
+        self._reveal_seconds = reveal_seconds
         self._now_ms = now_ms or _system_now_ms
         self._sleep = sleep or asyncio.sleep
         self._rng = rng or Random()
@@ -373,6 +375,15 @@ class InMemoryRoomStore:
             raise
         try:
             await _deliver(entry, effects)
+            # La revelación se ve antes de que corra el reloj de la próxima ronda:
+            # el `ends_at` se calcula después de la pausa, no antes. Al terminar la
+            # partida (`needs_next_round` falso) no hay pausa extra.
+            if (
+                before.round is not None
+                and after.round is None
+                and after.needs_next_round
+            ):
+                await self._sleep(self._reveal_seconds)
             await self._serve_next(entry)
             entry.retry_serve = False
         except Exception:

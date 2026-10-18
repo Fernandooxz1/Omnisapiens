@@ -7,7 +7,7 @@ vencimientos, corre en milisegundos y sin tocar `trivia_test`.
 
 import asyncio
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from random import Random
@@ -46,13 +46,29 @@ class Api:
 
 
 @pytest.fixture
-async def api(session: AsyncSession, redis: Redis) -> AsyncIterator[Api]:
+async def api(
+    session: AsyncSession, redis: Redis, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[Api]:
     usuario = user(nick="ana")
     session.add(usuario)
     await session.flush()
 
     clock = FakeClock()
-    runtime = ArcadeRuntime(now_ms=clock.now_ms, sleep=clock.sleep, rng=Random(7))
+    # La pausa de revelación se prueba en sus propios tests: acá no suma tiempo.
+    monkeypatch.setattr(settings, "reveal_seconds", 0.0)
+
+    async def despierto() -> None:
+        return None
+
+    def dormir(seconds: float) -> Coroutine[object, object, None]:
+        # El reloj falso calcula el vencimiento al llamar, no al ejecutar: el
+        # wrapper tiene que ser sincrónico para no perder ese registro.
+        if settings.reveal_seconds and seconds == settings.reveal_seconds:
+            clock.advance(int(seconds * 1000))
+            return despierto()
+        return clock.sleep(seconds)
+
+    runtime = ArcadeRuntime(now_ms=clock.now_ms, sleep=dormir, rng=Random(7))
 
     async def _sesion() -> AsyncIterator[AsyncSession]:
         yield session
@@ -299,6 +315,57 @@ async def test_a_question_that_expires_loses_a_life_and_serves_the_next(
         siguiente = await socket.until("arcade_question")
         assert siguiente["d"]["round"] == 1
         assert siguiente["d"]["lives"] == 2
+
+
+async def test_the_reveal_pauses_before_the_next_question_and_the_clock_starts_after(
+    api: Api,
+    connect: Callable[[User], WebSocketClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "reveal_seconds", 2.5)
+    await sembrar(api.session)
+
+    async with connect(api.user) as socket:
+        await socket.send({"t": "start"})
+        await socket.until("arcade_start")
+        primera = await socket.until("arcade_question")
+        contestada_en = api.clock.now_ms()
+
+        await socket.send(
+            {"t": "answer", "d": {"round": 0, "choice": correcta(primera)}}
+        )
+        assert (await socket.until("arcade_result"))["d"]["round"] == 0
+
+        siguiente = await socket.until("arcade_question")
+        # La pausa corre antes de servir: el reloj de la próxima arranca 2,5 s después.
+        assert api.clock.now_ms() == contestada_en + 2_500
+        assert siguiente["d"]["ends_at"] == (
+            contestada_en + 2_500 + siguiente["d"]["seconds"] * 1000
+        )
+
+
+async def test_the_end_does_not_take_an_extra_pause(
+    api: Api,
+    connect: Callable[[User], WebSocketClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "reveal_seconds", 2.5)
+    await sembrar(api.session)
+
+    async with connect(api.user) as socket:
+        await socket.send({"t": "start"})
+        await socket.until("arcade_start")
+        arranco = api.clock.now_ms()
+
+        for _ in range(3):
+            pregunta = await socket.until("arcade_question")
+            api.clock.advance(pregunta["d"]["ends_at"] - api.clock.now_ms())
+            await socket.until("arcade_result")
+
+        await socket.until("arcade_end")
+
+    # Tres rondas de 20 s y solo dos revelaciones: la última cierra la corrida.
+    assert api.clock.now_ms() == arranco + 3 * 20_000 + 2 * 2_500
 
 
 async def test_three_misses_end_the_run_and_close_the_circuit(

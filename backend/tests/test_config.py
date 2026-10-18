@@ -21,6 +21,10 @@ def test_local_accepts_a_short_secret() -> None:
     assert Settings(env="local", **_campos()).jwt_secret == "corto"
 
 
+def test_the_reveal_pause_defaults_to_two_and_a_half_seconds() -> None:
+    assert Settings(env="local", **_campos()).reveal_seconds == 2.5
+
+
 def test_production_rejects_a_short_secret() -> None:
     with pytest.raises(ValidationError, match="al menos 32 bytes"):
         Settings(env="prod", **_campos())

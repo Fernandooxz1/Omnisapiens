@@ -7,7 +7,7 @@ esperar los 10 s reales de cada ronda.
 
 import asyncio
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from random import Random
@@ -84,17 +84,32 @@ async def abrir(session: AsyncSession) -> AsyncIterator[Callable[..., Harness]]:
         *,
         grace: int = 20,
         seed: int = 7,
+        reveal: float = 0.0,
         session_factory: (
             Callable[[], AbstractAsyncContextManager[AsyncSession]] | None
         ) = None,
         shuffle_served_options: bool = False,
     ) -> Harness:
         clock = FakeClock()
+
+        async def despierto() -> None:
+            return None
+
+        def dormir(seconds: float) -> Coroutine[object, object, None]:
+            # El test no espera en tiempo real: cuando la pausa pedida es la de
+            # revelación, adelanta el reloj. Es sincrónica a propósito: el reloj
+            # falso calcula el vencimiento al llamar, no al ejecutar la corrutina.
+            if reveal and seconds == reveal:
+                clock.advance(int(reveal * 1000))
+                return despierto()
+            return clock.sleep(seconds)
+
         store = InMemoryRoomStore(
             session_factory=session_factory or (lambda: _compartida(session)),
             grace_seconds=grace,
+            reveal_seconds=reveal,
             now_ms=clock.now_ms,
-            sleep=clock.sleep,
+            sleep=dormir,
             rng=Random(seed),
             shuffle_served_options=shuffle_served_options,
         )
@@ -113,6 +128,7 @@ async def sala_armada(
     grace: int = 20,
     rounds: int = 3,
     seconds: int = 10,
+    reveal: float = 0.0,
     dificultades: tuple[int, ...] = (1, 2, 3, 4, 5),
     session_factory: (
         Callable[[], AbstractAsyncContextManager[AsyncSession]] | None
@@ -122,6 +138,7 @@ async def sala_armada(
     """Dos jugadores, la fila de la sala y el banco que se le pida."""
     h = abrir(
         grace=grace,
+        reveal=reveal,
         session_factory=session_factory,
         shuffle_served_options=shuffle_served_options,
     )
@@ -375,6 +392,46 @@ async def test_the_clock_expires_a_round_and_serves_the_next_one(
     assert resultado.scores.you > 0
     assert uno(a_msgs, RoundStart).round == 1
     assert uno(drain(b_out), RoundResult).you.correct is False
+
+
+async def test_the_reveal_pauses_before_the_next_round_and_the_clock_starts_after(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    h, ana, beto, fila = await sala_armada(session, abrir, reveal=2.5)
+    a_out, b_out = await sentar(h, fila, ana, beto)
+    await h.store.start(code=fila.code, user_id=str(ana.id))
+    drain(a_out)
+    drain(b_out)
+
+    await h.store.answer(code=fila.code, user_id=str(ana.id), round_index=0, choice=1)
+    resuelta_en = h.clock.now_ms()
+    await h.store.answer(code=fila.code, user_id=str(beto.id), round_index=0, choice=0)
+
+    # La pausa corre antes de servir: el reloj de la ronda 1 arranca 2,5 s después.
+    assert h.clock.now_ms() == resuelta_en + 2_500
+    mensajes = drain(a_out)
+    assert uno(mensajes, RoundResult).round == 0
+    siguiente = uno(mensajes, RoundStart)
+    assert siguiente.round == 1
+    assert siguiente.ends_at == resuelta_en + 2_500 + siguiente.total_seconds * 1000
+
+
+async def test_the_last_round_does_not_take_an_extra_reveal(
+    session: AsyncSession, abrir: Callable[..., Harness]
+) -> None:
+    h, ana, beto, fila = await sala_armada(session, abrir, reveal=2.5)
+    a_out, b_out = await sentar(h, fila, ana, beto)
+    await h.store.start(code=fila.code, user_id=str(ana.id))
+    drain(a_out)
+    drain(b_out)
+
+    arranco = h.clock.now_ms()
+    for ronda in range(3):
+        await jugar_ronda(h, fila, ana, beto, ronda)
+
+    # Solo las dos primeras rondas revelan; la última cierra la partida sin pausa.
+    assert h.clock.now_ms() == arranco + 2 * 2_500
+    assert uno(drain(a_out), MatchEnd).reason == "completed"
 
 
 async def test_the_clock_retries_and_survives_a_transient_database_error(

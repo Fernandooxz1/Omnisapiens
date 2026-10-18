@@ -70,9 +70,9 @@ ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # sin O, 0, I, 1
   `round_start` con `ends_at`. La ronda se resuelve cuando **los dos** contestaron o al
   vencer el plazo, lo primero. `round_result` trae la correcta, qué eligió cada uno,
   ms, puntos y el marcador. No contestar = incorrecta, cero puntos.
-- **Revelación:** 2,5 s con la correcta, qué eligió cada uno y los puntos. La pantalla no
-  explica la respuesta. El servidor tiene que pausar ese tiempo antes de servir
-  la próxima ronda (pedido en `docs/api.md`).
+- **Revelación:** 2,5 s (`REVEAL_SECONDS`) con la correcta, qué eligió cada uno y los puntos.
+  La pantalla no explica la respuesta. El servidor pausa ese tiempo antes de servir la
+  próxima ronda y calcula su `ends_at` después de la pausa.
 - **Puntaje de ronda:** solo si acertó → `BASE + round(TIME_BONUS_MAX * ratio)`, con
   `ratio = clamp(1 - ms / (seconds * 1000), 0, 1)`. Con 20 s: acertar en 1 s da 148;
   al límite, 100.

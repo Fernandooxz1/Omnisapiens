@@ -193,8 +193,8 @@ la **barra de tiempo** (verde → amarillo → rojo) como cuenta atrás visual.
 
 - La **revelación** dura 2,5 s: la correcta, qué eligió cada jugador y los puntos. **No hay
   explicación de la respuesta**: el tablero queda limpio y se pasa a la ronda siguiente.
-- La pausa la da el servidor antes de servir la próxima ronda; mientras no exista, la
-  pantalla de partida no se cierra (`docs/api.md`).
+- La pausa la da el servidor (`REVEAL_SECONDS`, 2,5 s) antes de servir la próxima ronda;
+  el cliente no retiene la ronda por su cuenta (`docs/api.md`).
 - Mientras el rival no contestó, la elección propia queda bloqueada y marcada; nunca se
   insinúa si es correcta.
 - Arriba van las **cápsulas de ronda** (ganada / perdida / en curso), la pastilla del reloj y,

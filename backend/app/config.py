@@ -26,6 +26,9 @@ class Settings(BaseSettings):
 
     jwt_ttl_days: int = 30
     reconnect_grace_seconds: int = 20
+    # Pausa de revelación entre el resultado y la ronda/pregunta siguiente. Se
+    # duerme antes de calcular el `ends_at` nuevo: el reloj no gasta la pausa.
+    reveal_seconds: float = 2.5
     # Rate limiting por IP y minuto (H-09). Redis caído = se deja pasar.
     rate_limit_guest_per_minute: int = 10
     rate_limit_room_per_minute: int = 60

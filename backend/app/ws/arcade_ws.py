@@ -229,8 +229,7 @@ class _Run:
                 now_ms=self._runtime.now_ms(),
             )
             await self._apply(step)
-            if step.state.needs_next_question:
-                await self._serve_next()
+            await self._advance(step)
             self._wakeup.set()
 
     async def timer(self) -> None:
@@ -255,8 +254,7 @@ class _Run:
                     continue
                 step = arcade_session.expire(state, now_ms=self._runtime.now_ms())
                 await self._apply(step)
-                if step.state.needs_next_question:
-                    await self._serve_next()
+                await self._advance(step)
                 self._wakeup.set()
 
     async def _apply(self, step: arcade_session.Transition) -> None:
@@ -307,6 +305,17 @@ class _Run:
             logger.exception("el ranking de la corrida %s falló", state.run_id)
             await self._db.rollback()
             return None
+
+    async def _advance(self, step: arcade_session.Transition) -> None:
+        """Deja ver el resultado y recién después sirve la próxima pregunta.
+
+        El `ends_at` de la siguiente se calcula al servir, o sea después de la
+        pausa. El final de la corrida no lleva pausa extra.
+        """
+        if step.record is not None and step.state.needs_next_question:
+            await self._runtime.sleep(settings.reveal_seconds)
+        if step.state.needs_next_question:
+            await self._serve_next()
 
     async def _serve_next(self) -> None:
         state = self.state
