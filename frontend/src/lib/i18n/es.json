@@ -93,6 +93,10 @@
 	"lobby.error_not_ready": "Todavía falta el rival.",
 	"lobby.error_already": "La partida ya empezó.",
 	"lobby.leave": "Salir de la sala",
+	"end.summary": "Ronda a ronda",
+	"end.round": "Ronda {n}",
+	"end.correct": "Acertó",
+	"end.missed": "Falló",
 	"arcade.title": "Arcade",
 	"ranking.title": "Ranking"
 }

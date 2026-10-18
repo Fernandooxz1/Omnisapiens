@@ -5,11 +5,10 @@
 
 ## Ahora
 
-- [ ] Fin de partida: resumen ronda a ronda (ganador, marcador y revancha ya andan).
+- [ ] Arcade completo (`LifeStrip`, fin con ranking).
 
 ## Después
 
-- [ ] Arcade completo (`LifeStrip`, fin con ranking).
 - [ ] Ranking global/semanal.
 - [ ] Admin de preguntas (token, listado, subida).
 - [ ] Sonido, teclado (`1`–`4`, `Enter`) y PWA.

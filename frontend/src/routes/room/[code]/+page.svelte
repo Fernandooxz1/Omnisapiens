@@ -7,6 +7,7 @@
 	import { session } from '#lib/api/session.svelte';
 	import AnswerTile, { type TileState } from '#lib/components/AnswerTile.svelte';
 	import Button from '#lib/components/Button.svelte';
+	import Icon from '#lib/components/Icon.svelte';
 	import PlayerPanel from '#lib/components/PlayerPanel.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
 	import Scoreboard from '#lib/components/Scoreboard.svelte';
@@ -269,6 +270,44 @@
 				you={{ nick: match?.you ?? '', points: match?.scores.you ?? 0 }}
 				rival={{ nick: match?.rival ?? '', points: match?.scores.opponent ?? 0 }}
 			/>
+			{#if ended.rounds.length > 0}
+				<section class="summary" aria-label={t('end.summary')}>
+					<h2 class="summary__title">{t('end.summary')}</h2>
+					<div class="summary__head" aria-hidden="true">
+						<span></span>
+						<span>{t('play.you')}</span>
+						<span class="summary__rival">{match?.rival ?? ''}</span>
+					</div>
+					<ol class="summary__list">
+						{#each ended.rounds as round (round.round)}
+							<li class="summary__row">
+								<span class="summary__round">{t('end.round', { n: round.round + 1 })}</span>
+								<span
+									class="summary__score"
+									aria-label={`${round.you.correct ? t('end.correct') : t('end.missed')} ${delta(round.you.points)}`}
+								>
+									<span class:is-won={round.you.correct} class:is-lost={!round.you.correct}>
+										<Icon name={round.you.correct ? 'check' : 'x'} size={14} />
+									</span>
+									{delta(round.you.points)}
+								</span>
+								<span
+									class="summary__score"
+									aria-label={`${round.opponent.correct ? t('end.correct') : t('end.missed')} ${delta(round.opponent.points)}`}
+								>
+									<span
+										class:is-won={round.opponent.correct}
+										class:is-lost={!round.opponent.correct}
+									>
+										<Icon name={round.opponent.correct ? 'check' : 'x'} size={14} />
+									</span>
+									{delta(round.opponent.points)}
+								</span>
+							</li>
+						{/each}
+					</ol>
+				</section>
+			{/if}
 			{#if ended.reason === 'abandoned'}
 				<p class="muted">{t('play.abandoned')}</p>
 			{/if}
@@ -458,5 +497,89 @@
 		font-size: 0.85rem;
 		font-weight: 600;
 		text-align: center;
+	}
+
+	.summary {
+		display: flex;
+		flex-direction: column;
+		gap: var(--s-2);
+		padding: var(--s-3);
+		border-radius: var(--r-md);
+		background: var(--well-bg);
+		box-shadow: inset 0 3px 0 rgb(0 0 0 / 0.3);
+	}
+
+	.summary__title {
+		color: var(--ink-3);
+		font-family: var(--font-ui);
+		font-size: 0.75rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.summary__head,
+	.summary__row {
+		display: grid;
+		grid-template-columns: minmax(64px, auto) 1fr 1fr;
+		align-items: center;
+		gap: var(--s-2);
+	}
+
+	.summary__head {
+		color: var(--ink-3);
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+
+	.summary__head > span:not(:first-child) {
+		overflow: hidden;
+		text-align: center;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.summary__list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--s-1);
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.summary__round {
+		color: var(--ink-3);
+		font-size: 0.8rem;
+		font-weight: 600;
+	}
+
+	.summary__score {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 5px;
+		min-height: 30px;
+		border-radius: var(--r-sm);
+		background: var(--panel-bg);
+		box-shadow: 0 2px 0 var(--panel-edge);
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: 0.95rem;
+		font-weight: 700;
+	}
+
+	.summary__score > span {
+		display: inline-flex;
+	}
+
+	.summary__score .is-won {
+		color: #58e08d;
+	}
+
+	.summary__score .is-lost {
+		color: var(--red-ink);
 	}
 </style>
