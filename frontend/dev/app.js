@@ -48,10 +48,11 @@ function clearSession() {
 // HTTP
 // ---------------------------------------------------------------------------
 
-async function api(path, { method = "GET", body, auth = true } = {}) {
+async function api(path, { method = "GET", body, auth = true, adminToken } = {}) {
   const headers = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (auth && session.token) headers.Authorization = `Bearer ${session.token}`;
+  if (adminToken) headers["X-Admin-Token"] = adminToken;
 
   let response;
   try {
@@ -65,7 +66,12 @@ async function api(path, { method = "GET", body, auth = true } = {}) {
       `No se pudo hablar con el API en ${API_BASE}. ¿Está corriendo make api?`,
     );
   }
+  return readApiResponse(response);
+}
 
+// Un solo lugar traduce la respuesta del API (éxito o `{error:{code,message}}`),
+// así el import multipart no reimplementa el manejo de errores.
+async function readApiResponse(response) {
   if (response.status === 204) return null;
 
   const text = await response.text();
@@ -154,7 +160,11 @@ function selectMode(mode) {
   }
   $("mode-sala").hidden = mode !== "sala";
   $("mode-arcade").hidden = mode !== "arcade";
+  $("mode-admin").hidden = mode !== "admin";
   if (mode === "arcade") refreshBoard();
+  // Entrar al panel con el token ya guardado dispara la primera búsqueda; si no
+  // hay token, la pantalla queda esperando a que se pegue.
+  if (mode === "admin" && !admin.loaded && adminToken()) adminSearch(1);
 }
 
 async function onLogin(event) {
@@ -1068,6 +1078,245 @@ function renderBoard(entries) {
 }
 
 // ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+
+const ADMIN_PAGE_SIZE = 20;
+const ADMIN_TOKEN_KEY = "omni.adminToken";
+const STATUS_LABELS = {
+  draft: "Borrador",
+  published: "Publicada",
+  archived: "Archivada",
+};
+
+const admin = { page: 1, pages: 0, total: 0, loaded: false };
+
+function adminToken() {
+  return $("admin-token").value.trim();
+}
+
+// localStorage y no sessionStorage: el pase es el mismo en todas las pestañas y
+// no identifica a nadie, así que sobrevivir al recargar es lo que se quiere.
+function rememberAdminToken(token) {
+  if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+}
+
+async function adminSearch(page = 1) {
+  const token = adminToken();
+  if (!token) {
+    notice("Pegá el token de administración.", "error");
+    return;
+  }
+
+  const params = new URLSearchParams();
+  for (const [key, id] of [
+    ["status", "admin-status"],
+    ["category", "admin-category"],
+    ["difficulty", "admin-difficulty"],
+  ]) {
+    const value = $(id).value;
+    if (value) params.set(key, value);
+  }
+  const q = $("admin-q").value.trim();
+  if (q) params.set("q", q);
+  params.set("page", String(page));
+  params.set("page_size", String(ADMIN_PAGE_SIZE));
+
+  const button = $("admin-search");
+  button.disabled = true;
+  try {
+    const data = await api(`/admin/questions?${params.toString()}`, {
+      adminToken: token,
+    });
+    rememberAdminToken(token);
+    Object.assign(admin, {
+      page: data.page,
+      pages: data.pages,
+      total: data.total,
+      loaded: true,
+    });
+    renderAdminTable(data.items);
+  } catch (error) {
+    notice(errorText(error), "error");
+    if (error.status === 401) {
+      admin.loaded = false;
+      renderAdminTable(null);
+      $("admin-count").textContent = "";
+    }
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderAdminTable(items) {
+  const body = $("admin-body");
+  body.textContent = "";
+
+  if (items === null) {
+    body.append(emptyRow(6, "Sin datos: revisá el token de administración."));
+    $("admin-page-label").textContent = "—";
+    $("admin-prev").disabled = true;
+    $("admin-next").disabled = true;
+    return;
+  }
+
+  if (!items.length) {
+    body.append(emptyRow(6, "No hay preguntas con esos filtros."));
+  } else {
+    for (const item of items) body.append(adminRow(item));
+  }
+
+  $("admin-count").textContent = `${admin.total} pregunta${admin.total === 1 ? "" : "s"}`;
+  $("admin-page-label").textContent = admin.pages
+    ? `Página ${admin.page} de ${admin.pages}`
+    : "Sin páginas";
+  $("admin-prev").disabled = admin.page <= 1;
+  $("admin-next").disabled = admin.page >= admin.pages;
+}
+
+function adminRow(item) {
+  const row = document.createElement("tr");
+
+  const prompt = document.createElement("td");
+  prompt.className = "prompt";
+  prompt.textContent = item.prompt;
+
+  const category = document.createElement("td");
+  category.textContent = item.category;
+
+  const difficulty = document.createElement("td");
+  difficulty.className = "num";
+  difficulty.textContent = item.difficulty;
+
+  const status = document.createElement("td");
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  badge.dataset.status = item.status;
+  badge.textContent = STATUS_LABELS[item.status] || item.status;
+  status.append(badge);
+
+  const correct = document.createElement("td");
+  correct.className = "correct";
+  correct.textContent = `${letter(item.correct_index)}) ${item.options[item.correct_index]}`;
+
+  const created = document.createElement("td");
+  created.className = "date";
+  created.textContent = new Date(item.created_at).toLocaleDateString("es-AR");
+
+  row.append(prompt, category, difficulty, status, correct, created);
+  return row;
+}
+
+function emptyRow(colspan, text) {
+  const row = document.createElement("tr");
+  const cell = document.createElement("td");
+  cell.colSpan = colspan;
+  cell.className = "empty";
+  cell.textContent = text;
+  row.append(cell);
+  return row;
+}
+
+function onAdminTokenSave(event) {
+  event.preventDefault();
+  if (!adminToken()) {
+    notice("Pegá el token de administración.", "error");
+    return;
+  }
+  rememberAdminToken(adminToken());
+  notice("Token guardado en este navegador.", "info");
+  adminSearch(1);
+}
+
+async function onAdminImport(event) {
+  event.preventDefault();
+  const token = adminToken();
+  if (!token) {
+    notice("Pegá el token de administración.", "error");
+    return;
+  }
+  const file = $("admin-file").files[0];
+  if (!file) {
+    notice("Elegí un archivo .csv o .json.", "error");
+    return;
+  }
+
+  const button = event.target.querySelector("button[type=submit]");
+  button.disabled = true;
+  const form = new FormData();
+  form.append("file", file);
+  form.append("status", $("admin-import-status").value);
+
+  try {
+    const response = await fetch(`${API_BASE}/admin/questions/import`, {
+      method: "POST",
+      headers: { "X-Admin-Token": token },
+      body: form,
+    });
+    const report = await readApiResponse(response);
+    rememberAdminToken(token);
+    renderAdminReport(report, file.name);
+    notice(
+      `${report.imported} importada(s), ${report.duplicated} duplicada(s), ${report.rejected.length} rechazada(s).`,
+      report.rejected.length ? "info" : "ok",
+    );
+    $("admin-file").value = "";
+    adminSearch(1);
+  } catch (error) {
+    notice(errorText(error), "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderAdminReport(report, filename) {
+  const box = $("admin-report");
+  box.hidden = false;
+  box.textContent = "";
+
+  const title = document.createElement("h3");
+  title.textContent = `Informe de ${filename}`;
+
+  const summary = document.createElement("p");
+  summary.className = "line";
+  summary.textContent = `Total ${report.total} · importadas ${report.imported} · duplicadas ${report.duplicated} · rechazadas ${report.rejected.length}`;
+
+  box.append(title, summary);
+  if (!report.rejected.length) return;
+
+  const table = document.createElement("table");
+  table.className = "board";
+  const head = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  for (const label of ["Fila", "Motivo"]) {
+    const th = document.createElement("th");
+    th.textContent = label;
+    headRow.append(th);
+  }
+  head.append(headRow);
+
+  const tbody = document.createElement("tbody");
+  for (const rejected of report.rejected) {
+    const row = document.createElement("tr");
+    const position = document.createElement("td");
+    position.className = "num";
+    position.textContent = rejected.row;
+    const reason = document.createElement("td");
+    reason.textContent = rejected.reason;
+    row.append(position, reason);
+    tbody.append(row);
+  }
+  table.append(head, tbody);
+  box.append(table);
+}
+
+function clearAdminFilters() {
+  for (const id of ["admin-status", "admin-category", "admin-difficulty", "admin-q"]) {
+    $(id).value = "";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Piezas compartidas
 // ---------------------------------------------------------------------------
 
@@ -1149,6 +1398,7 @@ function onKey(event) {
 // ---------------------------------------------------------------------------
 
 async function boot() {
+  $("admin-token").value = localStorage.getItem(ADMIN_TOKEN_KEY) || "";
   if (session.token) {
     try {
       session.user = await api("/me");
@@ -1207,6 +1457,19 @@ $("room-leave").addEventListener("click", () => {
   notice("Saliste de la sala.", "info");
 });
 $("arcade-start").addEventListener("click", startArcade);
+$("admin-token-form").addEventListener("submit", onAdminTokenSave);
+$("admin-filters").addEventListener("submit", (event) => {
+  event.preventDefault();
+  adminSearch(1);
+});
+$("admin-clear").addEventListener("click", clearAdminFilters);
+$("admin-prev").addEventListener("click", () => {
+  if (admin.page > 1) adminSearch(admin.page - 1);
+});
+$("admin-next").addEventListener("click", () => {
+  if (admin.page < admin.pages) adminSearch(admin.page + 1);
+});
+$("admin-import-form").addEventListener("submit", onAdminImport);
 $("log-clear").addEventListener("click", () => {
   $("log").textContent = "";
 });

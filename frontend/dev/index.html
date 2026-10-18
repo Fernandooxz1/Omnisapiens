@@ -47,6 +47,9 @@
       <button class="juicy-btn juicy-btn--yellow" data-mode="arcade" type="button">
         Arcade
       </button>
+      <button class="juicy-btn juicy-btn--red" data-mode="admin" type="button">
+        Admin
+      </button>
       <span class="spacer"></span>
       <button id="logout" class="juicy-btn juicy-btn--slate juicy-btn--small" type="button">
         Salir
@@ -249,6 +252,144 @@
             </thead>
             <tbody id="board-body"></tbody>
           </table>
+        </div>
+      </section>
+
+      <section id="mode-admin" hidden>
+        <div class="card">
+          <h2>Panel de preguntas</h2>
+          <p class="muted small">
+            El token es el <code>ADMIN_TOKEN</code> del <code>backend/.env</code>: viaja
+            en el header <code>X-Admin-Token</code> y no tiene nada que ver con la sesión
+            de invitado. Se guarda en este navegador para no retipearlo.
+          </p>
+          <form id="admin-token-form" class="row">
+            <label>
+              Token de administración
+              <input
+                id="admin-token"
+                type="password"
+                autocomplete="off"
+                placeholder="ADMIN_TOKEN"
+              />
+            </label>
+            <button class="juicy-btn juicy-btn--slate" type="submit">Guardar</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="row between">
+            <h2>Listado</h2>
+            <span class="muted small" id="admin-count"></span>
+          </div>
+          <p class="muted small">
+            La vista de curación sí trae la respuesta correcta (la de juego nunca). Orden:
+            más recientes primero.
+          </p>
+          <form id="admin-filters" class="row">
+            <label>
+              Estado
+              <select id="admin-status">
+                <option value="">Todos</option>
+                <option value="draft">Borrador</option>
+                <option value="published">Publicada</option>
+                <option value="archived">Archivada</option>
+              </select>
+            </label>
+            <label>
+              Categoría
+              <select id="admin-category">
+                <option value="">Todas</option>
+                <option value="geography">Geografía</option>
+                <option value="history">Historia</option>
+                <option value="science">Ciencia</option>
+                <option value="art">Arte</option>
+                <option value="entertainment">Entretenimiento</option>
+                <option value="sports">Deportes</option>
+              </select>
+            </label>
+            <label>
+              Dificultad
+              <select id="admin-difficulty">
+                <option value="">Todas</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+              </select>
+            </label>
+            <label>
+              Buscar en el enunciado
+              <input id="admin-q" autocomplete="off" placeholder="río, 1810..." />
+            </label>
+            <button id="admin-search" class="juicy-btn" type="submit">Buscar</button>
+            <button
+              id="admin-clear"
+              class="juicy-btn juicy-btn--slate"
+              type="button"
+            >
+              Limpiar
+            </button>
+          </form>
+
+          <div class="table-scroll">
+            <table class="board">
+              <thead>
+                <tr>
+                  <th>Enunciado</th>
+                  <th>Categoría</th>
+                  <th>Dif.</th>
+                  <th>Estado</th>
+                  <th>Correcta</th>
+                  <th>Creada</th>
+                </tr>
+              </thead>
+              <tbody id="admin-body"></tbody>
+            </table>
+          </div>
+
+          <div class="row between" id="admin-pager">
+            <button
+              id="admin-prev"
+              class="juicy-btn juicy-btn--slate juicy-btn--small"
+              type="button"
+            >
+              Anterior
+            </button>
+            <span class="muted small" id="admin-page-label">—</span>
+            <button
+              id="admin-next"
+              class="juicy-btn juicy-btn--slate juicy-btn--small"
+              type="button"
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Importar</h2>
+          <p class="muted small">
+            CSV o JSON con las columnas de <code>backend/seeds/questions.csv</code>; el
+            formato sale de la extensión. Las que ya existen no se recargan.
+          </p>
+          <form id="admin-import-form" class="row">
+            <label>
+              Archivo (.csv o .json)
+              <input id="admin-file" type="file" accept=".csv,.json" />
+            </label>
+            <label>
+              Estado de lo importado
+              <select id="admin-import-status">
+                <option value="draft" selected>Borrador</option>
+                <option value="published">Publicada</option>
+                <option value="archived">Archivada</option>
+              </select>
+            </label>
+            <button class="juicy-btn juicy-btn--purple" type="submit">Subir</button>
+          </form>
+          <div class="result" id="admin-report" hidden></div>
         </div>
       </section>
     </main>

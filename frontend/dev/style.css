@@ -597,6 +597,33 @@ hr.divider {
   color: var(--muted);
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
+.board td.prompt {
+  min-width: 260px;
+}
+
+.board td.correct {
+  color: var(--green);
+}
+
+.badge[data-status="draft"] {
+  background: #3d2f1d;
+  color: #ffe2b0;
+}
+
+.badge[data-status="published"] {
+  background: #1d3d2b;
+  color: #c9f7db;
+}
+
+.badge[data-status="archived"] {
+  background: #4a2027;
+  color: #ffd0d4;
+}
+
 #logbox {
   margin-top: 28px;
   color: var(--muted);

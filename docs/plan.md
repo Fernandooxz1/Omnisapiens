@@ -18,7 +18,7 @@ Backend en `backend/` (uv, CPython 3.12; FastAPI, Postgres 16 y Redis 7 por `doc
 
 El arcade cerró sus cuatro cortes y el ranking quedó en SQL (A3.5/A7), no en Redis. El panel de preguntas tiene sus dos endpoints (§13.4) y `ADMIN_TOKEN` en `config.py`. El plan del MVP está abajo en este archivo y el diseño de datos en el **Anexo A**: se consultan por fragmento (`grep` o `read` con `offset`/`limit`), no hace falta leerlos enteros. Verificación estándar antes de commitear: `make up` una vez y `make lint` + `make cov`. El panel se prueba a mano con los `curl` del `README.md`.
 
-La página de prueba vive en `frontend/dev/` (`index.html` + `app.js` + `style.css`) y se sirve con `make web` en `http://localhost:5173` (el API sigue en `:8000`; CORS ya permite ese origen). Es de desarrollo, no el producto: una pantalla con login de invitado, sala 1v1, revancha, arcade, ranking y log crudo de mensajes. Verificada con Chromium en dos pestañas. **No tiene todavía la sección de admin.**
+La página de prueba vive en `frontend/dev/` (`index.html` + `app.js` + `style.css`) y se sirve con `make web` en `http://localhost:5173` (el API sigue en `:8000`; CORS ya permite ese origen). Es de desarrollo, no el producto: una pantalla con login de invitado, sala 1v1, revancha, arcade, ranking, **sección de admin** (token guardado en `localStorage`) y log crudo de mensajes. Verificada con Chromium.
 
 Pendientes conocidos de la página (no bloquean, es de prueba): no reconecta sola al recargar, el marcador local queda en `0-0` tras reconectar hasta el próximo resultado, y duplicar la pestaña puede compartir la sesión.
 
@@ -34,15 +34,17 @@ Pendientes conocidos de la página (no bloquean, es de prueba): no reconecta sol
 - [x] Auditoría H-01..H-25, README y calidad (ruff/mypy/cobertura/CI).
 - [x] Página de prueba (`frontend/dev/`, `make web`): dos pestañas, sala + revancha, arcade y ranking.
 - [x] Admin Fase 1: `GET /admin/questions` paginado y `POST /admin/questions/import` (multipart), con `X-Admin-Token`; `ADMIN_TOKEN` de vuelta en `config.py`.
+- [x] Sección de admin en la página de prueba: token, listado con filtros y paginación, y subida de CSV/JSON con el informe.
 
 ### Próximos pasos
 
-**Ahora: la sección de admin de la página de prueba.** El panel HTTP está completo (`GET`/`POST /admin/questions`, §13.4) y verificado con `curl`; falta verlo desde el navegador.
+**Ahora: curar la semilla desde el panel.** El panel HTTP y su pantalla están completos; falta el trabajo de contenido (revisar las 60 semilla y publicar lo que corresponda).
 
-- [ ] `frontend/dev/`: sección con token, listado con filtros y paginación, y subir CSV/JSON mostrando el informe (imported/duplicated/rejected).
 - [ ] Fase 1 (curación): revisar la semilla y publicar lo que corresponda desde el panel.
-- [ ] Fase 6: PWA, e2e y documentación (la parte de frontend es de otra persona).
+- [ ] Fase 5 (visual; el frontend lo hace otra persona): componentes, íconos SVG, sonidos y teclado.
+- [ ] Fase 6: PWA, e2e (Playwright) y documentación.
 - [ ] Repasar `docs/observaciones.md` por pendientes P3 sin cerrar.
+- [ ] Cerrar §20: repasar los 7 puntos de la "definición de terminado" del MVP.
 
 > **Trampas y decisiones que no se re-descubren: Anexo B**, al final. Consultarlo
 > por `grep` cuando el paso en curso lo pida (auth, tests, reloj, outbox,
