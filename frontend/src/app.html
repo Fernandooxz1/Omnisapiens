@@ -1,11 +1,25 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-skin="papel">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="text-scale" content="scale" />
 		<meta name="theme-color" content="#FCF8F0" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
+		<!-- La piel se resuelve antes del primer pintado para no parpadear (clave en skin.ts). -->
+		<script>
+			try {
+				var saved = localStorage.getItem('omni-skin');
+				if (saved === 'papel' || saved === 'colorido') {
+					document.documentElement.dataset.skin = saved;
+					document
+						.querySelector('meta[name="theme-color"]')
+						.setAttribute('content', saved === 'colorido' ? '#222831' : '#FCF8F0');
+				}
+			} catch (error) {
+				/* sin localStorage queda la piel por defecto */
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

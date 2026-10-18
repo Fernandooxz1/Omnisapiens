@@ -1,41 +1,73 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import Button from '#lib/components/Button.svelte';
+	import Icon from '#lib/components/Icon.svelte';
+	import NickInput from '#lib/components/NickInput.svelte';
+	import SkinSwitcher from '#lib/components/SkinSwitcher.svelte';
 	import { t } from '#lib/i18n';
+
+	let nick = $state('');
+	const nickReady = $derived(nick.trim().length > 0);
 </script>
 
-<header>
-	<h1>{t('app.title')}</h1>
-	<p>{t('home.tagline')}</p>
-</header>
+<div class="home">
+	<div class="home__main">
+		<header class="hero">
+			<h1 class="wordmark">{t('app.title')}</h1>
+			<p class="tagline">{t('home.tagline')}</p>
+		</header>
 
-<nav aria-label={t('app.title')}>
-	<a class="link-tile" href="/play">
-		<strong>{t('home.play_online')}</strong>
-		<span>{t('home.play_online_hint')}</span>
-	</a>
-	<a class="link-tile" href="/arcade">
-		<strong>{t('home.play_arcade')}</strong>
-		<span>{t('home.play_arcade_hint')}</span>
-	</a>
-</nav>
+		<NickInput
+			id="nick"
+			label={t('home.nick_label')}
+			hint={t('home.nick_hint')}
+			valid={nickReady}
+			bind:value={nick}
+		/>
+
+		<nav class="modes" aria-label={t('home.modes')}>
+			<Button
+				variant="green"
+				sheen
+				title={t('home.play_arcade')}
+				sub={t('home.play_arcade_hint')}
+				onclick={() => goto('/arcade')}
+			/>
+			<Button
+				variant="blue"
+				title={t('home.play_online')}
+				sub={t('home.play_online_hint')}
+				onclick={() => goto('/play')}
+			/>
+		</nav>
+	</div>
+
+	<div class="home__foot">
+		<SkinSwitcher groupLabel={t('home.style_group')} />
+		<a class="rank-link" href="/ranking">
+			<Icon name="trophy" />
+			{t('home.ranking')}
+			<Icon name="arrow" size={16} />
+		</a>
+	</div>
+</div>
 
 <style>
-	header {
+	.home {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		justify-content: space-between;
+		gap: var(--s-6);
+	}
+
+	.home__main {
 		display: flex;
 		flex-direction: column;
-		gap: var(--s-2);
-		padding-top: var(--s-7);
+		gap: var(--s-5);
 	}
 
-	h1 {
-		font-size: clamp(2.5rem, 12vw, 3.5rem);
-	}
-
-	header p {
-		color: var(--ink-2);
-		font-size: 1.125rem;
-	}
-
-	nav {
+	.home__foot {
 		display: flex;
 		flex-direction: column;
 		gap: var(--s-3);

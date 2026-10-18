@@ -4,10 +4,18 @@
 	"common.back": "Volver",
 	"common.coming_soon": "En construcción.",
 	"home.tagline": "Trivia para dos, o para uno contra todos.",
-	"home.play_online": "Jugar 1v1",
-	"home.play_online_hint": "Crea una sala y comparte el código.",
+	"home.nick_label": "Tu nombre",
+	"home.nick_hint": "Así te ven los demás. Se puede cambiar después.",
+	"home.modes": "Modos de juego",
 	"home.play_arcade": "Arcade",
 	"home.play_arcade_hint": "Tres vidas y dificultad creciente.",
+	"home.play_online": "Jugar 1v1",
+	"home.play_online_hint": "Crea una sala o entra con un código.",
+	"home.style_group": "Estilo de la interfaz",
+	"home.skin_papel": "Papel",
+	"home.skin_colorido": "Colorido",
+	"home.ranking": "Ranking semanal",
 	"arcade.title": "Arcade",
-	"play.title": "Jugar 1v1"
+	"play.title": "Jugar 1v1",
+	"ranking.title": "Ranking"
 }
