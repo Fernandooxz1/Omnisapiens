@@ -283,6 +283,9 @@ Implementado en 3.1 (`0005_sessions.py`, `app/models/session.py`): las cuatro ta
 y `rooms.mode`; el `CHECK` de `rooms.config` quedó en `jsonb_typeof(config) = 'object'`
 y `test_constraints_match.py` documenta el caso relajado. `matches.config` conserva
 su validación estricta hasta que el versus migre a las tablas genéricas (fase 5).
+El barrendero invalida en 3.5 las `game_sessions` en `playing` más viejas que el
+umbral que este proceso no reporta como vivas en `Live.sessions`; `invalid` con
+`ended_at` las saca del ranking sin borrar el historial.
 
 ### 4.3 Ranking
 

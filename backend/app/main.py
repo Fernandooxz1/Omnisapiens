@@ -56,13 +56,16 @@ async def _sweep_once(*, startup: bool = False) -> None:
         resultado.expired_rooms
         or resultado.voided_matches
         or resultado.invalidated_runs
+        or resultado.invalidated_sessions
     ):
         logger.info(
-            "%s: %d salas expiradas, %d partidas anuladas, %d corridas invalidadas",
+            "%s: %d salas expiradas, %d partidas anuladas, %d corridas "
+            "invalidadas, %d sesiones invalidadas",
             "barrido inicial" if startup else "barrido periódico",
             resultado.expired_rooms,
             resultado.voided_matches,
             resultado.invalidated_runs,
+            resultado.invalidated_sessions,
         )
 
 

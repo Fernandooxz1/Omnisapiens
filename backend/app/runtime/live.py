@@ -8,6 +8,9 @@ la base no sabe nada de las conexiones. Sin esta vista:
 - una partida viva de más de `stale_match_minutes` se anularía en pleno juego;
 - una corrida de arcade legítima y larga se marcaría `invalid` a mitad.
 
+Con las sesiones genéricas pasa lo mismo: una sesión `playing` con un socket del
+otro lado no se puede invalidar a mitad de partida.
+
 Es de un solo proceso a propósito, igual que `InMemoryRoomStore`: el día que haya
 más instancias, cada barrido solo ve lo suyo y este registro se muda a Redis con
 el resto del estado vivo.
@@ -35,6 +38,9 @@ class Live:
 
     rooms: LiveRooms = LiveRooms()
     arcade_runs: frozenset[uuid.UUID] = frozenset()
+    # Sesiones genéricas (`game_sessions`) con socket abierto. Las llena el
+    # `SessionStore` en la fase 4.1; hasta entonces queda vacío.
+    sessions: frozenset[uuid.UUID] = frozenset()
 
 
 class LiveArcadeRuns:
