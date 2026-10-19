@@ -5,11 +5,11 @@
 
 ```yaml
 activo: true
-fase: 4
-tarea: "4.3"
+fase: 5
+tarea: "5.1"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: be75081
+ultimo_commit: 3859e78
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -22,7 +22,7 @@ bloqueo: ""
 | 1 | Núcleo de reglas | backend | 1.1 – 1.3 | pendiente |
 | 2 | Contenido genérico | backend | 2.1 – 2.4 | hecho |
 | 3 | Sesiones, ranking y barrendero | backend | 3.1 – 3.5 | hecho |
-| 4 | Port del arcade | backend | 4.1 – 4.3 | pendiente |
+| 4 | Port del arcade | backend | 4.1 – 4.3 | hecho |
 | 5 | Port del 1v1 | backend | 5.1 – 5.3 | pendiente |
 | 6 | Registro y rutas genéricas | backend | 6.1 – 6.3 | pendiente |
 | 7 | Frontend multi-modo | frontend | 7.1 – 7.3 | pendiente |
@@ -50,3 +50,4 @@ bloqueo: ""
 | 2026-10-19 | 3.5 | `a751b30` | `Live.sessions` y barrido de `game_sessions` `playing` viejas → `invalid`; los tres barridos viejos siguen. Tag `refactor-fase-3`. Próxima: 4.1. |
 | 2026-10-19 | 4.1 | `9e380c1` | `SessionStore`/`InMemorySessionStore` para solo: outbox, reloj inyectado, vencimientos, cierre idempotente y `live.sessions`; el borde inyecta el `ItemSource`. Próxima: 4.2. |
 | 2026-10-19 | 4.2 | `be75081` | `arcade_ws` vive sobre el store y el `SoloEngine`: escribe `game_sessions`/ítems/intentos, `run_summary` lee `game_sessions`, `on_finish` completa el ranking antes del `arcade_end`; golden y e2e de arcade sin cambios. Próxima: 4.3. |
+| 2026-10-19 | 4.3 | `3859e78` | Borrados `arcade_engine`, `arcade_session` y `services/arcade_runs`; `ARCADE_RULES` en `modes/arcade.py`, tests portados al motor/store. Tag `refactor-fase-4`. Próxima: 5.1. |
