@@ -14,7 +14,7 @@ from pathlib import Path
 from app.db import engine, session_factory
 from app.game.modes.quiz import CONTENT_KINDS, QUIZ, get_content_kind
 from app.models.question import STATUSES
-from app.services import content_backfill, importer
+from app.services import content_backfill, importer, session_backfill
 
 # Las semilla viven en el repo, en el mismo formato que importa `import-questions`:
 # así `seed` es el importador apuntado a un archivo fijo, con un solo camino probado.
@@ -61,6 +61,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=content_backfill.QUIZ_KIND,
     )
 
+    sub.add_parser(
+        "backfill-sessions",
+        help="Copia corridas y partidas viejas a las tablas de sesión (idempotente).",
+    )
+
     return parser
 
 
@@ -70,6 +75,13 @@ async def _dispatch(args: argparse.Namespace) -> int:
             backfill_report = await content_backfill.backfill_quiz(session)
             await session.commit()
         _print_backfill(backfill_report)
+        return 0
+
+    if args.command == "backfill-sessions":
+        async with session_factory() as session:
+            sessions_report = await session_backfill.backfill_sessions(session)
+            await session.commit()
+        _print_session_backfill(sessions_report)
         return 0
 
     if args.command == "seed":
@@ -108,6 +120,15 @@ def _print_backfill(report: content_backfill.BackfillReport) -> None:
     print(f"  rechazadas: {len(report.rejected)}")
     for item in report.rejected:
         print(f"    {item.content_id}: {item.reason}")
+
+
+def _print_session_backfill(report: session_backfill.BackfillReport) -> None:
+    print(f"leídas: {report.read}")
+    print(f"  creadas: {report.created}")
+    print(f"  ya existentes: {report.existing}")
+    print(f"  saltadas: {len(report.skipped)}")
+    for item in report.skipped:
+        print(f"    {item.session_id}: {item.reason}")
 
 
 async def _run(args: argparse.Namespace) -> int:

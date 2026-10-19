@@ -192,6 +192,7 @@ a arrancar si el estado vivo está en memoria sin `SINGLE_PROCESS=1`.
 | `make seed` | Importa las preguntas de ejemplo como publicadas |
 | `make import FILE=archivo.csv` | Importa un CSV propio (borrador por defecto) |
 | `make backfill-content` | Copia `questions` al contenido genérico (idempotente) |
+| `make backfill-sessions` | Copia arcade y 1v1 a las tablas de sesión (idempotente) |
 | `make api` | API en `:8000` con reload |
 | `make front` | Frontend en `:5173` |
 | `make test` | Tests del backend |

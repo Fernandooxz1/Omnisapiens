@@ -347,10 +347,23 @@ depender de datos que pueden faltar.
    conserva UUID y `content_hash`, reporta leídas/creadas/ya existentes/rechazadas y se
    puede correr dos veces sin duplicar. La tabla vieja no se borra.
 2. `arcade_runs`/`arcade_answers` → `game_sessions(mode='trivia_arcade')` + ítems +
-   intentos.
-3. `matches`/`match_rounds` → `game_sessions(mode='trivia_versus')` + ídem.
-4. Las tablas viejas quedan de solo lectura hasta `0007` (fase 10).
-5. `arcade_answers.question_id` y `match_rounds.question_id` pasan a referenciar
+   intentos. Implementado en 3.3 como `backfill-sessions` (`make backfill-sessions`):
+   conserva el UUID de la corrida como id de sesión y el de `questions` como
+   `content_id`; `config = {}` porque la corrida vieja no tenía parámetros (las reglas
+   son las fijas de `ruleset_version = 1`) y `solution_snapshot = {v: 1, correct_index}`.
+   Un `question_id` que no exista en `content_items` (la FK vieja es `NOT VALID`) deja
+   `content_id` nulo; no hace falta correr `backfill-content` primero.
+3. `matches`/`match_rounds` → `game_sessions(mode='trivia_versus')` + participantes +
+   ídem. El id de sesión es el de la partida, el `config` se copia tal cual y las dos
+   sillas se reconstruyen con su puntaje y resultado (`win`/`lose`/`draw`, o
+   `abandoned`/`void` según el estado).
+4. Las tablas viejas no guardan el instante de cada ronda: los ítems se reconstruyen
+   **contiguos** desde `started_at` y los milisegundos de cada respuesta; la secuencia,
+   los puntajes y el orden quedan idénticos. Las filas `playing` se saltan (el camino
+   en vivo las sigue escribiendo) y se reportan como saltadas. Correr el comando dos
+   veces no duplica: el id de la sesión es la clave.
+5. Las tablas viejas quedan de solo lectura hasta `0007` (fase 10).
+6. `arcade_answers.question_id` y `match_rounds.question_id` pasan a referenciar
    `content_items.id` en `0004b`: desde 2.4 el banco sirve contenido genérico y las
    tablas de historial se siguen escribiendo igual hasta que las reemplace la fase 3/5.
 
