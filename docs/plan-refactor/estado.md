@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 5
-tarea: "5.1"
+tarea: "5.2"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 3859e78
+ultimo_commit: f6a8651
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -51,3 +51,4 @@ bloqueo: ""
 | 2026-10-19 | 4.1 | `9e380c1` | `SessionStore`/`InMemorySessionStore` para solo: outbox, reloj inyectado, vencimientos, cierre idempotente y `live.sessions`; el borde inyecta el `ItemSource`. Próxima: 4.2. |
 | 2026-10-19 | 4.2 | `be75081` | `arcade_ws` vive sobre el store y el `SoloEngine`: escribe `game_sessions`/ítems/intentos, `run_summary` lee `game_sessions`, `on_finish` completa el ranking antes del `arcade_end`; golden y e2e de arcade sin cambios. Próxima: 4.3. |
 | 2026-10-19 | 4.3 | `3859e78` | Borrados `arcade_engine`, `arcade_session` y `services/arcade_runs`; `ARCADE_RULES` en `modes/arcade.py`, tests portados al motor/store. Tag `refactor-fase-4`. Próxima: 5.1. |
+| 2026-10-19 | 5.1 | `f6a8651` | `versus_engine` puro (partida, sillas, gracia, pausa, revancha) y sesiones versus en `InMemorySessionStore` con outbox por silla y vencimientos; tests de `match_engine`/`room` portados. Próxima: 5.2. |
