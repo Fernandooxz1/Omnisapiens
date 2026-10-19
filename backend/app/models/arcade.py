@@ -20,8 +20,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.game.answers import RejectReason
-from app.game.arcade_engine import RunStatus
 from app.game.constants import CHOICES, DIFFICULTY_MAX, DIFFICULTY_MIN
+from app.game.solo_engine import RunStatus
 from app.models.base import Base
 from app.models.checks import number_list, quoted_list
 

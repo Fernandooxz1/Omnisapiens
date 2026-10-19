@@ -15,12 +15,15 @@ from typing import Any
 import pytest
 
 from app.game import protocols
-from app.game.arcade_engine import ARCADE_RULES
-from app.game.solo_engine import SoloRules, SoloRun
+from app.game.answers import ServedQuestion
+from app.game.modes.arcade import ARCADE_RULES
+from app.game.solo_engine import RunStatus, SoloRules, SoloRun
 from app.runtime.session_store import (
     FinishHandler,
     InMemorySessionStore,
     NextQuestion,
+    RoundInFlight,
+    SoloState,
 )
 from app.services.question_bank import LoadedQuestion, RoundQuestion
 
@@ -428,3 +431,70 @@ async def test_a_repeated_item_is_served_only_with_permission(h: Harness) -> Non
     vista = h.store.sessions()[abierta.session_id]
     assert vista.state.round is not None
     assert vista.state.round.served.question_id == "q-0"
+
+
+async def test_the_clock_does_not_expire_before_the_deadline(h: Harness) -> None:
+    abierta = await abrir(h, loaded("q-0"), loaded("q-1"))
+    drain(abierta.outbox)
+
+    await correr(h, 19_999)
+    assert drain(abierta.outbox) == []
+
+    await correr(h, 1)
+
+    mensajes = drain(abierta.outbox)
+    assert uno(mensajes, protocols.ArcadeResult).you.choice is None
+    assert uno(mensajes, protocols.ArcadeQuestion).round == 1
+
+
+def _in_flight(*, round_index: int = 0, question_id: str = "q-0") -> RoundInFlight:
+    return RoundInFlight(
+        served=ServedQuestion(
+            round_index=round_index,
+            question_id=question_id,
+            difficulty=1,
+            seconds=20,
+            served_at_ms=0,
+        ),
+        question=loaded(question_id),
+    )
+
+
+@pytest.mark.parametrize(
+    ("factory", "motivo"),
+    [
+        (
+            lambda: SoloState(session_id="", run=SoloRun(rules=ARCADE_RULES, lives=3)),
+            "session_id vacío",
+        ),
+        (
+            lambda: SoloState(
+                session_id="s-1",
+                run=SoloRun(rules=ARCADE_RULES, lives=0, status=RunStatus.FINISHED),
+                round=_in_flight(),
+                seen=frozenset({"q-0"}),
+            ),
+            "terminada",
+        ),
+        (
+            lambda: SoloState(
+                session_id="s-1",
+                run=SoloRun(rules=ARCADE_RULES, lives=3),
+                round=_in_flight(round_index=3),
+                seen=frozenset({"q-0"}),
+            ),
+            "no es la del motor",
+        ),
+        (
+            lambda: SoloState(
+                session_id="s-1",
+                run=SoloRun(rules=ARCADE_RULES, lives=3),
+                round=_in_flight(),
+            ),
+            "no está en las vistas",
+        ),
+    ],
+)
+def test_an_impossible_session_state_is_rejected(factory: Any, motivo: str) -> None:
+    with pytest.raises(ValueError, match=motivo):
+        factory()

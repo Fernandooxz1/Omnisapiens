@@ -36,8 +36,8 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.game.arcade_engine import RunStatus
 from app.game.match_engine import MatchStatus
+from app.game.solo_engine import RunStatus
 from app.models import ArcadeRun, GameSession, Match, Room
 from app.models.arcade import INVALID_STATUS
 from app.runtime.live import Live

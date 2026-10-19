@@ -97,7 +97,11 @@ el id de la fila lo genera el servicio.
 El arcade escribe acá desde la fase 4.2: `arcade_ws` arranca la sesión con
 `mode='trivia_arcade'`, `play_format='arcade'`, `config={}` (las reglas fijas de
 `ruleset_version=1`) y la cierra con los ítems y los intentos del `SoloEngine`.
-`arcade_runs`/`arcade_answers` ya no reciben escrituras del camino en vivo.
+`arcade_runs`/`arcade_answers` ya no reciben escrituras del camino en vivo y,
+desde 4.3, tampoco existen los módulos viejos (`game/arcade_engine.py`,
+`runtime/arcade_session.py`, `services/arcade_runs.py`): las reglas del formato
+viven en `game/modes/arcade.py` y las tablas quedan de solo lectura hasta la
+fase 10.
 
 ## Sesiones en vivo
 

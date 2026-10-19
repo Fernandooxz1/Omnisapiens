@@ -39,8 +39,8 @@ from app.api.errors import ApiError
 from app.api.rate_limit import arcade_limit
 from app.config import settings
 from app.game import protocols
-from app.game.arcade_engine import ARCADE_RULES
 from app.game.constants import CATEGORIES, DIFFICULTY_MAX, DIFFICULTY_MIN
+from app.game.modes.arcade import ARCADE_RULES
 from app.game.solo_engine import RoundRecord, SoloRun
 from app.models import User
 from app.redis import redis_client

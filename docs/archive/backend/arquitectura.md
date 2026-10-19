@@ -149,6 +149,11 @@ Notas que quedan fijadas:
 - Corte semanal: lunes 00:00 local con `zoneinfo`, comparado como `timestamptz`.
 - `last_seen_at` se toca al crear sesión y al terminar una partida, no en cada request.
 - **Sin revocación de tokens** (consecuencia aceptada del diseño sin sesiones).
+- **Transición (fase 4.3)**: el camino en vivo del arcade ya no escribe
+  `arcade_runs`/`arcade_answers`; usa `game_sessions` con sus ítems e intentos. Se
+  borraron `game/arcade_engine.py`, `runtime/arcade_session.py` y
+  `services/arcade_runs.py`; las reglas del formato viven en `game/modes/arcade.py`.
+  Las dos tablas viejas siguen existiendo, de solo lectura, hasta la fase 10.
 
 ## A5. Migraciones y tests
 

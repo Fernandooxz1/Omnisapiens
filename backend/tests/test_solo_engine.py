@@ -1,16 +1,15 @@
 """El motor solo: curvas parametrizadas, vidas y fin de corrida.
 
-El arcade ya prueba el comportamiento histórico a través de su fachada; acá se
-fija lo nuevo: que las reglas salgan de `SoloRules` y que el estado no esconda
-historial.
+Las curvas genéricas fijan que las reglas salgan de `SoloRules` y que el estado
+no esconda historial. La sección final juega con `ARCADE_RULES`: son los valores
+del formato que el cliente ya conoce y no pueden cambiar con el refactor.
 """
 
 from dataclasses import fields
 
 import pytest
 
-from app.game.answers import Answer, ServedQuestion
-from app.game.arcade_engine import ARCADE_RULES
+from app.game.answers import Answer, RejectReason, ServedQuestion
 from app.game.constants import (
     ARCADE_DIFFICULTY_TIERS,
     ARCADE_LIVES,
@@ -21,6 +20,7 @@ from app.game.constants import (
     ARCADE_STREAK_BONUS_STEP,
 )
 from app.game.errors import InvalidTransition
+from app.game.modes.arcade import ARCADE_RULES
 from app.game.solo_engine import RunStatus, SoloEngine, SoloRules, SoloRun
 
 
@@ -237,3 +237,212 @@ def test_an_answer_from_another_round_is_rejected() -> None:
 
     with pytest.raises(InvalidTransition, match="ronda 1"):
         engine.resolve(engine.start(), served_, correct_index=0, answer=None)
+
+
+# --------------------------------------------------------------------------
+# El formato arcade con sus valores reales: el refactor no puede moverlos.
+# --------------------------------------------------------------------------
+
+ARCADE = SoloEngine(ARCADE_RULES)
+
+
+def arcade_served(run: SoloRun, *, now_ms: int = 1_000) -> ServedQuestion:
+    return served(ARCADE, run, now_ms=now_ms)
+
+
+@pytest.mark.parametrize(
+    ("correct_count", "expected"),
+    [
+        (0, 1),
+        (3, 1),
+        (4, 2),
+        (9, 2),
+        (10, 3),
+        (17, 3),
+        (18, 4),
+        (27, 4),
+        (28, 5),
+        (100, 5),
+    ],
+)
+def test_arcade_difficulty_progression(correct_count: int, expected: int) -> None:
+    assert ARCADE_RULES.difficulty_for(correct_count) == expected
+
+
+@pytest.mark.parametrize(
+    ("correct_count", "expected"),
+    [(0, 20), (2, 20), (3, 19), (6, 18), (42, 6), (45, 5), (90, 5)],
+)
+def test_arcade_seconds_progression(correct_count: int, expected: int) -> None:
+    assert ARCADE_RULES.seconds_for(correct_count) == expected
+
+
+def test_the_first_arcade_question_is_easy_and_long() -> None:
+    served_ = arcade_served(ARCADE.start())
+
+    assert served_.difficulty == 1
+    assert served_.seconds == 20
+    assert served_.served_at_ms == 1_000
+    assert served_.ends_at_ms == 21_000
+
+
+def test_arcade_difficulty_follows_the_accumulated_hits() -> None:
+    run = SoloRun(
+        rules=ARCADE_RULES,
+        lives=ARCADE_LIVES,
+        correct_count=4,
+        streak=4,
+        longest_streak=4,
+        score=600,
+    )
+
+    assert arcade_served(run).difficulty == 2
+
+
+def test_an_arcade_correct_answer_scores_and_keeps_the_lives() -> None:
+    run = ARCADE.start()
+    served_ = arcade_served(run)
+
+    resolved = ARCADE.resolve(
+        run, served_, correct_index=2, answer=answer(served_, choice=2, at_ms=2_000)
+    )
+
+    assert resolved.record.correct is True
+    assert resolved.record.points == 148
+    assert resolved.record.elapsed_ms == 1_000
+    assert resolved.record.choice == 2
+    assert resolved.record.rejected is None
+    assert resolved.run.score == 148
+    assert resolved.run.lives == 3
+    assert resolved.run.streak == 1
+    assert resolved.run.correct_count == 1
+    assert resolved.run.longest_streak == 1
+    assert resolved.run.round_index == 1
+
+
+def test_an_arcade_wrong_answer_loses_a_life_and_resets_the_streak() -> None:
+    run = SoloRun(
+        rules=ARCADE_RULES,
+        lives=ARCADE_LIVES,
+        correct_count=4,
+        streak=4,
+        longest_streak=4,
+        score=600,
+    )
+    served_ = arcade_served(run, now_ms=10_000)
+
+    resolved = ARCADE.resolve(
+        run, served_, correct_index=0, answer=answer(served_, choice=3, at_ms=11_000)
+    )
+
+    assert resolved.record.points == 0
+    assert resolved.run.score == 600
+    assert resolved.run.lives == 2
+    assert resolved.run.streak == 0
+    assert resolved.run.longest_streak == 4
+    assert resolved.run.status is RunStatus.PLAYING
+
+
+def test_an_arcade_late_answer_counts_as_missing() -> None:
+    run = ARCADE.start()
+    served_ = arcade_served(run)
+
+    resolved = ARCADE.resolve(
+        run, served_, correct_index=0, answer=answer(served_, choice=0, at_ms=21_001)
+    )
+
+    assert resolved.record.rejected is RejectReason.OUTSIDE_WINDOW
+    assert resolved.record.correct is False
+    assert resolved.record.choice is None
+    assert resolved.record.elapsed_ms == 20_000
+    assert resolved.record.points == 0
+    assert resolved.run.lives == 2
+
+
+def test_an_arcade_missing_answer_counts_as_wrong() -> None:
+    run = ARCADE.start()
+    served_ = arcade_served(run)
+
+    resolved = ARCADE.resolve(run, served_, correct_index=0, answer=None)
+
+    assert resolved.record.choice is None
+    assert resolved.record.correct is False
+    assert resolved.run.lives == 2
+    assert resolved.run.score == 0
+
+
+def test_the_third_arcade_miss_finishes_the_run() -> None:
+    run = ARCADE.start()
+    for _ in range(3):
+        served_ = arcade_served(run)
+        run = ARCADE.resolve(run, served_, correct_index=0, answer=None).run
+
+    assert run.status is RunStatus.FINISHED
+    assert run.finished is True
+    assert run.lives == 0
+
+
+def test_the_arcade_streak_bonus_grows_with_consecutive_hits() -> None:
+    run = ARCADE.start()
+    points = []
+
+    for _ in range(3):
+        served_ = arcade_served(run)
+        resolved = ARCADE.resolve(
+            run,
+            served_,
+            correct_index=0,
+            answer=answer(served_, choice=0, at_ms=served_.served_at_ms),
+        )
+        points.append(resolved.record.points)
+        run = resolved.run
+
+    assert run.streak == 3
+    assert points[0] < points[1] < points[2]
+
+
+def test_the_arcade_record_keeps_what_was_served() -> None:
+    run = ARCADE.start()
+    served_ = arcade_served(run)
+
+    record = ARCADE.resolve(run, served_, correct_index=0, answer=None).record
+
+    assert record.question_id == "q-0"
+    assert record.difficulty == served_.difficulty
+    assert record.seconds == served_.seconds
+    assert record.round_index == served_.round_index
+
+
+def test_arcade_max_difficulty_tracks_the_played_questions() -> None:
+    run = ARCADE.start()
+    for _ in range(5):
+        served_ = arcade_served(run)
+        run = ARCADE.resolve(
+            run,
+            served_,
+            correct_index=0,
+            answer=answer(served_, choice=0, at_ms=served_.served_at_ms),
+        ).run
+
+    assert run.max_difficulty == 2
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"lives": 4},
+        {"lives": -1},
+        {"score": -1},
+        {"streak": 2, "correct_count": 1},
+        {"longest_streak": 5, "correct_count": 1, "streak": 0},
+        {"status": RunStatus.FINISHED},
+        {"lives": 0},
+        {"max_difficulty": 6},
+    ],
+)
+def test_impossible_arcade_states_are_rejected(overrides: dict[str, object]) -> None:
+    base: dict[str, object] = {"lives": ARCADE_LIVES}
+    with pytest.raises(
+        ValueError, match=r"fuera de rango|negativo|streak|se contradicen"
+    ):
+        SoloRun(rules=ARCADE_RULES, **(base | overrides))  # type: ignore[arg-type]
