@@ -16,6 +16,8 @@ TABLAS = {
     "alembic_version",
     "arcade_answers",
     "arcade_runs",
+    "content_items",
+    "content_solutions",
     "match_rounds",
     "matches",
     "questions",

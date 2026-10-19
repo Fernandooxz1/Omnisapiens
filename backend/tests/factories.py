@@ -21,7 +21,17 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.game.constants import ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH
-from app.models import ArcadeAnswer, ArcadeRun, Match, MatchRound, Question, Room, User
+from app.models import (
+    ArcadeAnswer,
+    ArcadeRun,
+    ContentItem,
+    ContentSolution,
+    Match,
+    MatchRound,
+    Question,
+    Room,
+    User,
+)
 
 _correlativo = itertools.count(1)
 
@@ -58,6 +68,39 @@ def question(**overrides: Any) -> Question:
                 "options": ["Paraná", "Amazonas", "Orinoco", "Magdalena"],
                 "correct_index": 1,
                 "content_hash": _hash(),
+            }
+            | overrides
+        )
+    )
+
+
+def content_item(**overrides: Any) -> ContentItem:
+    return ContentItem(
+        **(
+            {
+                "id": uuid.uuid4(),
+                "kind": "quiz",
+                "schema_version": 1,
+                "difficulty": 2,
+                "categories": ["geography"],
+                "payload": {
+                    "v": 1,
+                    "prompt": "¿Cuál es el río más largo?",
+                    "options": ["Paraná", "Amazonas", "Orinoco", "Magdalena"],
+                },
+                "content_hash": _hash(),
+            }
+            | overrides
+        )
+    )
+
+
+def content_solution(content_id: uuid.UUID, **overrides: Any) -> ContentSolution:
+    return ContentSolution(
+        **(
+            {
+                "content_id": content_id,
+                "payload": {"v": 1, "correct_index": 1},
             }
             | overrides
         )

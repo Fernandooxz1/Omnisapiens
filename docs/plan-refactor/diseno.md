@@ -189,7 +189,8 @@ content_items (
   supersedes_id uuid references content_items(id),
   created_at timestamptz, updated_at timestamptz,
   check (jsonb_typeof(payload) = 'object'),
-  check ((payload->>'v')::int = schema_version)
+  check (case when jsonb_typeof(payload->'v') = 'number'
+              then (payload->>'v')::numeric = schema_version else false end)
 )
 
 content_solutions (
@@ -200,6 +201,8 @@ content_solutions (
 
 - **Solución en tabla aparte**: el camino público no la puede filtrar con un `SELECT *`.
 - **Publicado inmutable**: editar = nueva fila con `supersedes_id`.
+- **Versión en el payload**: el `CHECK` exige `v` numérico e igual a
+  `schema_version`; un payload sin versión se rechaza en vez de pasar por un `NULL`.
 - **`content_hash`** único, con la normalización congelada por `ContentKind`.
 - Índices: `(kind, status, difficulty)`, GIN en `categories`, funcional por modo cuando
   haga falta (ej. `payload->>'letter'` para rosco).

@@ -24,7 +24,7 @@ from app.models import Base
 ESQUEMA_MODELOS = "ddl_de_los_modelos"
 
 # Se compila una vez, al importar: es el DDL que SQLAlchemy deduce de los
-# modelos, el mismo que se comparó a mano contra la migración 0001.
+# modelos, el mismo que se fue comparando a mano contra cada migración.
 DDL_DE_LOS_MODELOS = [
     str(CreateTable(tabla).compile(dialect=postgresql.dialect())).strip()
     for tabla in Base.metadata.sorted_tables
