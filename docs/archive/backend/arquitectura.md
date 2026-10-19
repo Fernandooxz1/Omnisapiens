@@ -6,7 +6,7 @@
 ## En números
 
 FastAPI + CPython 3.12 (proyecto `uv`), PostgreSQL 16 + Redis 7 por `docker compose`,
-WebSocket. **7 tablas**, migraciones `0001`–`0003`, **547 tests en ~17 s**, cobertura **94 %**.
+WebSocket. **7 tablas**, migraciones `0001`–`0003`, **553 tests en ~18 s**, cobertura **94 %**.
 
 Jugable y administrable: HTTP, banco de preguntas e importador (CLI y HTTP), panel de admin
 con `X-Admin-Token`, motores puros, sala viva con WS, barrendero periódico, arcade con WS,

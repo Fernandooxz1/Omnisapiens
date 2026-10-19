@@ -1,6 +1,6 @@
 # Archivo — backend histórico
 
-El backend está **terminado** (HTTP, WS, salas, arcade, ranking, admin, 547 tests, cobertura
+El backend está **terminado** (HTTP, WS, salas, arcade, ranking, admin, 553 tests, cobertura
 94 %) y no se toca desde el frontend. Todo lo de esta carpeta es memoria de cómo quedó por
 dentro. **No se lee** salvo que una tarea toque el backend o haya que responder por qué el
 servidor se comporta de una manera.
