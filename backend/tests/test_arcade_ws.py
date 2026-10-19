@@ -15,24 +15,25 @@ from typing import Any
 
 import pytest
 from redis.asyncio import Redis
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
 from app.config import settings
 from app.main import app
-from app.models import ArcadeAnswer, ArcadeRun, ContentItem, User
-from app.runtime.live import live_arcade_runs
+from app.models import ContentItem, GameSession, SessionAttempt, SessionItem, User
+from app.runtime.session_store import InMemorySessionStore
 from app.security.tokens import create_guest_token
-from app.services import arcade_runs, leaderboard
+from app.services import leaderboard, sessions
 from app.ws.arcade_ws import (
     ArcadeRuntime,
     get_arcade_redis,
     get_arcade_runtime,
+    get_session_store,
 )
 
 from .clock import FakeClock
-from .factories import arcade_run, quiz_content, user
+from .factories import game_session, quiz_content, user
 from .ws_client import WebSocketClient, WebSocketClosed
 
 
@@ -43,6 +44,7 @@ class Api:
     user: User
     clock: FakeClock
     runtime: ArcadeRuntime
+    store: InMemorySessionStore
 
 
 @pytest.fixture
@@ -68,7 +70,8 @@ async def api(
             return despierto()
         return clock.sleep(seconds)
 
-    runtime = ArcadeRuntime(now_ms=clock.now_ms, sleep=dormir, rng=Random(7))
+    runtime = ArcadeRuntime(now_ms=clock.now_ms, rng=Random(7))
+    store = InMemorySessionStore(now_ms=clock.now_ms, sleep=dormir, rng=runtime.rng)
 
     async def _sesion() -> AsyncIterator[AsyncSession]:
         yield session
@@ -76,11 +79,18 @@ async def api(
     app.dependency_overrides[get_session] = _sesion
     app.dependency_overrides[get_arcade_runtime] = lambda: runtime
     app.dependency_overrides[get_arcade_redis] = lambda: redis
+    app.dependency_overrides[get_session_store] = lambda: store
     try:
         yield Api(
-            session=session, redis=redis, user=usuario, clock=clock, runtime=runtime
+            session=session,
+            redis=redis,
+            user=usuario,
+            clock=clock,
+            runtime=runtime,
+            store=store,
         )
     finally:
+        await store.close()
         app.dependency_overrides.clear()
 
 
@@ -453,28 +463,59 @@ async def test_the_run_repeats_only_when_the_pool_is_exhausted(
 # ------------------------------------------------------------------ persistencia
 
 
-async def _run_row(api: Api, run_id: str) -> Any:
+async def _session_row(api: Api, session_id: str) -> Any:
     """La fila tal como está en Postgres.
 
-    Columnas sueltas y no `session.get`: el objeto que agregó `start_run` sigue en
-    el identity map con los contadores sin cargar (los pone el `server_default`).
+    Columnas sueltas y no `session.get`: el objeto que agregó `start_session`
+    sigue en el identity map con los contadores sin cargar (los pone el
+    `server_default`).
     """
     return (
         await api.session.execute(
             select(
-                ArcadeRun.status,
-                ArcadeRun.user_id,
-                ArcadeRun.score,
-                ArcadeRun.correct_count,
-                ArcadeRun.longest_streak,
-                ArcadeRun.max_difficulty,
-                ArcadeRun.ended_at,
-            ).where(ArcadeRun.id == uuid.UUID(run_id))
+                GameSession.status,
+                GameSession.owner_user_id,
+                GameSession.mode,
+                GameSession.score,
+                GameSession.correct_count,
+                GameSession.longest_streak,
+                GameSession.max_difficulty,
+                GameSession.started_at,
+                GameSession.ended_at,
+            ).where(GameSession.id == uuid.UUID(session_id))
         )
     ).one()
 
 
-async def test_start_writes_the_run_playing(
+async def _history(api: Api, session_id: str) -> tuple[list[Any], list[Any]]:
+    """Los ítems y sus intentos, en orden de posición."""
+    items = (
+        (
+            await api.session.execute(
+                select(SessionItem)
+                .where(SessionItem.session_id == uuid.UUID(session_id))
+                .order_by(SessionItem.position)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    attempts = (
+        (
+            await api.session.execute(
+                select(SessionAttempt)
+                .join(SessionItem, SessionAttempt.item_id == SessionItem.id)
+                .where(SessionItem.session_id == uuid.UUID(session_id))
+                .order_by(SessionItem.position, SessionAttempt.attempt_seq)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return list(items), list(attempts)
+
+
+async def test_start_writes_the_session_playing(
     api: Api, connect: Callable[[User], WebSocketClient]
 ) -> None:
     await sembrar(api.session)
@@ -483,11 +524,13 @@ async def test_start_writes_the_run_playing(
         await socket.send({"t": "start"})
         inicio = await socket.until("arcade_start")
 
-    fila = await _run_row(api, inicio["d"]["run_id"])
+    fila = await _session_row(api, inicio["d"]["run_id"])
     assert fila.status == "playing"
-    assert fila.user_id == api.user.id
+    assert fila.owner_user_id == api.user.id
+    assert fila.mode == "trivia_arcade"
     assert (fila.score, fila.correct_count, fila.longest_streak) == (0, 0, 0)
     assert fila.max_difficulty == 1
+    assert fila.started_at is not None
     assert fila.ended_at is None
 
 
@@ -506,41 +549,40 @@ async def test_a_finished_run_closes_with_all_its_rounds(
             await socket.until("arcade_result")
 
         # A mitad de corrida no hay historial: las rondas se escriben al cerrar.
-        assert (await _run_row(api, inicio["d"]["run_id"])).status == "playing"
-        assert (
-            await api.session.scalar(select(func.count()).select_from(ArcadeAnswer))
-        ) == 0
+        assert (await _session_row(api, inicio["d"]["run_id"])).status == "playing"
+        assert await _history(api, inicio["d"]["run_id"]) == ([], [])
 
         ultima = await socket.until("arcade_question")
         api.clock.advance(ultima["d"]["ends_at"] - api.clock.now_ms())
         await socket.until("arcade_result")
         fin = await socket.until("arcade_end")
 
-    fila = await _run_row(api, fin["d"]["run_id"])
+    fila = await _session_row(api, fin["d"]["run_id"])
     assert fila.status == "finished"
     assert fila.ended_at is not None
     assert (fila.score, fila.correct_count, fila.longest_streak) == (0, 0, 0)
     assert fila.max_difficulty == 1
 
-    respuestas = (
-        (
-            await api.session.execute(
-                select(ArcadeAnswer)
-                .where(ArcadeAnswer.run_id == uuid.UUID(fin["d"]["run_id"]))
-                .order_by(ArcadeAnswer.round_index)
-            )
-        )
-        .scalars()
-        .all()
+    items, attempts = await _history(api, fin["d"]["run_id"])
+    assert [item.position for item in items] == [0, 1, 2]
+    assert [item.item_key for item in items] == ["0", "1", "2"]
+    assert {item.content_id for item in items} == {p.id for p in preguntas}
+    assert all(item.difficulty == 1 and item.seconds == 20 for item in items)
+    assert all(item.solution_snapshot["v"] == 1 for item in items)
+    # Sin respuesta, la ventana entera es el tiempo consumido.
+    assert all(
+        item.closed_at - item.served_at == timedelta(seconds=20) for item in items
     )
-    assert [fila.round_index for fila in respuestas] == [0, 1, 2]
-    assert {fila.question_id for fila in respuestas} == {p.id for p in preguntas}
-    assert all(fila.chosen_index is None for fila in respuestas)
-    assert all(fila.is_correct is False for fila in respuestas)
-    assert all(fila.rejected is None for fila in respuestas)
-    assert [fila.ms for fila in respuestas] == [20_000, 20_000, 20_000]
-    assert [fila.points for fila in respuestas] == [0, 0, 0]
-    assert all(fila.difficulty == 1 and fila.seconds == 20 for fila in respuestas)
+    assert all(
+        item.deadline_at - item.served_at == timedelta(seconds=20) for item in items
+    )
+
+    assert [attempt.item_id for attempt in attempts] == [item.id for item in items]
+    assert all(attempt.submission == {} for attempt in attempts)
+    assert all(attempt.correct is False for attempt in attempts)
+    assert all(attempt.rejected is None for attempt in attempts)
+    assert [attempt.elapsed_ms for attempt in attempts] == [20_000, 20_000, 20_000]
+    assert [attempt.points for attempt in attempts] == [0, 0, 0]
 
 
 async def test_a_run_that_cannot_be_saved_is_reported_and_can_retry(
@@ -553,7 +595,7 @@ async def test_a_run_that_cannot_be_saved_is_reported_and_can_retry(
     # transacción del fixture, y el `rollback` del intento fallido los borraría.
     # Commitear suelta ese SAVEPOINT: el rollback final del fixture deshace igual.
     await api.session.commit()
-    original = arcade_runs.start_run
+    original = sessions.start_session
     intentos = 0
 
     async def _falla_la_primera(*args: Any, **kwargs: Any) -> None:
@@ -563,7 +605,7 @@ async def test_a_run_that_cannot_be_saved_is_reported_and_can_retry(
             raise RuntimeError("la base no contesta")
         await original(*args, **kwargs)
 
-    monkeypatch.setattr(arcade_runs, "start_run", _falla_la_primera)
+    monkeypatch.setattr(sessions, "start_session", _falla_la_primera)
 
     async with connect(api.user) as socket:
         await socket.send({"t": "start"})
@@ -586,7 +628,7 @@ async def test_a_run_that_cannot_be_closed_still_ends_for_the_player(
     async def _rompe(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("la base no contesta")
 
-    monkeypatch.setattr(arcade_runs, "finish_run", _rompe)
+    monkeypatch.setattr(sessions, "finish_session", _rompe)
 
     async with connect(api.user) as socket:
         await socket.send({"t": "start"})
@@ -601,7 +643,7 @@ async def test_a_run_that_cannot_be_closed_still_ends_for_the_player(
 
     assert fin["d"]["score"] == 0
     # La fila quedó `playing`: el barrendero la invalida en el próximo arranque.
-    assert (await _run_row(api, inicio["d"]["run_id"])).status == "playing"
+    assert (await _session_row(api, inicio["d"]["run_id"])).status == "playing"
     # Y sin cierre no hay ranking que mostrar.
     assert fin["d"]["rank_global"] is None
     assert fin["d"]["personal_best"] is None
@@ -610,9 +652,10 @@ async def test_a_run_that_cannot_be_closed_still_ends_for_the_player(
 # --------------------------------------------------------------------- ranking
 
 
-def _finished(usuario: User, *, score: int, ended_at: datetime) -> ArcadeRun:
-    return arcade_run(
-        usuario.id,
+def _finished(usuario: User, *, score: int, ended_at: datetime) -> GameSession:
+    return game_session(
+        mode="trivia_arcade",
+        owner_user_id=usuario.id,
         score=score,
         status="finished",
         started_at=ended_at - timedelta(minutes=1),
@@ -698,7 +741,7 @@ async def test_a_ranking_failure_does_not_break_the_end(
     assert fin["d"]["rank_global"] is None
     assert fin["d"]["is_new_best"] is False
     # La corrida sí se guardó: lo único que faltó fue la posición del mensaje.
-    assert (await _run_row(api, inicio["d"]["run_id"])).status == "finished"
+    assert (await _session_row(api, inicio["d"]["run_id"])).status == "finished"
 
 
 async def test_a_live_run_is_registered_until_it_ends(
@@ -712,7 +755,7 @@ async def test_a_live_run_is_registered_until_it_ends(
         run_id = uuid.UUID(inicio["d"]["run_id"])
 
         # Mientras se juega, el barrendero no puede invalidarla por vieja.
-        assert run_id in live_arcade_runs.ids()
+        assert run_id in api.store.live()
 
         for _ in range(3):
             ronda = await socket.until("arcade_question")
@@ -720,7 +763,7 @@ async def test_a_live_run_is_registered_until_it_ends(
             await socket.until("arcade_result")
         await socket.until("arcade_end")
 
-        assert run_id not in live_arcade_runs.ids()
+        assert run_id not in api.store.live()
 
 
 async def test_a_socket_cut_mid_run_releases_it_but_leaves_the_row_playing(
@@ -732,8 +775,8 @@ async def test_a_socket_cut_mid_run_releases_it_but_leaves_the_row_playing(
         await socket.send({"t": "start"})
         inicio = await socket.until("arcade_start")
         run_id = uuid.UUID(inicio["d"]["run_id"])
-        assert run_id in live_arcade_runs.ids()
+        assert run_id in api.store.live()
 
-    assert run_id not in live_arcade_runs.ids()
+    assert run_id not in api.store.live()
     # La fila queda abierta a propósito: el barrido la invalida tras el umbral.
-    assert (await _run_row(api, str(run_id))).status == "playing"
+    assert (await _session_row(api, str(run_id))).status == "playing"

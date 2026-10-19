@@ -34,7 +34,20 @@ from app.services.question_bank import LoadedQuestion, shuffle_options
 
 logger = logging.getLogger(__name__)
 
-Outbox = asyncio.Queue[protocols.Message]
+
+class Outbox(Protocol):
+    """La cola de salida de una sesión. El store solo escribe.
+
+    El borde puede envolverla para adjuntar el `id` de correlación de un `pong`
+    o de un `error`; por eso el contrato es lo mínimo que hace `_push`, no una
+    `asyncio.Queue` concreta.
+    """
+
+    def put_nowait(self, message: protocols.Message) -> None: ...
+
+    def get_nowait(self) -> object: ...
+
+
 Clock = Callable[[], int]
 Sleeper = Callable[[float], Coroutine[object, object, None]]
 Effects = tuple[protocols.Message, ...]
@@ -106,6 +119,15 @@ class SoloState:
         return not self.finished and self.round is None
 
 
+# El cierre es I/O y lo hace el borde: persiste, calcula el ranking y devuelve
+# el `arcade_end` ya completo. El store espera a que termine antes de entregarlo,
+# para que el cliente nunca vea posiciones nulas si la base contestó.
+FinishHandler = Callable[
+    [SoloState, tuple[RoundRecord, ...], protocols.ArcadeEnd],
+    Awaitable[protocols.ArcadeEnd],
+]
+
+
 @dataclass(frozen=True)
 class Transition:
     state: SoloState
@@ -142,11 +164,15 @@ class SessionStore(Protocol):
         outbox: Outbox,
         rules: SoloRules,
         next_item: ItemSource,
+        on_finish: FinishHandler | None = None,
     ) -> bool:
         """Registra la sesión, manda el arranque y sirve el primer ítem.
 
         Devuelve `False` si esa sesión ya estaba abierta. Así el borde distingue
         un `start` repetido sin inventar un estado nuevo.
+
+        `on_finish` es el cierre del borde (persistir y rankear); si no llega,
+        el `arcade_end` sale con las posiciones nulas.
         """
         ...
 
@@ -181,6 +207,7 @@ class _Session:
     next_item: ItemSource
     state: SoloState
     outbox: Outbox
+    on_finish: FinishHandler | None = None
     # El motor no guarda historial: se acumula acá hasta que el borde persista.
     records: list[RoundRecord] = field(default_factory=list)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -196,16 +223,24 @@ class InMemorySessionStore:
     def __init__(
         self,
         *,
-        reveal_seconds: float = settings.reveal_seconds,
+        reveal_seconds: float | None = None,
         now_ms: Clock | None = None,
         sleep: Sleeper | None = None,
         rng: Random | None = None,
     ) -> None:
+        # `None` lee `settings.reveal_seconds` al dormir: el test puede bajarla o
+        # subirla después de construir el store, igual que el handler viejo.
         self._reveal_seconds = reveal_seconds
         self._now_ms = now_ms or _system_now_ms
         self._sleep = sleep or asyncio.sleep
         self._rng = rng or Random()
         self._sessions: dict[str, _Session] = {}
+
+    @property
+    def _reveal(self) -> float:
+        if self._reveal_seconds is None:
+            return settings.reveal_seconds
+        return self._reveal_seconds
 
     async def open(
         self,
@@ -215,6 +250,7 @@ class InMemorySessionStore:
         outbox: Outbox,
         rules: SoloRules,
         next_item: ItemSource,
+        on_finish: FinishHandler | None = None,
     ) -> bool:
         if session_id in self._sessions:
             return False
@@ -228,6 +264,7 @@ class InMemorySessionStore:
             next_item=next_item,
             state=transition.state,
             outbox=outbox,
+            on_finish=on_finish,
         )
         # Se registra antes de entregar: si el primer ítem tarda, el barrido ya
         # sabe que la sesión está viva.
@@ -299,7 +336,24 @@ class InMemorySessionStore:
         entry.state = transition.state
         if transition.record is not None:
             entry.records.append(transition.record)
-        self._deliver(entry, transition.effects)
+        effects = transition.effects
+        if entry.state.finished:
+            effects = await self._finish(entry, effects)
+        self._deliver(entry, effects)
+
+    async def _finish(self, entry: _Session, effects: Effects) -> Effects:
+        """Deja que el borde cierre la fila antes de entregar el `arcade_end`."""
+        hook = entry.on_finish
+        if hook is None:
+            return effects
+        for message in effects:
+            if isinstance(message, protocols.ArcadeEnd):
+                end = await hook(entry.state, tuple(entry.records), message)
+                return tuple(
+                    end if isinstance(item, protocols.ArcadeEnd) else item
+                    for item in effects
+                )
+        return effects
 
     async def _advance(self, entry: _Session, transition: Transition) -> None:
         """Deja ver el resultado y recién después sirve el próximo ítem.
@@ -308,7 +362,7 @@ class InMemorySessionStore:
         la pausa. El final de la sesión no lleva pausa extra.
         """
         if transition.record is not None and entry.state.needs_next_question:
-            await self._sleep(self._reveal_seconds)
+            await self._sleep(self._reveal)
         if entry.state.needs_next_question:
             await self._serve_next(entry)
 

@@ -15,6 +15,7 @@ from app.logging_config import configure_logging
 from app.redis import redis_client
 from app.runtime.live import Live, live_arcade_runs
 from app.runtime.room_manager import InMemoryRoomStore, room_store
+from app.runtime.session_store import session_store
 from app.services.reaper import sweep
 from app.ws import arcade_ws, room_ws
 
@@ -48,7 +49,11 @@ async def _sweep_once(*, startup: bool = False) -> None:
     toda fila abierta es de un proceso anterior; en régimen, `live` protege lo
     que está jugándose.
     """
-    live = Live(rooms=room_store.live(), arcade_runs=live_arcade_runs.ids())
+    live = Live(
+        rooms=room_store.live(),
+        arcade_runs=live_arcade_runs.ids(),
+        sessions=session_store.live(),
+    )
     async with session_factory() as session:
         resultado = await sweep(session, live=live)
 

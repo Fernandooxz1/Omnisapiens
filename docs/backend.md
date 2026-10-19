@@ -94,6 +94,11 @@ El servicio no lee relojes: `started_at`, `ended_at` y los veredictos llegan ya
 decididos por el motor o el barrido. Los intentos apuntan a los ítems por `item_key`;
 el id de la fila lo genera el servicio.
 
+El arcade escribe acá desde la fase 4.2: `arcade_ws` arranca la sesión con
+`mode='trivia_arcade'`, `play_format='arcade'`, `config={}` (las reglas fijas de
+`ruleset_version=1`) y la cierra con los ítems y los intentos del `SoloEngine`.
+`arcade_runs`/`arcade_answers` ya no reciben escrituras del camino en vivo.
+
 ## Sesiones en vivo
 
 `app/runtime/session_store.py` es el estado vivo de las sesiones solo: el contrato
@@ -112,9 +117,14 @@ mudarla a Redis cuando haya más de un proceso.
   `playing`, el barrendero la invalida.
 - `live()` alimenta `Live.sessions`; una sesión terminada deja de estar viva aunque su
   `close` llegue después.
+- `on_finish` es el cierre del borde: el store lo espera **antes** de entregar el
+  `arcade_end`, para que el cliente vea la posición ya calculada. Si el borde falla,
+  devuelve el final con las posiciones en `None` y la fila queda para el barrendero.
 
 El store no persiste: `services/sessions.py` sigue siendo el único que escribe las
-cuatro tablas, y el borde es quien llama al arranque y al cierre.
+cuatro tablas, y el borde es quien llama al arranque y al cierre. `arcade_ws` es ese
+borde: elige y carga los ítems (`ItemSource`), arranca la fila, persiste el cierre y
+completa el ranking con `leaderboard.run_summary` (que desde 4.2 lee `game_sessions`).
 
 ## Convenciones
 

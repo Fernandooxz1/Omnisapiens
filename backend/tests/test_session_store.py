@@ -8,8 +8,9 @@ vencimiento resuelve la ronda cuando el test la despierta.
 import asyncio
 import uuid
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from random import Random
+from typing import Any
 
 import pytest
 
@@ -17,9 +18,9 @@ from app.game import protocols
 from app.game.arcade_engine import ARCADE_RULES
 from app.game.solo_engine import SoloRules, SoloRun
 from app.runtime.session_store import (
+    FinishHandler,
     InMemorySessionStore,
     NextQuestion,
-    Outbox,
 )
 from app.services.question_bank import LoadedQuestion, RoundQuestion
 
@@ -77,7 +78,7 @@ class Harness:
 class Abierta:
     session_id: str
     owner_id: uuid.UUID
-    outbox: Outbox
+    outbox: asyncio.Queue[protocols.Message]
     questions: Questions
 
 
@@ -94,7 +95,7 @@ async def h() -> AsyncIterator[Harness]:
     await store.close()
 
 
-def drain(outbox: Outbox) -> list[protocols.Message]:
+def drain(outbox: asyncio.Queue[protocols.Message]) -> list[protocols.Message]:
     mensajes: list[protocols.Message] = []
     while not outbox.empty():
         mensajes.append(outbox.get_nowait())
@@ -111,20 +112,22 @@ async def abrir(
     h: Harness,
     *questions: LoadedQuestion,
     session_id: str | None = None,
-    outbox: Outbox | None = None,
+    outbox: asyncio.Queue[protocols.Message] | None = None,
     repeat: bool = False,
     rules: SoloRules = ARCADE_RULES,
+    on_finish: FinishHandler | None = None,
 ) -> Abierta:
     sid = session_id or str(uuid.uuid4())
     owner = uuid.uuid4()
     source = Questions(*questions, repeat=repeat)
-    salida = outbox or Outbox()
+    salida = outbox or asyncio.Queue()
     abierta = await h.store.open(
         session_id=sid,
         owner_id=owner,
         outbox=salida,
         rules=rules,
         next_item=source,
+        on_finish=on_finish,
     )
     assert abierta is True
     return Abierta(session_id=sid, owner_id=owner, outbox=salida, questions=source)
@@ -256,6 +259,37 @@ async def test_three_misses_finish_the_session_and_release_it(h: Harness) -> Non
     assert len(vista.records) == 3
 
 
+async def test_the_finish_handler_completes_the_end_before_it_is_delivered(
+    h: Harness,
+) -> None:
+    llamadas: list[tuple[str, int]] = []
+
+    async def cerrar(
+        state: Any, records: tuple[Any, ...], end: protocols.ArcadeEnd
+    ) -> protocols.ArcadeEnd:
+        llamadas.append((state.session_id, len(records)))
+        return replace(
+            end,
+            rank_global=2,
+            personal_best=state.run.score,
+            is_new_best=True,
+        )
+
+    abierta = await abrir(
+        h, loaded("q-0"), loaded("q-1"), loaded("q-2"), on_finish=cerrar
+    )
+    drain(abierta.outbox)
+
+    for _ in range(3):
+        await correr(h, 20_000)
+        mensajes = drain(abierta.outbox)
+
+    fin = uno(mensajes, protocols.ArcadeEnd)
+    assert llamadas == [(abierta.session_id, 3)]
+    # El cierre del borde corre antes de entregar: el cliente ve la posición.
+    assert (fin.rank_global, fin.personal_best, fin.is_new_best) == (2, 0, True)
+
+
 async def test_close_is_idempotent_and_drops_the_session(h: Harness) -> None:
     abierta = await abrir(h, loaded())
     drain(abierta.outbox)
@@ -299,7 +333,7 @@ async def test_open_twice_does_not_restart_the_session(h: Harness) -> None:
 
 
 async def test_an_outbox_full_drops_the_oldest_message(h: Harness) -> None:
-    abierta = await abrir(h, loaded(), outbox=Outbox(maxsize=1))
+    abierta = await abrir(h, loaded(), outbox=asyncio.Queue(maxsize=1))
 
     mensajes = drain(abierta.outbox)
     assert [mensaje.type for mensaje in mensajes] == ["arcade_question"]
@@ -373,7 +407,7 @@ async def test_a_failing_source_does_not_leave_a_zombie_session(h: Harness) -> N
         await h.store.open(
             session_id=str(uuid.uuid4()),
             owner_id=uuid.uuid4(),
-            outbox=Outbox(),
+            outbox=asyncio.Queue(),
             rules=ARCADE_RULES,
             next_item=rota,
         )

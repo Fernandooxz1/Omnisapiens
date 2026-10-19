@@ -19,8 +19,14 @@ from app.config import settings
 from app.game.match_engine import MatchConfig
 from app.main import app
 from app.models import Room, User
+from app.runtime.session_store import InMemorySessionStore
 from app.security.tokens import create_guest_token
-from app.ws.arcade_ws import ArcadeRuntime, get_arcade_redis, get_arcade_runtime
+from app.ws.arcade_ws import (
+    ArcadeRuntime,
+    get_arcade_redis,
+    get_arcade_runtime,
+    get_session_store,
+)
 from app.ws.room_ws import get_room_store
 
 from . import test_room_manager
@@ -39,6 +45,7 @@ class ArcadeApi:
     user: User
     clock: FakeClock
     runtime: ArcadeRuntime
+    store: InMemorySessionStore
 
 
 @pytest.fixture
@@ -62,7 +69,8 @@ async def arcade_api(
             return despierto()
         return clock.sleep(seconds)
 
-    runtime = ArcadeRuntime(now_ms=clock.now_ms, sleep=dormir, rng=Random(7))
+    runtime = ArcadeRuntime(now_ms=clock.now_ms, rng=Random(7))
+    store = InMemorySessionStore(now_ms=clock.now_ms, sleep=dormir, rng=runtime.rng)
 
     async def _sesion() -> AsyncIterator[AsyncSession]:
         yield session
@@ -70,11 +78,18 @@ async def arcade_api(
     app.dependency_overrides[get_session] = _sesion
     app.dependency_overrides[get_arcade_runtime] = lambda: runtime
     app.dependency_overrides[get_arcade_redis] = lambda: redis
+    app.dependency_overrides[get_session_store] = lambda: store
     try:
         yield ArcadeApi(
-            session=session, redis=redis, user=usuario, clock=clock, runtime=runtime
+            session=session,
+            redis=redis,
+            user=usuario,
+            clock=clock,
+            runtime=runtime,
+            store=store,
         )
     finally:
+        await store.close()
         app.dependency_overrides.clear()
 
 

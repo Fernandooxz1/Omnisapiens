@@ -130,6 +130,9 @@ class RoundRecord:
     question_id: str
     difficulty: int
     seconds: int
+    # El instante en que se sirvió: el borde lo necesita para escribir
+    # `served_at`/`deadline_at` sin reconstruir la ventana después.
+    served_at_ms: int
     correct_index: int
     choice: int | None
     correct: bool
@@ -220,6 +223,7 @@ class SoloEngine:
             question_id=served.question_id,
             difficulty=served.difficulty,
             seconds=served.seconds,
+            served_at_ms=served.served_at_ms,
             correct_index=correct_index,
             choice=settled.answer.choice if settled.answer is not None else None,
             correct=settled.correct,

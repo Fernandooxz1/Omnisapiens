@@ -9,9 +9,8 @@ Una consulta por lista y otra por posición, las dos con `DISTINCT ON` para
 quedarse con la mejor sesión de cada jugador. El desempate (§4.3) es el
 `ended_at` de esa mejor sesión: quien alcanzó ese puntaje primero va primero.
 
-`run_summary` sigue leyendo `arcade_runs` mientras el arcade en vivo no escriba
-sesiones genéricas: es el único consumidor del camino viejo y lo reemplaza la
-tarea 4.2.
+`run_summary` usa las mismas consultas para completar el `arcade_end`: cuando el
+borde cierra la sesión, la fila ya está `finished` y el ranking la ve.
 """
 
 import uuid
@@ -25,15 +24,16 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.selectable import Subquery
 
-from app.game.arcade_engine import RunStatus
-from app.models import ArcadeRun, GameSession, User
+from app.models import GameSession, User
 
 # La semana del ranking corta el lunes a las 00:00 de Buenos Aires (2026-10-17).
 RANKING_TIMEZONE = ZoneInfo("America/Argentina/Buenos_Aires")
 
+ARCADE_MODE = "trivia_arcade"
+
 # Hasta la fase 6 (registro de modos) la lista vive acá; después sale de
 # `GameMode.ranking`.
-RANKED_MODES = {"trivia_arcade"}
+RANKED_MODES = {ARCADE_MODE}
 
 
 class Period(StrEnum):
@@ -171,90 +171,34 @@ async def rank(
     return Rank(position=fila.position, score=fila.score, achieved_at=fila.achieved_at)
 
 
-def _legacy_best_runs(since: datetime | None) -> Subquery:
-    """La mejor corrida de cada jugador en `arcade_runs` (camino viejo, hasta 4.2)."""
-    conditions = [
-        ArcadeRun.status == RunStatus.FINISHED.value,
-        User.deleted_at.is_(None),
-    ]
-    if since is not None:
-        conditions.append(ArcadeRun.ended_at >= since)
-    return (
-        select(
-            User.id.label("user_id"),
-            User.nick,
-            ArcadeRun.score,
-            ArcadeRun.ended_at.label("achieved_at"),
-        )
-        .join(ArcadeRun, ArcadeRun.user_id == User.id)
-        .where(*conditions)
-        .ext(distinct_on(User.id))
-        .order_by(User.id, ArcadeRun.score.desc(), ArcadeRun.ended_at.asc())
-        .subquery()
-    )
-
-
-async def _legacy_rank(
-    session: AsyncSession,
-    *,
-    user_id: uuid.UUID,
-    period: Period = Period.ALL,
-    now: datetime | None = None,
-) -> Rank | None:
-    """La posición del jugador en `arcade_runs`, mientras el arcade siga ahí."""
-    best = _legacy_best_runs(_since(period, now))
-    ranked = select(
-        best.c.user_id,
-        best.c.score,
-        best.c.achieved_at,
-        func.row_number()
-        .over(
-            order_by=(
-                best.c.score.desc(),
-                best.c.achieved_at.asc(),
-                best.c.user_id.asc(),
-            )
-        )
-        .label("position"),
-    ).subquery()
-    fila = (
-        await session.execute(
-            select(ranked.c.position, ranked.c.score, ranked.c.achieved_at).where(
-                ranked.c.user_id == user_id
-            )
-        )
-    ).one_or_none()
-    if fila is None:
-        return None
-    return Rank(position=fila.position, score=fila.score, achieved_at=fila.achieved_at)
-
-
 async def run_summary(
     session: AsyncSession,
     *,
     user_id: uuid.UUID,
-    run_id: uuid.UUID,
+    session_id: uuid.UUID,
     score: int,
     now: datetime | None = None,
 ) -> RunSummary:
     """Las posiciones y la mejor marca para el `arcade_end`.
 
-    La corrida ya está cerrada y commiteada: el ranking la ve. La mejor marca
-    anterior se mira sin la corrida actual para poder distinguir "nuevo récord"
+    La sesión ya está cerrada y commiteada: el ranking la ve. La mejor marca
+    anterior se mira sin la sesión actual para poder distinguir "nuevo récord"
     de "empaté mi récord".
-
-    Sigue sobre `arcade_runs` porque el arcade en vivo todavía escribe ahí; la
-    tarea 4.2 lo cambia a `game_sessions` junto con el resto del port.
     """
     previous = await session.scalar(
-        select(func.max(ArcadeRun.score)).where(
-            ArcadeRun.user_id == user_id,
-            ArcadeRun.status == RunStatus.FINISHED.value,
-            ArcadeRun.id != run_id,
+        select(func.max(GameSession.score)).where(
+            GameSession.mode == ARCADE_MODE,
+            GameSession.status == "finished",
+            GameSession.owner_user_id == user_id,
+            GameSession.id != session_id,
         )
     )
-    global_ = await _legacy_rank(session, user_id=user_id, period=Period.ALL, now=now)
-    weekly = await _legacy_rank(session, user_id=user_id, period=Period.WEEK, now=now)
+    global_ = await rank(
+        session, mode=ARCADE_MODE, user_id=user_id, period=Period.ALL, now=now
+    )
+    weekly = await rank(
+        session, mode=ARCADE_MODE, user_id=user_id, period=Period.WEEK, now=now
+    )
     return RunSummary(
         rank_global=global_.position if global_ is not None else None,
         rank_weekly=weekly.position if weekly is not None else None,
