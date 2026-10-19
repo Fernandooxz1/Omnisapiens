@@ -26,10 +26,14 @@ from app.models import (
     ArcadeRun,
     ContentItem,
     ContentSolution,
+    GameParticipant,
+    GameSession,
     Match,
     MatchRound,
     Question,
     Room,
+    SessionAttempt,
+    SessionItem,
     User,
 )
 
@@ -223,6 +227,76 @@ def arcade_answer(run_id: uuid.UUID, **overrides: Any) -> ArcadeAnswer:
                 "is_correct": True,
                 "ms": 4_200,
                 "points": 180,
+            }
+            | overrides
+        )
+    )
+
+
+def game_session(**overrides: Any) -> GameSession:
+    return GameSession(
+        **(
+            {
+                "id": uuid.uuid4(),
+                "mode": "trivia_arcade",
+                "content_kind": "quiz",
+                "play_format": "arcade",
+                "ruleset_version": 1,
+                "config": {"lives": 3},
+            }
+            | overrides
+        )
+    )
+
+
+def game_participant(
+    session_id: uuid.UUID, user_id: uuid.UUID, **overrides: Any
+) -> GameParticipant:
+    return GameParticipant(
+        **(
+            {
+                "session_id": session_id,
+                "seat": 0,
+                "user_id": user_id,
+            }
+            | overrides
+        )
+    )
+
+
+def session_item(session_id: uuid.UUID, **overrides: Any) -> SessionItem:
+    ahora = datetime.now(UTC)
+    return SessionItem(
+        **(
+            {
+                "id": uuid.uuid4(),
+                "session_id": session_id,
+                "item_key": str(_n()),
+                "position": _n(),
+                "difficulty": 2,
+                "seconds": 20,
+                "served_at": ahora,
+                "deadline_at": ahora + timedelta(seconds=20),
+                "solution_snapshot": {"v": 1, "correct_index": 1},
+            }
+            | overrides
+        )
+    )
+
+
+def session_attempt(item_id: uuid.UUID, **overrides: Any) -> SessionAttempt:
+    return SessionAttempt(
+        **(
+            {
+                "id": uuid.uuid4(),
+                "item_id": item_id,
+                "attempt_seq": _n(),
+                "seat": 0,
+                "submitted_at": datetime.now(UTC),
+                "submission": {"type": "choice", "index": 1},
+                "correct": True,
+                "elapsed_ms": 3_000,
+                "points": 145,
             }
             | overrides
         )

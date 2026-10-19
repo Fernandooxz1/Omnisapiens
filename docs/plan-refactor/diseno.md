@@ -279,6 +279,11 @@ session_attempts (
   `config_schema` del modo y la base solo exige `jsonb_typeof(config) = 'object'`.
   Es una pérdida deliberada de rigidez del `CHECK`; se compensa con tests de contrato.
 
+Implementado en 3.1 (`0005_sessions.py`, `app/models/session.py`): las cuatro tablas
+y `rooms.mode`; el `CHECK` de `rooms.config` quedó en `jsonb_typeof(config) = 'object'`
+y `test_constraints_match.py` documenta el caso relajado. `matches.config` conserva
+su validación estricta hasta que el versus migre a las tablas genéricas (fase 5).
+
 ### 4.3 Ranking
 
 ```sql
@@ -296,6 +301,9 @@ create index ix_sessions_best_by_user
 - `GET /leaderboard/{mode}` devuelve `404 MODE_WITHOUT_RANKING` si el modo no tiene
   ranking. El frontend lo oculta usando `GET /modes`.
 - `/leaderboard/arcade` queda como alias de `/leaderboard/trivia_arcade`.
+
+Los dos índices parciales existen desde 3.1 en `0005_sessions.py`; el servicio de
+ranking se parametriza en 3.4.
 
 ## 5. Protocolo y anti-fuga
 

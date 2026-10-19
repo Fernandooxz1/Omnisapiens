@@ -18,10 +18,14 @@ TABLAS = {
     "arcade_runs",
     "content_items",
     "content_solutions",
+    "game_participants",
+    "game_sessions",
     "match_rounds",
     "matches",
     "questions",
     "rooms",
+    "session_attempts",
+    "session_items",
     "users",
 }
 

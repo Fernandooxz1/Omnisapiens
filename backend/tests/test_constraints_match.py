@@ -86,39 +86,19 @@ async def test_a_repeated_room_code_is_rejected(
     await rechaza(session, room(host, code=sala.code), motivo="uq_rooms_code")
 
 
-async def test_seconds_that_are_not_offered_are_rejected(
+async def test_room_config_values_are_validated_in_python_not_the_database(
     session: AsyncSession, host: uuid.UUID
 ) -> None:
-    await rechaza(
+    # Desde la fase 3 el config depende del modo de la sala: la base no puede
+    # validar un esquema que no conoce. La rigidez se recupera con el
+    # `config_schema` del modo y los tests de contrato de `/rooms`
+    # (`test_rooms_api` sigue exigiendo 422 para estos mismos valores).
+    await acepta(
         session,
         room(host, config={"rounds": 7, "seconds": 15}),
-        motivo="ck_rooms_config_valid",
-    )
-
-
-async def test_a_config_without_seconds_is_rejected(
-    session: AsyncSession, host: uuid.UUID
-) -> None:
-    await rechaza(
-        session, room(host, config={"rounds": 7}), motivo="ck_rooms_config_valid"
-    )
-
-
-async def test_a_config_without_rounds_is_rejected(
-    session: AsyncSession, host: uuid.UUID
-) -> None:
-    await rechaza(
-        session, room(host, config={"seconds": 20}), motivo="ck_rooms_config_valid"
-    )
-
-
-async def test_rounds_as_text_are_rejected(
-    session: AsyncSession, host: uuid.UUID
-) -> None:
-    await rechaza(
-        session,
+        room(host, config={"rounds": 7}),
+        room(host, config={"seconds": 20}),
         room(host, config={"rounds": "7", "seconds": 20}),
-        motivo="ck_rooms_config_valid",
     )
 
 

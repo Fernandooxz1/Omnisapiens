@@ -69,6 +69,9 @@ partida entera sin esperar en tiempo real. No metas `asyncio.sleep` crudo en el 
 - **Conexión**: la entrada rechazada cierra con `1008`; sin `pong` a los heartbeats, la silla se
   libera por la ventana de gracia, y el reloj se pausa en vez de regalarse.
 - **Sala**: `players` cuenta sillas, no conexiones; el WS manda la lista, el `GET` el número.
+- **Sesión**: `game_sessions` resume cualquier formato; ítems e intentos cuelgan de ella y
+  `solution_snapshot` la deja auditable aunque el contenido se archive. `playing` ⇔
+  `ended_at` nulo, y `rooms.mode` decide qué `config_schema` valida el `config`.
 - **Errores**: `{"error": {"code", "message"}}` con la tabla de `docs/api.md`; no se inventan
   códigos ni se reusan con otro significado.
 - **Sin logs del token**: viaja en la URL del WS; no se loguea.

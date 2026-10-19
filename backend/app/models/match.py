@@ -16,6 +16,7 @@ from sqlalchemy import (
     Integer,
     SmallInteger,
     String,
+    Text,
     UniqueConstraint,
     func,
     text,
@@ -66,6 +67,9 @@ class Room(Base):
     host_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     # varchar y no char: char(n) rellena con espacios y compara raro.
     code: Mapped[str] = mapped_column(String(ROOM_CODE_LENGTH))
+    mode: Mapped[str] = mapped_column(Text, server_default="trivia_versus")
+    # El modo valida el contenido del config con su `config_schema`; la base
+    # solo exige que sea un objeto para no atarse a un formato por modo.
     config: Mapped[dict[str, int]] = mapped_column(JSONB)
     status: Mapped[str] = mapped_column(String(16), server_default="waiting")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -81,7 +85,10 @@ class Room(Base):
         CheckConstraint(
             f"status IN ({quoted_list(ROOM_STATUSES)})", name="status_known"
         ),
-        _config_constraint("config_valid"),
+        # Desde la fase 3 el config depende del modo de la sala; los valores
+        # se validan con el esquema del modo en Python (pérdida deliberada de
+        # rigidez, compensada por los tests de contrato de la API).
+        CheckConstraint("jsonb_typeof(config) = 'object'", name="config_valid"),
         UniqueConstraint("code"),
         # Índice de FK (Postgres no lo crea solo): "las salas que creé" y el
         # chequeo de la FK no barren la tabla.
