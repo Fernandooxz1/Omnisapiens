@@ -76,6 +76,21 @@ partida entera sin esperar en tiempo real. No metas `asyncio.sleep` crudo en el 
   códigos ni se reusan con otro significado.
 - **Sin logs del token**: viaja en la URL del WS; no se loguea.
 
+## Persistencia de sesiones
+
+`app/services/sessions.py` es el único módulo que escribe las cuatro tablas de una
+sesión:
+
+- `start_session` deja la fila `playing` y sus sillas en el arranque.
+- `finish_session` proyecta el resumen del motor y guarda ítems e intentos en **una**
+  transacción. Si la fila ya no está `playing`, el cierre es un no-op: el primero gana
+  y repetirlo no duplica historial.
+- `abandon_session` e `invalidate_session` cierran sin historial (abandono y barrido).
+
+El servicio no lee relojes: `started_at`, `ended_at` y los veredictos llegan ya
+decididos por el motor o el barrido. Los intentos apuntan a los ítems por `item_key`;
+el id de la fila lo genera el servicio.
+
 ## Convenciones
 
 - Código, identificadores, archivos y commits **en inglés**; los mensajes que ve el jugador,
