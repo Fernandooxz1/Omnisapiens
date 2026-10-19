@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 4
-tarea: "4.1"
+tarea: "4.2"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: a751b30
+ultimo_commit: 9e380c1
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -48,3 +48,4 @@ bloqueo: ""
 | 2026-10-19 | 3.3 | `fab2814` | `backfill-sessions` reconstruye arcade y 1v1 con el mismo puntaje y secuencia; salta `playing` y tolera contenido huérfano. Próxima: 3.4. |
 | 2026-10-19 | 3.4 | `b7791dd` | Ranking por modo sobre `game_sessions` (`finished` + dueño), `/leaderboard/{mode}`, alias `arcade` y `404 MODE_WITHOUT_RANKING`; `run_summary` sigue en `arcade_runs` hasta 4.2. Próxima: 3.5. |
 | 2026-10-19 | 3.5 | `a751b30` | `Live.sessions` y barrido de `game_sessions` `playing` viejas → `invalid`; los tres barridos viejos siguen. Tag `refactor-fase-3`. Próxima: 4.1. |
+| 2026-10-19 | 4.1 | `9e380c1` | `SessionStore`/`InMemorySessionStore` para solo: outbox, reloj inyectado, vencimientos, cierre idempotente y `live.sessions`; el borde inyecta el `ItemSource`. Próxima: 4.2. |
