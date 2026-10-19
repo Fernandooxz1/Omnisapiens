@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 3
-tarea: "3.1"
+tarea: "3.2"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: dee81e3
+ultimo_commit: 5afa1da
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -43,3 +43,4 @@ bloqueo: ""
 | 2026-10-19 | 2.2 | `56775c9` | `backfill-content --kind quiz` idempotente, mismo UUID y hash; `make backfill-content`. Próxima: 2.3. |
 | 2026-10-19 | 2.3 | `591c512` | `QuizContent` (payload/solución versionados, candidates/load); import dual-write, CLI `import-content` y admin `/admin/content/{kind}`. Próxima: 2.4. |
 | 2026-10-19 | 2.4 | `dee81e3` | Banco lee `content_items`/`content_solutions`; se corta el dual-write; `0004b` repunta las FK del historial. Tag `refactor-fase-2`. Próxima: 3.1. |
+| 2026-10-19 | 3.1 | `5afa1da` | `game_sessions`/`game_participants`/`session_items`/`session_attempts`, `rooms.mode` y `0005`; el `CHECK` de `rooms.config` se relaja y valida en Python. Próxima: 3.2. |
