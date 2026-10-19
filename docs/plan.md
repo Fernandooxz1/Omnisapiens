@@ -1,5 +1,9 @@
 # Omnisapiens — plan del producto (frontend)
 
+> Refactor multi-modo en curso: el diseño y el flujo diario viven en
+> [`docs/plan-refactor/`](plan-refactor/README.md). Este archivo sigue siendo la
+> especificación del producto; las reglas de juego no cambian por el refactor.
+
 > Especificación viva del MVP. Es **estable**: la cola de trabajo vive en `docs/tareas.md`.
 > El contrato técnico (WS, HTTP, auth, ranking, admin) está en `docs/api.md`; el sistema
 > visual, en `docs/diseno.md`. Este archivo se consulta por sección (`grep`), no entero.
