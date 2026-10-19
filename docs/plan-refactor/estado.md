@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 1
-tarea: "1.1"
+tarea: "1.2"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 2f3a018
+ultimo_commit: 8edbec9
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -36,3 +36,4 @@ bloqueo: ""
 |---|---|---|---|
 | 2026-10-19 | — | `fce8ce0` | Diseño y flujo creados. Próxima: 0.1. |
 | 2026-10-19 | 0.1 | `2f3a018` | Transcripts de arcade, 1v1 y reconexión congelados; guardia de fuga. Próxima: 1.1. |
+| 2026-10-19 | 1.1 | `8edbec9` | `ServedItem`, `Submission`, `Verdict` y `settle` con ventana y `grade` por modo. Próxima: 1.2. |
