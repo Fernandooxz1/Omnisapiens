@@ -12,11 +12,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import Question
+from app.models import ContentItem, ContentSolution, Question
 from app.services import importer
 from app.services.question_bank import candidates
 
-from .factories import question
+from .factories import content_item, content_solution
 
 ADMIN_TOKEN = "token-de-prueba"
 _AUTH = {"X-Admin-Token": ADMIN_TOKEN}
@@ -27,15 +27,42 @@ def _admin_token(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "admin_token", ADMIN_TOKEN)
 
 
-def _question(
+def _content(
     session: AsyncSession,
     *,
     created_at: datetime,
+    prompt: str = "¿Cuál es el río más largo?",
+    options: list[str] | None = None,
+    correct_index: int = 1,
+    explanation: str | None = None,
+    category: str | None = None,
     **overrides: object,
-) -> Question:
-    fila = question(created_at=created_at, **overrides)
-    session.add(fila)
-    return fila
+) -> ContentItem:
+    """Un ítem con su solución; el panel ahora lista las tablas genéricas."""
+    if category is not None:
+        overrides["categories"] = [category]
+    item = content_item(
+        created_at=created_at,
+        payload={
+            "v": 1,
+            "prompt": prompt,
+            "options": options or ["Paraná", "Amazonas", "Orinoco", "Magdalena"],
+            "media": {"type": "none", "url": None},
+        },
+        **overrides,
+    )
+    session.add(item)
+    session.add(
+        content_solution(
+            item.id,
+            payload={
+                "v": 1,
+                "correct_index": correct_index,
+                "explanation": explanation,
+            },
+        )
+    )
+    return item
 
 
 async def test_without_the_header_the_list_is_forbidden(
@@ -66,9 +93,9 @@ async def test_the_page_lists_the_newest_first_and_counts_the_whole_bank(
     client: httpx.AsyncClient, session: AsyncSession
 ) -> None:
     ahora = datetime.now(UTC)
-    vieja = _question(session, created_at=ahora - timedelta(hours=2), prompt="Vieja")
-    media = _question(session, created_at=ahora - timedelta(hours=1), prompt="Media")
-    nueva = _question(session, created_at=ahora, prompt="Nueva")
+    vieja = _content(session, created_at=ahora - timedelta(hours=2), prompt="Vieja")
+    media = _content(session, created_at=ahora - timedelta(hours=1), prompt="Media")
+    nueva = _content(session, created_at=ahora, prompt="Nueva")
     await session.flush()
 
     respuesta = await client.get("/admin/questions", headers=_AUTH)
@@ -89,7 +116,7 @@ async def test_every_filter_narrows_the_same_way_in_items_and_total(
     client: httpx.AsyncClient, session: AsyncSession
 ) -> None:
     ahora = datetime.now(UTC)
-    _question(
+    _content(
         session,
         created_at=ahora,
         status="draft",
@@ -97,7 +124,7 @@ async def test_every_filter_narrows_the_same_way_in_items_and_total(
         difficulty=1,
         prompt="¿Cuál es la capital de Francia?",
     )
-    _question(
+    _content(
         session,
         created_at=ahora,
         status="published",
@@ -105,7 +132,7 @@ async def test_every_filter_narrows_the_same_way_in_items_and_total(
         difficulty=3,
         prompt="¿Quién pintó el Guernica?",
     )
-    _question(
+    _content(
         session,
         created_at=ahora,
         status="archived",
@@ -136,18 +163,16 @@ async def test_search_is_case_insensitive_and_treats_wildcards_as_text(
     client: httpx.AsyncClient, session: AsyncSession
 ) -> None:
     ahora = datetime.now(UTC)
-    _question(
+    _content(
         session,
         created_at=ahora - timedelta(minutes=1),
         prompt="El Río de la Plata",
     )
-    _question(
-        session, created_at=ahora - timedelta(minutes=2), prompt="El río Amazonas"
-    )
-    _question(
+    _content(session, created_at=ahora - timedelta(minutes=2), prompt="El río Amazonas")
+    _content(
         session, created_at=ahora - timedelta(minutes=3), prompt="Una montaña rusa"
     )
-    _question(
+    _content(
         session,
         created_at=ahora - timedelta(minutes=4),
         prompt="Cien por ciento 100% puro",
@@ -176,7 +201,7 @@ async def test_pagination_does_not_repeat_or_lose_rows(
 ) -> None:
     ahora = datetime.now(UTC)
     for indice in range(5):
-        _question(
+        _content(
             session,
             created_at=ahora + timedelta(seconds=indice),
             prompt=f"Pregunta {indice}",
@@ -211,14 +236,12 @@ async def test_pagination_does_not_repeat_or_lose_rows(
 async def test_the_item_carries_the_answer_and_the_media_fields(
     client: httpx.AsyncClient, session: AsyncSession
 ) -> None:
-    creada = _question(
+    creada = _content(
         session,
         created_at=datetime.now(UTC),
         options=["Rojo", "Verde", "Azul", "Amarillo"],
         correct_index=2,
         explanation="Es el color del mar.",
-        source="manual",
-        tags=["color", "mar"],
     )
     await session.flush()
 
@@ -233,7 +256,8 @@ async def test_the_item_carries_the_answer_and_the_media_fields(
         "none",
         None,
     )
-    assert (fila["source"], fila["tags"]) == ("manual", ["color", "mar"])
+    # `source` y `tags` eran de `questions`; el contenido genérico no los guarda.
+    assert (fila["source"], fila["tags"]) == (None, [])
     assert fila["created_at"] is not None
     assert fila["updated_at"] is not None
 
@@ -459,3 +483,64 @@ async def test_a_bad_status_is_a_validation_error(
 
     assert respuesta.status_code == 422
     assert respuesta.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+# --- rutas genéricas ---------------------------------------------------------
+
+
+async def test_the_content_route_returns_the_same_page_as_questions(
+    client: httpx.AsyncClient, session: AsyncSession
+) -> None:
+    _content(session, created_at=datetime.now(UTC), prompt="La misma pregunta")
+    await session.flush()
+
+    historica = (await client.get("/admin/questions", headers=_AUTH)).json()
+    generica = (await client.get("/admin/content/quiz", headers=_AUTH)).json()
+
+    assert generica == historica
+
+
+async def test_an_unknown_kind_is_a_validation_error(
+    client: httpx.AsyncClient,
+) -> None:
+    respuesta = await client.get("/admin/content/rosco", headers=_AUTH)
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert "rosco" in respuesta.json()["error"]["message"]
+
+
+async def test_importing_an_unknown_kind_is_a_validation_error(
+    client: httpx.AsyncClient,
+) -> None:
+    respuesta = await client.post(
+        "/admin/content/rosco",
+        headers=_AUTH,
+        **_upload("q.csv", _csv(_row("Pregunta"))),
+    )
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.parametrize(
+    "ruta",
+    ["/admin/content/quiz", "/admin/content/quiz/import", "/admin/questions/import"],
+)
+async def test_importing_through_any_route_dual_writes(
+    client: httpx.AsyncClient, session: AsyncSession, ruta: str
+) -> None:
+    respuesta = await client.post(
+        ruta,
+        headers=_AUTH,
+        **_upload("q.csv", _csv(_row("¿Cuántos lados tiene un cuadrado?"))),
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["imported"] == 1
+    item = (await session.execute(select(ContentItem))).scalar_one()
+    pregunta = (await session.execute(select(Question))).scalar_one()
+    assert item.id == pregunta.id
+    assert item.content_hash == pregunta.content_hash
+    assert item.kind == "quiz"
+    assert await session.get(ContentSolution, item.id) is not None

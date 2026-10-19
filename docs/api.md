@@ -26,8 +26,10 @@
 | `GET` | `/rooms/{code}` | no | Vista previa pública |
 | `GET` | `/leaderboard/arcade` | no | Tabla global o semanal |
 | `GET` | `/leaderboard/arcade/me` | sí | Posición propia en ambos períodos |
-| `GET` | `/admin/questions` | `X-Admin-Token` | Listado del banco (con la correcta) |
-| `POST` | `/admin/questions/import` | `X-Admin-Token` | Subida CSV/JSON + informe |
+| `GET` | `/admin/content/{kind}` | `X-Admin-Token` | Listado del contenido del kind |
+| `POST` | `/admin/content/{kind}` | `X-Admin-Token` | Subida CSV/JSON + informe |
+| `GET` | `/admin/questions` | `X-Admin-Token` | Alias de `/admin/content/quiz` |
+| `POST` | `/admin/questions/import` | `X-Admin-Token` | Alias de `/admin/content/quiz` |
 | `GET` | `/health` | no | `200` o `503` |
 
 ### `POST /auth/guest`
@@ -117,9 +119,14 @@ Los tres campos van juntos: sin corridas en el período, los tres son `null`.
 `X-Admin-Token: <ADMIN_TOKEN>` en **todas**. Ausente o inválido → `401 ADMIN_REQUIRED`
 (mismo mensaje en ambos casos). El token se guarda en `sessionStorage`, nunca en el repo.
 
-**`GET /admin/questions`** — filtros `status` (`draft|published|archived`), `category`,
+La ruta nueva es `/admin/content/{kind}`; hoy el único `kind` registrado es `quiz`.
+`/admin/questions` y `/admin/questions/import` son alias de `/admin/content/quiz` y
+devuelven lo mismo. Un `kind` desconocido → `422 VALIDATION_ERROR`.
+
+**`GET /admin/content/{kind}`** — filtros `status` (`draft|published|archived`), `category`,
 `difficulty` (1–5), `q` (substring, mayúsculas ignoradas, **tildes no**), `page` (desde 1),
-`page_size` (1–100, default 20). Orden `created_at DESC, id DESC`.
+`page_size` (1–100, default 20). Orden `created_at DESC, id DESC`. Lee
+`content_items`/`content_solutions`.
 
 ```json
 { "items": [ { "id": "uuid", "category": "science", "difficulty": 3,
@@ -131,10 +138,12 @@ Los tres campos van juntos: sin corridas en el período, los tres son `null`.
 ```
 
 Es la **única** vista que trae `correct_index`. Categoría desconocida → `422 VALIDATION_ERROR`;
-página de más → `200` con `items: []`.
+página de más → `200` con `items: []`. `source` y `tags` eran columnas de `questions` y el
+contenido genérico no las guarda: salen `null` y `[]`.
 
-**`POST /admin/questions/import`** — `multipart/form-data`: `file` (CSV o JSON según
-extensión) y `status` opcional (`draft` por defecto).
+**`POST /admin/content/{kind}`** — `multipart/form-data`: `file` (CSV o JSON según
+extensión) y `status` opcional (`draft` por defecto). Escribe el contenido genérico y,
+mientras dure el refactor, también `questions` (dual-write).
 
 ```json
 { "total": 12, "imported": 10, "duplicated": 1,
@@ -247,7 +256,7 @@ El cliente no retiene la ronda por su cuenta: dibuja el resultado y espera el pr
 | `NICK_FORBIDDEN` | 400 | Nick en la lista corta de prohibidos |
 | `NICK_TAKEN` | 409 | Otro usuario vivo usa ese nick |
 | `ROOM_NOT_FOUND` | 404 | Código inexistente o sala vencida |
-| `VALIDATION_ERROR` | 422 | Body/query inválido (incluye el campo en `message`) |
+| `VALIDATION_ERROR` | 422 | Body, query o `kind` inválido (incluye el campo en `message`) |
 | `IMPORT_FORMAT` | 400 | Archivo no UTF-8, encabezado o JSON roto, extensión rara |
 | `RATE_LIMITED` | 429 | Más de N pedidos por minuto desde la misma IP |
 

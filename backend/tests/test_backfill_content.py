@@ -20,13 +20,40 @@ from .factories import content_item, question
 SEED_SIZE = 120
 
 
+def _legacy_seed() -> list[Question]:
+    """Las 120 preguntas del seed, pero solo en la tabla vieja.
+
+    Es el estado de una instalación anterior a 2.3: `questions` tiene datos y
+    `content_items` está vacía. Ya no se llega ahí importando (el importador
+    hace dual-write), así que las filas se arman a mano con la misma validación.
+    """
+    preguntas = []
+    for row in importer.read_file(SEED_FILE):
+        parsed = importer.validate_row(row.values)
+        preguntas.append(
+            question(
+                category=parsed.category,
+                difficulty=parsed.difficulty,
+                prompt=parsed.prompt,
+                options=parsed.options,
+                correct_index=parsed.correct_index,
+                explanation=parsed.explanation,
+                source=parsed.source,
+                status="published",
+                content_hash=parsed.content_hash,
+                tags=parsed.tags,
+            )
+        )
+    return preguntas
+
+
 async def _conteo(session: AsyncSession, modelo: Any) -> int:
     resultado = await session.execute(select(func.count()).select_from(modelo))
     return resultado.scalar_one()
 
 
 async def test_the_seed_is_fully_backfilled(session: AsyncSession) -> None:
-    await importer.import_file(session, SEED_FILE, status="published")
+    await acepta(session, *_legacy_seed())
 
     report = await backfill_quiz(session)
 
@@ -41,7 +68,7 @@ async def test_the_seed_is_fully_backfilled(session: AsyncSession) -> None:
 async def test_running_it_twice_creates_nothing_the_second_time(
     session: AsyncSession,
 ) -> None:
-    await importer.import_file(session, SEED_FILE, status="published")
+    await acepta(session, *_legacy_seed())
     await backfill_quiz(session)
 
     segunda = await backfill_quiz(session)
@@ -52,6 +79,18 @@ async def test_running_it_twice_creates_nothing_the_second_time(
     assert segunda.rejected == []
     assert await _conteo(session, ContentItem) == SEED_SIZE
     assert await _conteo(session, ContentSolution) == SEED_SIZE
+
+
+async def test_after_a_dual_write_import_the_backfill_has_nothing_to_do(
+    session: AsyncSession,
+) -> None:
+    # El importador ya escribió las dos tablas: el backfill no duplica.
+    await importer.import_file(session, SEED_FILE, status="published")
+
+    report = await backfill_quiz(session)
+
+    assert (report.read, report.created, report.existing) == (SEED_SIZE, 0, SEED_SIZE)
+    assert await _conteo(session, ContentItem) == SEED_SIZE
 
 
 async def test_the_payload_and_the_solution_keep_the_question(

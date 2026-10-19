@@ -12,12 +12,20 @@ import sys
 from pathlib import Path
 
 from app.db import engine, session_factory
+from app.game.modes.quiz import CONTENT_KINDS, QUIZ, get_content_kind
 from app.models.question import STATUSES
 from app.services import content_backfill, importer
 
 # Las semilla viven en el repo, en el mismo formato que importa `import-questions`:
 # así `seed` es el importador apuntado a un archivo fijo, con un solo camino probado.
 SEED_FILE = Path(__file__).resolve().parent.parent / "seeds" / "questions.csv"
+
+
+def _add_import_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("file", type=Path)
+    parser.add_argument("--format", choices=("csv", "json"), default=None)
+    parser.add_argument("--status", choices=STATUSES, default="draft")
+    parser.add_argument("--kind", choices=tuple(CONTENT_KINDS), default=QUIZ.code)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -27,11 +35,15 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     importar = sub.add_parser(
-        "import-questions", help="Importa un CSV o JSON de preguntas."
+        "import-content", help="Importa un CSV o JSON de contenido."
     )
-    importar.add_argument("file", type=Path)
-    importar.add_argument("--format", choices=("csv", "json"), default=None)
-    importar.add_argument("--status", choices=STATUSES, default="draft")
+    _add_import_args(importar)
+
+    # Alias del comando anterior: el mismo importador, con `--kind quiz`.
+    preguntas = sub.add_parser(
+        "import-questions", help="Alias de import-content --kind quiz."
+    )
+    _add_import_args(preguntas)
 
     # Las semilla entran publicadas: son curadas a mano, no salidas de un generador
     # que haya que revisar antes de que `candidates()` las vea.
@@ -61,14 +73,15 @@ async def _dispatch(args: argparse.Namespace) -> int:
         return 0
 
     if args.command == "seed":
-        archivo, formato = SEED_FILE, None
+        archivo, formato, kind = SEED_FILE, None, QUIZ
     else:
         archivo, formato = args.file, args.format
+        kind = get_content_kind(args.kind)
 
     try:
         async with session_factory() as session:
             report = await importer.import_file(
-                session, archivo, status=args.status, fmt=formato
+                session, archivo, kind=kind, status=args.status, fmt=formato
             )
             await session.commit()
     except importer.ImportFormatError as exc:

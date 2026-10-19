@@ -10,12 +10,12 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cli import SEED_FILE
 from app.game.constants import CATEGORIES
-from app.models import Question
+from app.models import ContentItem, ContentSolution, Question
 from app.services import importer
 from app.services.importer import (
     ImportFormatError,
@@ -28,7 +28,7 @@ from app.services.importer import (
 from app.services.question_bank import candidates
 
 from .constraints import acepta
-from .factories import question
+from .factories import content_item
 
 
 def fila(**overrides: object) -> dict[str, object]:
@@ -186,7 +186,9 @@ async def test_imports_valid_rows_and_reports_the_rest(session: AsyncSession) ->
 async def test_the_insert_goes_in_batches(
     session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Con lotes de 2, cinco filas son tres INSERT: prueba el bucle sin cargar 500.
+    # Con lotes de 2, cinco filas son tres INSERT de contenido: prueba el bucle
+    # sin cargar 500. El dual-write agrega sentencias por lote; lo que se cuenta
+    # es el INSERT contra `content_items`.
     monkeypatch.setattr(importer, "INSERT_BATCH", 2)
     ejecutadas: list[object] = []
     original = session.execute
@@ -200,8 +202,13 @@ async def test_the_insert_goes_in_batches(
 
     report = await importer.import_rows(session, rows, status="published")
 
+    insert_content = [
+        sentencia
+        for sentencia in ejecutadas
+        if getattr(getattr(sentencia, "table", None), "name", None) == "content_items"
+    ]
     assert report.imported == 5
-    assert len(ejecutadas) == 3
+    assert len(insert_content) == 3
 
 
 async def test_imported_questions_are_playable_when_published(
@@ -221,14 +228,18 @@ async def test_draft_questions_stay_out_of_the_bank(session: AsyncSession) -> No
 async def test_an_existing_hash_is_reported_as_duplicated(
     session: AsyncSession,
 ) -> None:
-    # Una pregunta ya en la base cuyo hash coincide con la fila que vamos a cargar.
-    ya = question(prompt="¿Cuál es el río más largo?")
-    ya.content_hash = content_hash(ya.prompt)
-    await acepta(session, ya)
+    # Un contenido ya en la base cuyo hash coincide con la fila que vamos a cargar.
+    await acepta(
+        session,
+        content_item(content_hash=content_hash("¿Cuál es el río más largo?")),
+    )
 
     report = await importer.import_rows(session, [RawRow(2, fila())])
     assert report.imported == 0
     assert report.duplicated == 1
+    # El dual-write solo acompaña a un ítem nuevo: no se crea la pregunta vieja.
+    preguntas = await session.scalar(select(func.count()).select_from(Question))
+    assert preguntas == 0
 
 
 async def test_importing_the_seed_file_loads_all_the_questions(
@@ -272,3 +283,61 @@ async def test_running_the_seed_twice_imports_nothing_the_second_time(
 
     assert segunda.imported == 0
     assert segunda.duplicated == 120
+
+
+# --- dual-write --------------------------------------------------------------
+
+
+async def _count(session: AsyncSession, modelo: type[object]) -> int:
+    return await session.scalar(select(func.count()).select_from(modelo)) or 0
+
+
+async def test_the_seed_lands_in_both_tables_with_the_same_ids(
+    session: AsyncSession,
+) -> None:
+    await importer.import_file(session, SEED_FILE, status="published")
+
+    preguntas = {
+        fila.id: fila for fila in (await session.execute(select(Question))).scalars()
+    }
+    items = (await session.execute(select(ContentItem))).scalars().all()
+
+    assert len(items) == 120
+    assert {item.id for item in items} == set(preguntas)
+    for item in items:
+        pregunta = preguntas[item.id]
+        assert item.kind == "quiz"
+        assert item.schema_version == 1
+        assert item.status == "published"
+        assert item.content_hash == pregunta.content_hash
+        assert item.payload["prompt"] == pregunta.prompt
+        assert item.categories == [pregunta.category]
+        solucion = await session.get(ContentSolution, item.id)
+        assert solucion is not None
+        assert solucion.payload["correct_index"] == pregunta.correct_index
+
+
+async def test_running_the_seed_twice_does_not_grow_either_table(
+    session: AsyncSession,
+) -> None:
+    await importer.import_file(session, SEED_FILE, status="published")
+    await importer.import_file(session, SEED_FILE, status="published")
+
+    assert await _count(session, ContentItem) == 120
+    assert await _count(session, ContentSolution) == 120
+    assert await _count(session, Question) == 120
+
+
+async def test_a_rejected_row_writes_nothing_to_either_table(
+    session: AsyncSession,
+) -> None:
+    report = await importer.import_rows(
+        session, [RawRow(2, fila(correct="Z"))], status="published"
+    )
+
+    assert [fila.reason for fila in report.rejected] == [
+        "la respuesta correcta debe ser A, B, C o D"
+    ]
+    assert await _count(session, ContentItem) == 0
+    assert await _count(session, ContentSolution) == 0
+    assert await _count(session, Question) == 0

@@ -206,7 +206,9 @@ En `frontend/`: `npm run dev`, `npm run build`, `npm run preview`, `npm run chec
 
 [`docs/preguntas.md`](docs/preguntas.md) reúne el formato CSV/JSON, la plantilla descargable,
 las reglas de autoría y las fuentes (Wikidata, manual). También se importa desde el panel
-`/admin`; por terminal, `make import FILE=...` carga borradores y el CLI acepta
+`/admin` (`/admin/content/quiz`, con `/admin/questions` como alias); por terminal,
+`make import FILE=...` carga borradores, `uv run python -m app.cli import-content --kind quiz
+FILE` es el comando nuevo (con `import-questions` como alias) y los dos aceptan
 `--status published`.
 
 ## Pruebas y calidad
@@ -235,7 +237,7 @@ El contrato completo, con formas, códigos de error y detalles del protocolo Web
 | `WS /ws/room/{code}` | Partida 1v1 en vivo |
 | `WS /ws/arcade` | Corrida de arcade en vivo |
 | `GET /leaderboard/arcade` · `GET /leaderboard/arcade/me` | Ranking global y semanal |
-| `GET /admin/questions` · `POST /admin/questions/import` | Listado e importación de preguntas |
+| `GET` · `POST /admin/content/{kind}` | Listado e importación de contenido (alias `/admin/questions`) |
 | `GET /health` | Estado de la API, PostgreSQL y Redis |
 
 ## Estructura del repositorio
