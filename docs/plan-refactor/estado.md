@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 3
-tarea: "3.3"
+tarea: "3.4"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 6088b98
+ultimo_commit: fab2814
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -45,3 +45,4 @@ bloqueo: ""
 | 2026-10-19 | 2.4 | `dee81e3` | Banco lee `content_items`/`content_solutions`; se corta el dual-write; `0004b` repunta las FK del historial. Tag `refactor-fase-2`. Próxima: 3.1. |
 | 2026-10-19 | 3.1 | `5afa1da` | `game_sessions`/`game_participants`/`session_items`/`session_attempts`, `rooms.mode` y `0005`; el `CHECK` de `rooms.config` se relaja y valida en Python. Próxima: 3.2. |
 | 2026-10-19 | 3.2 | `6088b98` | `services/sessions.py`: arranque, cierre atómico e idempotente con ítems e intentos, abandono e invalidación; sin relojes propios. Próxima: 3.3. |
+| 2026-10-19 | 3.3 | `fab2814` | `backfill-sessions` reconstruye arcade y 1v1 con el mismo puntaje y secuencia; salta `playing` y tolera contenido huérfano. Próxima: 3.4. |
