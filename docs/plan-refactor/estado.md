@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 4
-tarea: "4.2"
+tarea: "4.3"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 9e380c1
+ultimo_commit: be75081
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -49,3 +49,4 @@ bloqueo: ""
 | 2026-10-19 | 3.4 | `b7791dd` | Ranking por modo sobre `game_sessions` (`finished` + dueño), `/leaderboard/{mode}`, alias `arcade` y `404 MODE_WITHOUT_RANKING`; `run_summary` sigue en `arcade_runs` hasta 4.2. Próxima: 3.5. |
 | 2026-10-19 | 3.5 | `a751b30` | `Live.sessions` y barrido de `game_sessions` `playing` viejas → `invalid`; los tres barridos viejos siguen. Tag `refactor-fase-3`. Próxima: 4.1. |
 | 2026-10-19 | 4.1 | `9e380c1` | `SessionStore`/`InMemorySessionStore` para solo: outbox, reloj inyectado, vencimientos, cierre idempotente y `live.sessions`; el borde inyecta el `ItemSource`. Próxima: 4.2. |
+| 2026-10-19 | 4.2 | `be75081` | `arcade_ws` vive sobre el store y el `SoloEngine`: escribe `game_sessions`/ítems/intentos, `run_summary` lee `game_sessions`, `on_finish` completa el ranking antes del `arcade_end`; golden y e2e de arcade sin cambios. Próxima: 4.3. |
