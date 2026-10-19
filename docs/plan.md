@@ -101,6 +101,9 @@ ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # sin O, 0, I, 1
   con `streak` = aciertos consecutivos **antes** de esta pregunta.
 - Un error (o no contestar) descuenta vida; a 0 vidas termina. `arcade_end` trae puntaje,
   aciertos, dificultad máxima, mejor racha y la posición en ranking global y semanal.
+- **Ranking por modo:** solo `trivia_arcade` publica ranking. `GET /leaderboard/trivia_arcade`
+  ordena por mejor puntaje y desempata por el `ended_at` más temprano; `/leaderboard/arcade`
+  sigue como alias para el cliente actual.
 - **Revelación:** 2,5 s, igual que el 1v1; el servidor pausa antes de la próxima pregunta.
 - Anti-trampa: puntajes y tiempos siempre del servidor; una corrida con tiempos
   imposibles se marca `invalid` y no entra al ranking.

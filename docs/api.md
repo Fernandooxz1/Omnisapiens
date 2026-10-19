@@ -24,8 +24,8 @@
 | `DELETE` | `/me` | sí | Baja lógica (`204`) |
 | `POST` | `/rooms` | sí | Crea sala 1v1 → `201` |
 | `GET` | `/rooms/{code}` | no | Vista previa pública |
-| `GET` | `/leaderboard/arcade` | no | Tabla global o semanal |
-| `GET` | `/leaderboard/arcade/me` | sí | Posición propia en ambos períodos |
+| `GET` | `/leaderboard/{mode}` | no | Tabla global o semanal del modo |
+| `GET` | `/leaderboard/{mode}/me` | sí | Posición propia en ambos períodos |
 | `GET` | `/admin/content/{kind}` | `X-Admin-Token` | Listado del contenido del kind |
 | `POST` | `/admin/content/{kind}` | `X-Admin-Token` | Subida CSV/JSON + informe |
 | `GET` | `/admin/questions` | `X-Admin-Token` | Alias de `/admin/content/quiz` |
@@ -60,7 +60,7 @@ Errores: `400 NICK_LENGTH` / `400 NICK_FORBIDDEN` / `409 NICK_TAKEN`.
 
 `best` y las listas pueden venir vacíos (`null` / `[]`). `arcade_runs` y `matches`: hasta 10,
 solo terminadas, de la más nueva a la más vieja. `result`: `win` | `loss` | `draw`, desde el
-punto de vista del jugador. La **posición** no está acá: vive en `/leaderboard/arcade/me`.
+punto de vista del jugador. La **posición** no está acá: vive en `/leaderboard/{mode}/me`.
 
 ### `PATCH /me`
 
@@ -94,7 +94,7 @@ Body `{"rounds": 3|5|7, "seconds": 10|20|30}` (defaults `5` / `20`).
 `host_nick` identifica al host: el lobby lo usa para mostrar `start` solo a esa persona.
 `status`: `waiting` | `playing` | `finished` | `expired`. Sala vencida → `404 ROOM_NOT_FOUND`.
 
-### `GET /leaderboard/arcade?period=all|week&limit=1..100`
+### `GET /leaderboard/{mode}?period=all|week&limit=1..100`
 
 ```json
 { "period": "all",
@@ -102,10 +102,13 @@ Body `{"rounds": 3|5|7, "seconds": 10|20|30}` (defaults `5` / `20`).
                  "achieved_at": "2026-10-17T21:05:00Z" } ] }
 ```
 
-Criterio: mejor `score` por usuario; empate → **el momento más temprano** en que alcanzó ese
-puntaje. La semana corta lunes 00:00 en `America/Argentina/Buenos_Aires`.
+Criterio: mejor `score` por usuario entre las sesiones `finished` con dueño (modos solo) del
+`mode`; empate → **el momento más temprano** en que alcanzó ese puntaje. La semana corta lunes
+00:00 en `America/Argentina/Buenos_Aires`. Un modo sin ranking → `404 MODE_WITHOUT_RANKING`
+(hoy solo `trivia_arcade` lo tiene). `/leaderboard/arcade` es alias de
+`/leaderboard/trivia_arcade`.
 
-### `GET /leaderboard/arcade/me`
+### `GET /leaderboard/{mode}/me`
 
 ```json
 { "global": { "rank": 12, "score": 1240, "achieved_at": "..." },
@@ -256,6 +259,7 @@ El cliente no retiene la ronda por su cuenta: dibuja el resultado y espera el pr
 | `NICK_FORBIDDEN` | 400 | Nick en la lista corta de prohibidos |
 | `NICK_TAKEN` | 409 | Otro usuario vivo usa ese nick |
 | `ROOM_NOT_FOUND` | 404 | Código inexistente o sala vencida |
+| `MODE_WITHOUT_RANKING` | 404 | El modo pedido no publica ranking |
 | `VALIDATION_ERROR` | 422 | Body, query o `kind` inválido (incluye el campo en `message`) |
 | `IMPORT_FORMAT` | 400 | Archivo no UTF-8, encabezado o JSON roto, extensión rara |
 | `RATE_LIMITED` | 429 | Más de N pedidos por minuto desde la misma IP |
