@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_session
 from app.config import settings
 from app.main import app
-from app.models import ArcadeAnswer, ArcadeRun, Question, User
+from app.models import ArcadeAnswer, ArcadeRun, ContentItem, User
 from app.runtime.live import live_arcade_runs
 from app.security.tokens import create_guest_token
 from app.services import arcade_runs, leaderboard
@@ -32,7 +32,7 @@ from app.ws.arcade_ws import (
 )
 
 from .clock import FakeClock
-from .factories import arcade_run, question, user
+from .factories import arcade_run, quiz_content, user
 from .ws_client import WebSocketClient, WebSocketClosed
 
 
@@ -95,10 +95,10 @@ def connect(api: Api) -> Callable[[User], WebSocketClient]:
 
 async def sembrar(
     session: AsyncSession, *, dificultades: tuple[int, ...] = (1,), cuantas: int = 3
-) -> list[Question]:
+) -> list[ContentItem]:
     """Preguntas con una respuesta correcta reconocible después del barajado."""
-    filas = [
-        question(
+    pares = [
+        quiz_content(
             category="geography",
             difficulty=dificultad,
             status="published",
@@ -109,9 +109,9 @@ async def sembrar(
         for dificultad in dificultades
         for indice in range(cuantas)
     ]
-    session.add_all(filas)
+    session.add_all([fila for par in pares for fila in par])
     await session.flush()
-    return filas
+    return [item for item, _ in pares]
 
 
 def correcta(mensaje: dict[str, Any]) -> int:
@@ -427,7 +427,7 @@ async def test_a_question_seen_before_is_not_served_again(
         await socket.until("arcade_start")
         pregunta = await socket.until("arcade_question")
 
-        assert pregunta["d"]["prompt"] == filas[1].prompt
+        assert pregunta["d"]["prompt"] == filas[1].payload["prompt"]
 
 
 async def test_the_run_repeats_only_when_the_pool_is_exhausted(

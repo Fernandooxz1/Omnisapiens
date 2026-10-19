@@ -5,13 +5,13 @@ mensajes reales de los tres escenarios y falla si aparece una clave prohibida o
 el texto de la respuesta fuera del arreglo de opciones.
 """
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Question
+from app.models import ContentItem, ContentSolution
 
 from . import ws_fixtures
 from .ws_scenarios import ESCENARIOS, es_revelacion
@@ -87,8 +87,16 @@ def _assert_publico(message: dict[str, Any], soluciones: set[str]) -> None:
 
 
 async def _soluciones(session: AsyncSession) -> set[str]:
-    preguntas = (await session.scalars(select(Question))).all()
-    return {pregunta.options[pregunta.correct_index] for pregunta in preguntas}
+    items = (await session.scalars(select(ContentItem))).all()
+    soluciones: set[str] = set()
+    for item in items:
+        solucion = await session.get(ContentSolution, item.id)
+        if solucion is None:
+            continue
+        opciones = cast("list[str]", item.payload["options"])
+        indice = cast(int, solucion.payload["correct_index"])
+        soluciones.add(opciones[indice])
+    return soluciones
 
 
 def _revisar(transcript: Any, soluciones: set[str]) -> None:

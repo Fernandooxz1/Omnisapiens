@@ -6,8 +6,8 @@ nace protegida, en vez de depender de que alguien se acuerde de repetir el
 
 `/admin/content/{kind}` es la ruta nueva; `/admin/questions` y su `/import` son
 el alias de compatibilidad del quiz (`/admin/content/quiz`). Las dos escriben
-siempre en las tablas genéricas y el importador mantiene el dual-write temporal
-a `questions` hasta la fase 2.4.
+siempre en las tablas genéricas; desde 2.4 la tabla vieja `questions` queda de
+solo lectura hasta la fase 10.
 """
 
 from pathlib import Path

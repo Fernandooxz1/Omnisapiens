@@ -102,7 +102,7 @@ class ArcadeAnswer(Base):
     round_index: Mapped[int] = mapped_column(SmallInteger)
 
     question_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("questions.id", ondelete="SET NULL")
+        ForeignKey("content_items.id", ondelete="SET NULL")
     )
     difficulty: Mapped[int] = mapped_column(SmallInteger)
     seconds: Mapped[int] = mapped_column(SmallInteger)

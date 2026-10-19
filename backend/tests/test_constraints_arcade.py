@@ -7,24 +7,25 @@ from typing import NamedTuple
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ArcadeAnswer, ArcadeRun, Question, User
+from app.models import ArcadeAnswer, ArcadeRun, ContentItem, User
 
 from .constraints import acepta, rechaza
-from .factories import arcade_answer, arcade_run, question, user
+from .factories import arcade_answer, arcade_run, quiz_content, user
 
 HACE_UNA_HORA = datetime.now(UTC) - timedelta(hours=1)
 
 
 class Escenario(NamedTuple):
     ana: User
-    pregunta: Question
+    pregunta: ContentItem
     corrida: ArcadeRun
 
 
 async def escenario(session: AsyncSession) -> Escenario:
-    ana, pregunta = user(), question()
+    ana = user()
+    pregunta, solucion = quiz_content()
     corrida = arcade_run(ana.id)
-    await acepta(session, ana, pregunta, corrida)
+    await acepta(session, ana, pregunta, solucion, corrida)
     return Escenario(ana, pregunta, corrida)
 
 

@@ -9,7 +9,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.game.constants import CATEGORIES, DIFFICULTY_MAX, DIFFICULTY_MIN
-from app.models import Question
+from app.models import ContentItem, ContentSolution
 from app.services.question_bank import (
     SEEN_MAX,
     SEEN_TTL,
@@ -24,32 +24,38 @@ from app.services.question_bank import (
 from app.services.questions import select
 
 from .constraints import acepta
-from .factories import question
+from .factories import content_item, quiz_content
 
 
-async def banco_publicado(session: AsyncSession) -> list[Question]:
+async def _registrar(
+    session: AsyncSession, *pares: tuple[ContentItem, ContentSolution]
+) -> None:
+    await acepta(session, *(fila for par in pares for fila in par))
+
+
+async def banco_publicado(session: AsyncSession) -> list[ContentItem]:
     """Una pregunta publicada por categoría y dificultad: la grilla completa.
 
     Sin la grilla, una selección de dificultad 5 en `science` cae en el `FALLBACK`
     y el test de las 7 rondas no probaría lo que dice probar.
     """
-    preguntas = [
-        question(category=categoria, difficulty=dificultad, status="published")
+    pares = [
+        quiz_content(category=categoria, difficulty=dificultad, status="published")
         for categoria in CATEGORIES
         for dificultad in range(DIFFICULTY_MIN, DIFFICULTY_MAX + 1)
     ]
-    await acepta(session, *preguntas)
-    return preguntas
+    await _registrar(session, *pares)
+    return [item for item, _ in pares]
 
 
 async def test_only_published_questions_are_candidates(
     session: AsyncSession,
 ) -> None:
-    await acepta(
+    await _registrar(
         session,
-        question(category="geography", status="published"),
-        question(category="geography", status="draft"),
-        question(category="history", status="archived"),
+        quiz_content(category="geography", status="published"),
+        quiz_content(category="geography", status="draft"),
+        quiz_content(category="history", status="archived"),
     )
 
     candidatas = await candidates(session)
@@ -58,11 +64,24 @@ async def test_only_published_questions_are_candidates(
     assert candidatas[0].category == "geography"
 
 
+async def test_only_quiz_content_is_candidate(session: AsyncSession) -> None:
+    publicada, _ = quiz_content(status="published")
+    # Un ítem de otro kind no se sirve como pregunta de trivia.
+    otro = content_item(kind="rosco", status="published")
+    await acepta(session, publicada, otro)
+
+    assert [candidata.question_id for candidata in await candidates(session)] == [
+        str(publicada.id)
+    ]
+
+
 async def test_the_candidate_carries_only_what_is_needed_to_choose(
     session: AsyncSession,
 ) -> None:
-    publicada = question(category="science", difficulty=4, status="published")
-    await acepta(session, publicada)
+    publicada, solucion = quiz_content(
+        category="science", difficulty=4, status="published"
+    )
+    await _registrar(session, (publicada, solucion))
 
     (candidata,) = await candidates(session)
 
@@ -75,8 +94,8 @@ async def test_the_candidate_carries_only_what_is_needed_to_choose(
 async def test_the_public_question_does_not_carry_the_answer(
     session: AsyncSession,
 ) -> None:
-    publicada = question(correct_index=2, status="published")
-    await acepta(session, publicada)
+    publicada, solucion = quiz_content(correct_index=2, status="published")
+    await acepta(session, publicada, solucion)
 
     cargada = await load(session, str(publicada.id))
 
@@ -100,15 +119,36 @@ async def test_the_public_question_does_not_carry_the_answer(
 async def test_the_public_question_carries_what_the_table_shows(
     session: AsyncSession,
 ) -> None:
-    publicada = question(status="published")
-    await acepta(session, publicada)
+    publicada, solucion = quiz_content(status="published")
+    await acepta(session, publicada, solucion)
 
     cargada = await load(session, str(publicada.id))
 
     assert cargada is not None
     assert isinstance(cargada.question, RoundQuestion)
-    assert cargada.question.prompt == publicada.prompt
-    assert cargada.question.options == publicada.options
+    assert cargada.question.prompt == "¿Cuál es el río más largo?"
+    assert cargada.question.options == ["Paraná", "Amazonas", "Orinoco", "Magdalena"]
+    assert cargada.question.category == "geography"
+    assert cargada.question.difficulty == publicada.difficulty
+
+
+async def test_the_public_question_carries_media_and_explanation(
+    session: AsyncSession,
+) -> None:
+    publicada, solucion = quiz_content(
+        status="published",
+        explanation="El Amazonas.",
+        media_type="image",
+        media_url="https://x/rio.png",
+    )
+    await acepta(session, publicada, solucion)
+
+    cargada = await load(session, str(publicada.id))
+
+    assert cargada is not None
+    assert cargada.question.media_type == "image"
+    assert cargada.question.media_url == "https://x/rio.png"
+    assert cargada.question.explanation == "El Amazonas."
 
 
 async def test_loading_a_question_that_is_not_there_returns_nothing(
@@ -122,10 +162,17 @@ async def test_a_question_archived_mid_match_is_still_loadable(
 ) -> None:
     # El filtro de publicadas vive en `candidates()`: archivar no puede romper una
     # partida que ya la eligió.
-    archivada = question(status="archived")
-    await acepta(session, archivada)
+    archivada, solucion = quiz_content(status="archived")
+    await acepta(session, archivada, solucion)
 
     assert await load(session, str(archivada.id)) is not None
+
+
+async def test_an_item_without_a_solution_is_not_served(session: AsyncSession) -> None:
+    item = content_item(status="published")
+    await acepta(session, item)
+
+    assert await load(session, str(item.id)) is None
 
 
 async def test_seven_rounds_never_repeat_a_question(session: AsyncSession) -> None:

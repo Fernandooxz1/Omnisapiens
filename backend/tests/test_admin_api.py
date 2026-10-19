@@ -353,7 +353,11 @@ async def test_the_report_counts_imported_duplicated_and_rejected(
         "rejected": [{"row": 5, "reason": "categoría desconocida: 'cinema'"}],
     }
     guardadas = (
-        await session.execute(select(Question.prompt).where(Question.status == "draft"))
+        await session.execute(
+            select(ContentItem.payload["prompt"].astext).where(
+                ContentItem.status == "draft"
+            )
+        )
     ).scalars()
     assert sorted(guardadas) == [
         "¿Cuál es el río más largo de Chile?",
@@ -401,8 +405,8 @@ async def test_json_is_imported_like_csv(
         "duplicated": 0,
         "rejected": [],
     }
-    fila = (await session.execute(select(Question))).scalar_one()
-    assert (fila.category, fila.status, fila.tags) == ("history", "published", ["arte"])
+    fila = (await session.execute(select(ContentItem))).scalar_one()
+    assert (fila.categories, fila.status) == (["history"], "published")
 
 
 async def test_importing_the_same_file_twice_is_duplicated_the_second_time(
@@ -527,7 +531,7 @@ async def test_importing_an_unknown_kind_is_a_validation_error(
     "ruta",
     ["/admin/content/quiz", "/admin/content/quiz/import", "/admin/questions/import"],
 )
-async def test_importing_through_any_route_dual_writes(
+async def test_importing_through_any_route_writes_only_the_generic_tables(
     client: httpx.AsyncClient, session: AsyncSession, ruta: str
 ) -> None:
     respuesta = await client.post(
@@ -539,8 +543,7 @@ async def test_importing_through_any_route_dual_writes(
     assert respuesta.status_code == 200
     assert respuesta.json()["imported"] == 1
     item = (await session.execute(select(ContentItem))).scalar_one()
-    pregunta = (await session.execute(select(Question))).scalar_one()
-    assert item.id == pregunta.id
-    assert item.content_hash == pregunta.content_hash
     assert item.kind == "quiz"
     assert await session.get(ContentSolution, item.id) is not None
+    # La tabla vieja quedó de solo lectura: la importación no la toca.
+    assert (await session.execute(select(Question))).scalars().all() == []

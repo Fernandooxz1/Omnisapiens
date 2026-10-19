@@ -8,6 +8,7 @@ usan la `session` del conftest, así la carga entra en la transacción del test.
 import hashlib
 from collections import Counter
 from pathlib import Path
+from typing import cast
 
 import pytest
 from sqlalchemy import func, select
@@ -15,17 +16,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cli import SEED_FILE
 from app.game.constants import CATEGORIES
+from app.game.modes.quiz import QUIZ
 from app.models import ContentItem, ContentSolution, Question
 from app.services import importer
 from app.services.importer import (
     ImportFormatError,
     RawRow,
-    RowError,
     content_hash,
     normalize_prompt,
-    validate_row,
 )
-from app.services.question_bank import candidates
+from app.services.question_bank import candidates, load
 
 from .constraints import acepta
 from .factories import content_item
@@ -73,29 +73,24 @@ def test_content_hash_is_sha256_of_the_normalized_prompt() -> None:
 
 
 def test_a_valid_row_is_parsed() -> None:
-    fila_ok = validate_row(fila())
-    assert fila_ok.category == "geography"
-    assert fila_ok.difficulty == 2
-    assert fila_ok.options == ["Paraná", "Amazonas", "Orinoco", "Magdalena"]
-    assert fila_ok.correct_index == 1
-    assert fila_ok.tags == ["mundo", "ríos"]
-    assert fila_ok.explanation == "El Amazonas."
+    draft = QUIZ.parse_row(fila())
 
-
-def test_empty_optional_fields_become_none() -> None:
-    fila_ok = validate_row(fila(explanation="", source="   ", tags=""))
-    assert fila_ok.explanation is None
-    assert fila_ok.source is None
-    assert fila_ok.tags == []
-
-
-def test_tags_can_come_as_a_list() -> None:
-    assert validate_row(fila(tags=["cine", " música "])).tags == ["cine", "música"]
+    assert draft.categories == ("geography",)
+    assert draft.difficulty == 2
+    assert draft.public.payload["options"] == [
+        "Paraná",
+        "Amazonas",
+        "Orinoco",
+        "Magdalena",
+    ]
+    assert draft.solution.payload["correct_index"] == 1
+    assert draft.solution.payload["explanation"] == "El Amazonas."
 
 
 def test_options_are_kept_as_written() -> None:
-    fila_ok = validate_row(fila(option_a="Ñandú"))
-    assert fila_ok.options[0] == "Ñandú"
+    draft = QUIZ.parse_row(fila(option_a="Ñandú"))
+    opciones = cast("list[str]", draft.public.payload["options"])
+    assert opciones[0] == "Ñandú"
 
 
 @pytest.mark.parametrize(
@@ -111,14 +106,13 @@ def test_options_are_kept_as_written() -> None:
         ({"option_c": ""}, "opción C está vacía"),
         ({"option_b": "paraná"}, "opciones repetidas"),
         ({"correct": "E"}, "debe ser A, B, C o D"),
-        ({"tags": 5}, "etiquetas deben ser"),
     ],
 )
 def test_invalid_rows_are_rejected_with_a_reason(
     overrides: dict[str, object], motivo: str
 ) -> None:
-    with pytest.raises(RowError, match=motivo):
-        validate_row(fila(**overrides))
+    with pytest.raises(importer.RowError, match=motivo):
+        QUIZ.parse_row(fila(**overrides))
 
 
 # --- parseo de archivos ------------------------------------------------------
@@ -187,8 +181,7 @@ async def test_the_insert_goes_in_batches(
     session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Con lotes de 2, cinco filas son tres INSERT de contenido: prueba el bucle
-    # sin cargar 500. El dual-write agrega sentencias por lote; lo que se cuenta
-    # es el INSERT contra `content_items`.
+    # sin cargar 500. Lo que se cuenta es el INSERT contra `content_items`.
     monkeypatch.setattr(importer, "INSERT_BATCH", 2)
     ejecutadas: list[object] = []
     original = session.execute
@@ -216,7 +209,12 @@ async def test_imported_questions_are_playable_when_published(
 ) -> None:
     await importer.import_rows(session, [RawRow(2, fila())], status="published")
 
-    assert [c.category for c in await candidates(session)] == ["geography"]
+    (candidata,) = await candidates(session)
+    assert candidata.category == "geography"
+    cargada = await load(session, candidata.question_id)
+    assert cargada is not None
+    assert cargada.question.prompt == "¿Cuál es el río más largo?"
+    assert cargada.correct_index == 1
 
 
 async def test_draft_questions_stay_out_of_the_bank(session: AsyncSession) -> None:
@@ -237,9 +235,9 @@ async def test_an_existing_hash_is_reported_as_duplicated(
     report = await importer.import_rows(session, [RawRow(2, fila())])
     assert report.imported == 0
     assert report.duplicated == 1
-    # El dual-write solo acompaña a un ítem nuevo: no se crea la pregunta vieja.
-    preguntas = await session.scalar(select(func.count()).select_from(Question))
-    assert preguntas == 0
+    # Ni el contenido ni la tabla vieja crecen: no hay dual-write que acompañe.
+    assert await _count(session, ContentItem) == 1
+    assert await _count(session, Question) == 0
 
 
 async def test_importing_the_seed_file_loads_all_the_questions(
@@ -251,9 +249,8 @@ async def test_importing_the_seed_file_loads_all_the_questions(
     assert report.rejected == []
     assert report.duplicated == 0
 
-    categorias = set(
-        (await session.execute(select(Question.category).distinct())).scalars()
-    )
+    filas = await session.execute(select(ContentItem.categories))
+    categorias = {categoria for (cats,) in filas for categoria in cats}
     assert categorias == set(CATEGORIES)
 
 
@@ -262,8 +259,10 @@ async def test_the_seed_file_keeps_medium_and_hard_questions_in_every_category(
 ) -> None:
     await importer.import_file(session, SEED_FILE, status="published")
 
-    filas = await session.execute(select(Question.category, Question.difficulty))
-    counts = Counter((categoria, dificultad) for categoria, dificultad in filas)
+    filas = await session.execute(
+        select(ContentItem.categories, ContentItem.difficulty)
+    )
+    counts = Counter((cats[0], dificultad) for cats, dificultad in filas)
 
     for categoria in CATEGORIES:
         for dificultad in (3, 4, 5):
@@ -283,38 +282,39 @@ async def test_running_the_seed_twice_imports_nothing_the_second_time(
 
     assert segunda.imported == 0
     assert segunda.duplicated == 120
+    assert len(await candidates(session)) == 120
 
 
-# --- dual-write --------------------------------------------------------------
+# --- una sola escritura ------------------------------------------------------
 
 
 async def _count(session: AsyncSession, modelo: type[object]) -> int:
     return await session.scalar(select(func.count()).select_from(modelo)) or 0
 
 
-async def test_the_seed_lands_in_both_tables_with_the_same_ids(
+async def test_the_seed_lands_only_in_the_generic_tables(
     session: AsyncSession,
 ) -> None:
     await importer.import_file(session, SEED_FILE, status="published")
 
-    preguntas = {
-        fila.id: fila for fila in (await session.execute(select(Question))).scalars()
-    }
     items = (await session.execute(select(ContentItem))).scalars().all()
+    soluciones = (await session.execute(select(ContentSolution))).scalars().all()
 
     assert len(items) == 120
-    assert {item.id for item in items} == set(preguntas)
+    assert {item.id for item in items} == {
+        solucion.content_id for solucion in soluciones
+    }
     for item in items:
-        pregunta = preguntas[item.id]
         assert item.kind == "quiz"
         assert item.schema_version == 1
         assert item.status == "published"
-        assert item.content_hash == pregunta.content_hash
-        assert item.payload["prompt"] == pregunta.prompt
-        assert item.categories == [pregunta.category]
+        assert item.payload["v"] == 1
+        assert len(item.categories) == 1
         solucion = await session.get(ContentSolution, item.id)
         assert solucion is not None
-        assert solucion.payload["correct_index"] == pregunta.correct_index
+        assert solucion.payload["correct_index"] in range(4)
+    # La tabla vieja queda de solo lectura: el importador ya no la escribe.
+    assert await _count(session, Question) == 0
 
 
 async def test_running_the_seed_twice_does_not_grow_either_table(
@@ -325,10 +325,10 @@ async def test_running_the_seed_twice_does_not_grow_either_table(
 
     assert await _count(session, ContentItem) == 120
     assert await _count(session, ContentSolution) == 120
-    assert await _count(session, Question) == 120
+    assert await _count(session, Question) == 0
 
 
-async def test_a_rejected_row_writes_nothing_to_either_table(
+async def test_a_rejected_row_writes_nothing_to_any_table(
     session: AsyncSession,
 ) -> None:
     report = await importer.import_rows(

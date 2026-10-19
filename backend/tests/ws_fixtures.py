@@ -25,7 +25,7 @@ from app.ws.room_ws import get_room_store
 
 from . import test_room_manager
 from .clock import FakeClock
-from .factories import question, room, user
+from .factories import quiz_content, room, user
 from .test_room_manager import Harness
 from .ws_client import WebSocketClient
 
@@ -110,8 +110,8 @@ async def room_api(
     fila = room(ana.id, config={"rounds": 3, "seconds": 10})
     session.add(fila)
     for dificultad in (1, 2, 3, 4, 5):
-        session.add(
-            question(
+        session.add_all(
+            quiz_content(
                 id=uuid.UUID(int=dificultad),
                 category="geography",
                 difficulty=dificultad,

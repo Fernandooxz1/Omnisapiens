@@ -4,12 +4,13 @@ Contra Postgres real: lo que se prueba es el mapeo fila a fila y la
 idempotencia, y las dos cosas dependen de constraints y del `ON CONFLICT`.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cli import SEED_FILE
+from app.game.modes.quiz import QUIZ
 from app.models import ContentItem, ContentSolution, Question
 from app.services import importer
 from app.services.content_backfill import backfill_quiz
@@ -24,24 +25,25 @@ def _legacy_seed() -> list[Question]:
     """Las 120 preguntas del seed, pero solo en la tabla vieja.
 
     Es el estado de una instalación anterior a 2.3: `questions` tiene datos y
-    `content_items` está vacía. Ya no se llega ahí importando (el importador
-    hace dual-write), así que las filas se arman a mano con la misma validación.
+    `content_items` está vacía. Ya no se llega ahí importando (desde 2.4 el
+    importador solo escribe el contenido genérico), así que las filas se arman
+    a mano con la misma validación.
     """
     preguntas = []
     for row in importer.read_file(SEED_FILE):
-        parsed = importer.validate_row(row.values)
+        draft = QUIZ.parse_row(row.values)
+        public = cast("dict[str, Any]", draft.public.payload)
+        solution = cast("dict[str, Any]", draft.solution.payload)
         preguntas.append(
             question(
-                category=parsed.category,
-                difficulty=parsed.difficulty,
-                prompt=parsed.prompt,
-                options=parsed.options,
-                correct_index=parsed.correct_index,
-                explanation=parsed.explanation,
-                source=parsed.source,
+                category=draft.categories[0],
+                difficulty=draft.difficulty,
+                prompt=public["prompt"],
+                options=list(public["options"]),
+                correct_index=solution["correct_index"],
+                explanation=solution.get("explanation"),
                 status="published",
-                content_hash=parsed.content_hash,
-                tags=parsed.tags,
+                content_hash=QUIZ.fingerprint(draft),
             )
         )
     return preguntas
@@ -81,15 +83,15 @@ async def test_running_it_twice_creates_nothing_the_second_time(
     assert await _conteo(session, ContentSolution) == SEED_SIZE
 
 
-async def test_after_a_dual_write_import_the_backfill_has_nothing_to_do(
+async def test_after_an_import_there_is_nothing_in_the_old_table_to_backfill(
     session: AsyncSession,
 ) -> None:
-    # El importador ya escribió las dos tablas: el backfill no duplica.
+    # Desde 2.4 el importador ya no escribe `questions`: no hay nada que copiar.
     await importer.import_file(session, SEED_FILE, status="published")
 
     report = await backfill_quiz(session)
 
-    assert (report.read, report.created, report.existing) == (SEED_SIZE, 0, SEED_SIZE)
+    assert (report.read, report.created, report.existing) == (0, 0, 0)
     assert await _conteo(session, ContentItem) == SEED_SIZE
 
 

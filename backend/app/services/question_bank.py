@@ -4,7 +4,9 @@
 puro. Acá está el otro extremo, el que sí toca Postgres y Redis, así el selector
 se sigue probando sin levantar nada.
 
-Dos decisiones que se ven en los tipos:
+Desde 2.4 el banco lee el contenido genérico (`content_items` con `kind='quiz'`
+y su fila en `content_solutions`), no la tabla vieja. La forma que ve el resto
+del juego no cambia:
 
 - `RoundQuestion` es lo que viaja al cliente y **no tiene** `correct_index`: el
   tipo no tiene dónde guardarlo, así que no hay descuido que lo filtre. La
@@ -15,6 +17,7 @@ Dos decisiones que se ven en los tipos:
 
 import logging
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from random import Random
@@ -22,10 +25,11 @@ from typing import cast
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Question
+from app.game.constants import CATEGORIES
+from app.game.modes.quiz import QUIZ, QuizCandidatesConfig, QuizPayload, QuizSolution
+from app.models import ContentItem, ContentSolution
 from app.services.questions import Candidate
 
 # Historial del arcade: las últimas 50 que vio un jugador, y se olvida a las 24 h.
@@ -80,30 +84,48 @@ def shuffle_options(loaded: LoadedQuestion, rng: Random) -> LoadedQuestion:
     )
 
 
+def _primary_category(categories: Sequence[str]) -> str | None:
+    """La primera categoría conocida del ítem.
+
+    El selector todavía elige por una sola categoría y `Candidate` la valida
+    contra la lista del juego. Un ítem sin ninguna categoría conocida no se
+    puede ofrecer: se saltea en vez de romper la partida entera.
+    """
+    return next((category for category in categories if category in CATEGORIES), None)
+
+
 async def candidates(
     session: AsyncSession,
     *,
     low: int | None = None,
     high: int | None = None,
 ) -> list[Candidate]:
-    """Las publicadas, con lo mínimo para elegir.
+    """Los ítems de quiz publicados, con lo mínimo para elegir.
 
     El filtro de dificultad puede bajar a la consulta (`low`/`high`): con el banco
     grande, traer todo y filtrar en memoria en cada ronda y por sala era el riesgo
     de escala de H-13. Sin rango, trae todas (lo que usan los tests y la CLI).
     """
-    consulta = select(Question.id, Question.category, Question.difficulty).where(
-        Question.status == "published"
+    refs = await QUIZ.candidates(
+        session, config=QuizCandidatesConfig(low=low, high=high)
     )
-    if low is not None:
-        consulta = consulta.where(Question.difficulty >= low)
-    if high is not None:
-        consulta = consulta.where(Question.difficulty <= high)
-    filas = await session.execute(consulta)
-    return [
-        Candidate(question_id=str(id_), category=category, difficulty=difficulty)
-        for id_, category, difficulty in filas
-    ]
+    candidatas: list[Candidate] = []
+    for ref in refs:
+        category = _primary_category(ref.categories)
+        if category is None:
+            logger.warning(
+                "el contenido %s no tiene una categoría conocida: no se sirve",
+                ref.content_id,
+            )
+            continue
+        candidatas.append(
+            Candidate(
+                question_id=ref.content_id,
+                category=category,
+                difficulty=ref.difficulty,
+            )
+        )
+    return candidatas
 
 
 async def load(session: AsyncSession, question_id: str) -> LoadedQuestion | None:
@@ -113,21 +135,31 @@ async def load(session: AsyncSession, question_id: str) -> LoadedQuestion | None
     no se puede romper porque alguien archive la pregunta en el medio. Los ids que
     llegan hasta acá salen de una selección, no de afuera.
     """
-    pregunta = await session.get(Question, uuid.UUID(question_id))
-    if pregunta is None:
+    content_id = uuid.UUID(question_id)
+    item = await session.get(ContentItem, content_id)
+    if item is None or item.kind != QUIZ.code:
         return None
+    category = _primary_category(item.categories)
+    if category is None:
+        return None
+    solution = await session.get(ContentSolution, content_id)
+    if solution is None:
+        return None
+
+    public = QuizPayload.model_validate(item.payload)
+    answer = QuizSolution.model_validate(solution.payload)
     return LoadedQuestion(
         question=RoundQuestion(
-            id=str(pregunta.id),
-            prompt=pregunta.prompt,
-            options=list(pregunta.options),
-            category=pregunta.category,
-            difficulty=pregunta.difficulty,
-            explanation=pregunta.explanation,
-            media_type=pregunta.media_type,
-            media_url=pregunta.media_url,
+            id=str(item.id),
+            prompt=public.prompt,
+            options=list(public.options),
+            category=category,
+            difficulty=item.difficulty,
+            explanation=answer.explanation,
+            media_type=item.media_type,
+            media_url=item.media_url,
         ),
-        correct_index=pregunta.correct_index,
+        correct_index=answer.correct_index,
     )
 
 

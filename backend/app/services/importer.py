@@ -1,9 +1,9 @@
 """Cargar contenido desde un archivo: CSV o JSON con las mismas claves.
 
 El parseo del archivo vive acá; la validación de una fila y la forma del payload
-viven en el `ContentKind` (`app.game.modes.quiz`). El importador escribe siempre
-en `content_items`/`content_solutions` y, mientras dure el refactor, también en
-`questions` (dual-write) para que el juego siga leyendo la tabla vieja hasta 2.4.
+viven en el `ContentKind` (`app.game.modes.quiz`). Desde 2.4 el importador
+escribe solo en `content_items`/`content_solutions`: la tabla vieja `questions`
+queda de solo lectura hasta la fase 10.
 
 El `content_hash` sale del `fingerprint` del kind, así que una importación nueva
 y un backfill no pueden duplicar la misma pregunta.
@@ -15,7 +15,7 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,7 +31,7 @@ from app.game.modes.quiz.content import (
     content_hash,
     normalize_prompt,
 )
-from app.models import ContentItem, ContentSolution, Question
+from app.models import ContentItem, ContentSolution
 from app.models.content import STATUSES as CONTENT_STATUSES
 
 __all__ = [
@@ -42,7 +42,6 @@ __all__ = [
     "REQUIRED",
     "ImportFormatError",
     "ImportReport",
-    "ParsedRow",
     "RawRow",
     "RejectedRow",
     "RowError",
@@ -55,7 +54,6 @@ __all__ = [
     "parse_json",
     "parse_text",
     "read_file",
-    "validate_row",
 ]
 
 
@@ -73,30 +71,11 @@ class RawRow:
 
 
 @dataclass(frozen=True)
-class ParsedRow:
-    """Una fila ya validada, en la forma que espera la tabla vieja.
-
-    La usa el dual-write a `questions`; el contenido genérico sale del
-    `ContentDraft` que devuelve el `ContentKind`.
-    """
-
-    category: str
-    difficulty: int
-    prompt: str
-    options: list[str]
-    correct_index: int
-    explanation: str | None
-    source: str | None
-    tags: list[str]
-    content_hash: str
-
-
-@dataclass(frozen=True)
 class _ValidRow:
-    """Una fila lista para las dos tablas: mismo UUID en ambas."""
+    """Una fila lista para insertar: id, hash y el draft del `ContentKind`."""
 
     id: uuid.UUID
-    legacy: ParsedRow
+    fingerprint: str
     draft: ContentDraft
 
 
@@ -115,30 +94,6 @@ class ImportReport:
     @property
     def total(self) -> int:
         return self.imported + self.duplicated + len(self.rejected)
-
-
-def validate_row(values: dict[str, Any]) -> ParsedRow:
-    """Valida una fila con el `ContentKind` y la completa con los campos legacy.
-
-    `source` y `tags` no existen en el contenido genérico: son de la tabla vieja
-    y solo viven mientras dure el dual-write.
-    """
-    draft = QUIZ.parse_row(values)
-    return _legacy_row(values, draft, fingerprint=QUIZ.fingerprint(draft))
-
-
-def _text(raw: Any) -> str:
-    return "" if raw is None else str(raw).strip()
-
-
-def _tags(raw: Any) -> list[str]:
-    if raw is None:
-        return []
-    if isinstance(raw, list):
-        return [str(t).strip() for t in raw if str(t).strip()]
-    if isinstance(raw, str):
-        return [t.strip() for t in raw.split(";") if t.strip()]
-    raise RowError("las etiquetas deben ser texto separado por `;` o una lista")
 
 
 def parse_csv(text: str) -> list[RawRow]:
@@ -228,39 +183,20 @@ async def import_rows(
     for row in rows:
         try:
             draft = kind.parse_row(row.values)
-            legacy = _legacy_row(row.values, draft, fingerprint=kind.fingerprint(draft))
+            fingerprint = kind.fingerprint(draft)
         except RowError as exc:
             rechazadas.append(RejectedRow(row.position, str(exc)))
             continue
-        anterior = primera_por_hash.get(legacy.content_hash)
+        anterior = primera_por_hash.get(fingerprint)
         if anterior is not None:
             duplicadas += 1
             continue
-        primera_por_hash[legacy.content_hash] = row.position
-        validas.append(_ValidRow(uuid.uuid4(), legacy, draft))
+        primera_por_hash[fingerprint] = row.position
+        validas.append(_ValidRow(uuid.uuid4(), fingerprint, draft))
 
     insertadas = await _insert(session, validas, kind=kind, status=status)
     duplicadas += len(validas) - insertadas
     return ImportReport(imported=insertadas, duplicated=duplicadas, rejected=rechazadas)
-
-
-def _legacy_row(
-    values: dict[str, Any], draft: ContentDraft, *, fingerprint: str
-) -> ParsedRow:
-    """La fila en la forma de `questions`, para el dual-write temporal."""
-    public = cast("dict[str, Any]", draft.public.payload)
-    solution = cast("dict[str, Any]", draft.solution.payload)
-    return ParsedRow(
-        category=draft.categories[0],
-        difficulty=draft.difficulty,
-        prompt=public["prompt"],
-        options=list(public["options"]),
-        correct_index=solution["correct_index"],
-        explanation=solution.get("explanation"),
-        source=_text(values.get("source")) or None,
-        tags=_tags(values.get("tags")),
-        content_hash=fingerprint,
-    )
 
 
 INSERT_BATCH = 500
@@ -277,11 +213,10 @@ async def _insert(
 
     Un INSERT con 100.000 filas es una sentencia gigante y un pico de memoria
     (H-15). Lotes de `INSERT_BATCH` mantienen la sentencia y el viaje acotados.
-    El id se genera acá y se comparte con `questions`: el día que se corte el
-    dual-write, el contenido nuevo ya tiene el mismo UUID en los dos lados.
+    El id se genera acá y se comparte con la solución: el día que haya que
+    migrar la tabla vieja, el contenido ya tiene un UUID propio.
     """
     insertadas = 0
-    dual_write = kind.code == QUIZ.code
     for inicio in range(0, len(filas), INSERT_BATCH):
         lote = filas[inicio : inicio + INSERT_BATCH]
         valores = [
@@ -296,7 +231,7 @@ async def _insert(
                 "payload": dict(fila.draft.public.payload),
                 "media_type": fila.draft.public.media_type,
                 "media_url": fila.draft.public.media_url,
-                "content_hash": fila.legacy.content_hash,
+                "content_hash": fila.fingerprint,
             }
             for fila in lote
         ]
@@ -324,31 +259,8 @@ async def _insert(
             )
             .on_conflict_do_nothing(index_elements=["content_id"])
         )
-        if dual_write:
-            await session.execute(
-                pg_insert(Question)
-                .values([_question_values(fila, status) for fila in creadas_filas])
-                .on_conflict_do_nothing(index_elements=["content_hash"])
-            )
         insertadas += len(creadas)
     return insertadas
-
-
-def _question_values(fila: _ValidRow, status: str) -> dict[str, Any]:
-    pregunta = fila.legacy
-    return {
-        "id": fila.id,
-        "category": pregunta.category,
-        "difficulty": pregunta.difficulty,
-        "prompt": pregunta.prompt,
-        "options": pregunta.options,
-        "correct_index": pregunta.correct_index,
-        "explanation": pregunta.explanation,
-        "source": pregunta.source,
-        "status": status,
-        "content_hash": pregunta.content_hash,
-        "tags": pregunta.tags,
-    }
 
 
 async def import_file(

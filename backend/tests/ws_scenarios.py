@@ -7,7 +7,7 @@ el contenido, y el test de fuga mira esos mismos mensajes antes de la revelació
 import uuid
 from typing import Any
 
-from .factories import question
+from .factories import quiz_content
 from .ws_client import WebSocketClient
 
 
@@ -91,20 +91,19 @@ class RecordingSocket:
 
 async def _sembrar_arcade(session: Any) -> None:
     """Cuatro preguntas con ids fijos: el orden del golden no depende del azar."""
-    session.add_all(
-        [
-            question(
-                id=uuid.UUID(int=100 + indice),
-                category="geography",
-                difficulty=1,
-                status="published",
-                prompt=f"pregunta {indice}",
-                options=["correcta", "a", "b", "c"],
-                correct_index=0,
-            )
-            for indice in range(4)
-        ]
-    )
+    pares = [
+        quiz_content(
+            id=uuid.UUID(int=100 + indice),
+            category="geography",
+            difficulty=1,
+            status="published",
+            prompt=f"pregunta {indice}",
+            options=["correcta", "a", "b", "c"],
+            correct_index=0,
+        )
+        for indice in range(4)
+    ]
+    session.add_all([fila for par in pares for fila in par])
     await session.flush()
 
 

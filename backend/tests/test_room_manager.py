@@ -11,6 +11,7 @@ from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from random import Random
+from typing import cast
 
 import pytest
 from sqlalchemy import select
@@ -30,11 +31,11 @@ from app.game.protocols import (
     RoundStart,
 )
 from app.game.protocols import RoomState as RoomStateMessage
-from app.models import Match, MatchRound, Question, Room, User
+from app.models import ContentItem, ContentSolution, Match, MatchRound, Room, User
 from app.runtime.room_manager import InMemoryRoomStore, Outbox
 
 from .clock import FakeClock
-from .factories import question, room, user
+from .factories import quiz_content, room, user
 
 
 @dataclass
@@ -151,8 +152,10 @@ async def sala_armada(
     fila = room(ana.id, config={"rounds": rounds, "seconds": seconds})
     session.add(fila)
     for dificultad in dificultades:
-        session.add(
-            question(category="geography", difficulty=dificultad, status="published")
+        session.add_all(
+            quiz_content(
+                category="geography", difficulty=dificultad, status="published"
+            )
         )
     await session.flush()
     await h.store.open(
@@ -300,15 +303,19 @@ async def test_serving_shuffles_the_options_and_the_correct_one_moves(
     drain(b_out)
 
     # La pregunta servida está en la base; su respuesta es el texto, no la letra.
-    pregunta = await session.get(Question, uuid.UUID(ronda.question_id))
-    assert pregunta is not None
-    correcta = pregunta.options[pregunta.correct_index]
+    item = await session.get(ContentItem, uuid.UUID(ronda.question_id))
+    assert item is not None
+    solucion = await session.get(ContentSolution, item.id)
+    assert solucion is not None
+    opciones = cast("list[str]", item.payload["options"])
+    correct_index = cast(int, solucion.payload["correct_index"])
+    correcta = opciones[correct_index]
     eleccion = ronda.options.index(correcta)
 
     # Con esta semilla la mezcla cambió el orden: si dejara de barajar, el índice
     # correcto volvería a ser el de la base.
-    assert ronda.options != pregunta.options
-    assert eleccion != pregunta.correct_index
+    assert ronda.options != opciones
+    assert eleccion != correct_index
 
     # Ana contesta el índice ya remapeado: el motor tiene que darla por correcta.
     await h.store.answer(

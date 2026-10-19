@@ -3,10 +3,11 @@
 La validación de una fila vive acá y no en el importador: el tipo de contenido es
 el que sabe qué es una pregunta válida (categoría conocida, dificultad 1-5,
 cuatro opciones no vacías y distintas). El importador solo aporta el archivo y el
-dual-write temporal a `questions`.
+estado con el que se guarda.
 
-El barajado de opciones sigue en `question_bank` hasta la fase 2.4; lo que este
-módulo garantiza es que el tipo público (`QuizPayload`) no tiene `correct_index`.
+El barajado de opciones vive en `question_bank`, junto con el resto de lo que ve
+el jugador; lo que este módulo garantiza es que el tipo público (`QuizPayload`)
+no tiene `correct_index`.
 """
 
 import hashlib

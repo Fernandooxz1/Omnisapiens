@@ -7,10 +7,10 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Match, MatchRound, Question, Room, User
+from app.models import ContentItem, Match, MatchRound, Room, User
 
 from .constraints import acepta, rechaza
-from .factories import match, match_round, question, room, user
+from .factories import match, match_round, quiz_content, room, user
 
 
 class Escenario(NamedTuple):
@@ -18,17 +18,18 @@ class Escenario(NamedTuple):
     beto: User
     anfitrion: User
     sala: Room
-    pregunta: Question
+    pregunta: ContentItem
     partida: Match
 
 
 async def escenario(session: AsyncSession) -> Escenario:
     """Lo que la sonda de shell armaba antes de empezar: dos jugadores, el host de
-    la sala, una pregunta y una partida ya en la base."""
-    ana, beto, anfitrion, pregunta = user(), user(), user(), question()
+    la sala, un ítem de contenido y una partida ya en la base."""
+    ana, beto, anfitrion = user(), user(), user()
+    pregunta, solucion = quiz_content()
     sala = room(anfitrion.id)
     partida = match(player_a_id=ana.id, player_b_id=beto.id, room_id=sala.id)
-    await acepta(session, ana, beto, anfitrion, sala, pregunta, partida)
+    await acepta(session, ana, beto, anfitrion, sala, pregunta, solucion, partida)
     return Escenario(ana, beto, anfitrion, sala, pregunta, partida)
 
 

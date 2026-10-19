@@ -107,6 +107,47 @@ def content_solution(content_id: uuid.UUID, **overrides: Any) -> ContentSolution
     )
 
 
+def quiz_content(
+    *,
+    id: uuid.UUID | None = None,
+    category: str = "geography",
+    difficulty: int = 2,
+    prompt: str = "¿Cuál es el río más largo?",
+    options: list[str] | None = None,
+    correct_index: int = 1,
+    explanation: str | None = None,
+    status: str = "draft",
+    media_type: str = "none",
+    media_url: str | None = None,
+    **overrides: Any,
+) -> tuple[ContentItem, ContentSolution]:
+    """Un ítem de quiz con su solución: las dos filas que sirve el banco.
+
+    Se devuelven juntas porque el juego no puede servir un ítem sin solución:
+    separarlas dejaba la mitad de los tests armando el mismo par a mano.
+    """
+    item = content_item(
+        id=id or uuid.uuid4(),
+        difficulty=difficulty,
+        status=status,
+        categories=[category],
+        payload={
+            "v": 1,
+            "prompt": prompt,
+            "options": options or ["Paraná", "Amazonas", "Orinoco", "Magdalena"],
+            "media": {"type": media_type, "url": media_url},
+        },
+        media_type=media_type,
+        media_url=media_url,
+        **overrides,
+    )
+    solution = content_solution(
+        item.id,
+        payload={"v": 1, "correct_index": correct_index, "explanation": explanation},
+    )
+    return item, solution
+
+
 def room(host_user_id: uuid.UUID, **overrides: Any) -> Room:
     """Necesita el id del host ya existente: `host_user_id` es FK obligatoria."""
     return Room(

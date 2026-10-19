@@ -58,9 +58,17 @@ def _sin_esquema(definicion: str, esquema: str) -> str:
     return definicion.replace(f"{esquema}.", "")
 
 
+def _validada(definicion: str) -> str:
+    # `0004b` repunta las FK del historial viejo a `content_items` con `NOT VALID`
+    # para no depender de que el backfill haya corrido. El modelo describe la
+    # misma FK validada; lo que cambia es el estado de las filas viejas, no la
+    # forma del constraint.
+    return definicion.replace(" NOT VALID", "")
+
+
 async def _inventario(connection: AsyncConnection, esquema: str) -> set[str]:
     filas = await connection.execute(_INVENTARIO, {"esquema": esquema})
-    return {_sin_esquema(fila[0], esquema) for fila in filas}
+    return {_validada(_sin_esquema(fila[0], esquema)) for fila in filas}
 
 
 async def test_migrated_schema_matches_the_models(

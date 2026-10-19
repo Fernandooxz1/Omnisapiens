@@ -325,6 +325,7 @@ Migraciones separadas, una por fase:
 | Migración | Fase | Qué hace |
 |---|---|---|
 | `0004_content.py` | 2 | crea `content_items` y `content_solutions` |
+| `0004b_repoint_legacy_fks.py` | 2 | repunta las FK de historial a `content_items` |
 | `0005_sessions.py` | 3 | crea `game_*` y agrega `rooms.mode` |
 | `0006_media.py` | 9 (opcional) | crea `media_assets` |
 | `0007_drop_legacy.py` | 10 | dropea las tablas viejas |
@@ -341,6 +342,9 @@ depender de datos que pueden faltar.
    intentos.
 3. `matches`/`match_rounds` → `game_sessions(mode='trivia_versus')` + ídem.
 4. Las tablas viejas quedan de solo lectura hasta `0007` (fase 10).
+5. `arcade_answers.question_id` y `match_rounds.question_id` pasan a referenciar
+   `content_items.id` en `0004b`: desde 2.4 el banco sirve contenido genérico y las
+   tablas de historial se siguen escribiendo igual hasta que las reemplace la fase 3/5.
 
 ## 7. Endpoints
 
