@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 3
-tarea: "3.4"
+tarea: "3.5"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: fab2814
+ultimo_commit: b7791dd
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -46,3 +46,4 @@ bloqueo: ""
 | 2026-10-19 | 3.1 | `5afa1da` | `game_sessions`/`game_participants`/`session_items`/`session_attempts`, `rooms.mode` y `0005`; el `CHECK` de `rooms.config` se relaja y valida en Python. Próxima: 3.2. |
 | 2026-10-19 | 3.2 | `6088b98` | `services/sessions.py`: arranque, cierre atómico e idempotente con ítems e intentos, abandono e invalidación; sin relojes propios. Próxima: 3.3. |
 | 2026-10-19 | 3.3 | `fab2814` | `backfill-sessions` reconstruye arcade y 1v1 con el mismo puntaje y secuencia; salta `playing` y tolera contenido huérfano. Próxima: 3.4. |
+| 2026-10-19 | 3.4 | `b7791dd` | Ranking por modo sobre `game_sessions` (`finished` + dueño), `/leaderboard/{mode}`, alias `arcade` y `404 MODE_WITHOUT_RANKING`; `run_summary` sigue en `arcade_runs` hasta 4.2. Próxima: 3.5. |
