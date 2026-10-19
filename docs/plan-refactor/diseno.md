@@ -136,6 +136,39 @@ historial: `resolve` devuelve el `RoundRecord`. Los valores actuales viven en
 compatibilidad hasta la fase 4. En 1.3, `Progression` y `ScoringPolicy` se apoyan en
 estas curvas.
 
+Implementado en 1.3 (`backend/app/game/modes/`):
+
+```python
+# base.py
+GameMode(code, content_kind, play_format, ruleset_version, content, rules,
+         progression, scoring, config_schema, public_schema, ranking,
+         players, connection, schedule)
+
+ItemRef(content_id, difficulty, categories)
+PublicItem(payload, media_type="none", media_url=None)
+Solution(payload)
+LoadedItem(content_id, public, solution)
+ContentDraft(schema_version, public, solution, difficulty, categories, language="es")
+
+SessionState: round_index, score, streak, correct_count, longest_streak,
+              max_difficulty, finished
+Step(difficulty, seconds, finished=False)
+Progression.next(state, format) -> Step
+ScoringPolicy.points(verdict, elapsed_ms, seconds, state) -> int
+```
+
+- `ContentKind.candidates/load` reciben `AsyncSession` y `config: BaseModel`; el
+  `payload` público y la `Solution` nunca comparten estructura.
+- `RoundRules.grade` es la única puerta a `core.settle`: ningún modo reimplementa la
+  ventana.
+- `RankingPolicy` es un marcador en la v1: `ranking is not None` alcanza para saber si
+  el modo rankea; la forma concreta se cierra en 3.4/6.1.
+- `registry.py` expone `ModeRegistry` (`register`/`get`/`all`) y el singleton
+  `registry`; arranca vacío y los modos se registran en la fase 6.
+- `tests/test_modes_conformance.py` parametriza por `registry.all()` (hoy 0 casos) y
+  deja listas las aserciones de payload sin solución, determinismo, ventana y puntos
+  no negativos.
+
 ## 4. Datos
 
 ### 4.1 Contenido
