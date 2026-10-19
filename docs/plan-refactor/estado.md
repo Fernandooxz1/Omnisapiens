@@ -5,11 +5,11 @@
 
 ```yaml
 activo: true
-fase: 0
-tarea: "0.1"
+fase: 1
+tarea: "1.1"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: fce8ce0
+ultimo_commit: 2f3a018
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -18,7 +18,7 @@ bloqueo: ""
 
 | Fase | Nombre | Rol | Tareas | Estado |
 |---|---|---|---|---|
-| 0 | Red de seguridad | backend | 0.1 | pendiente |
+| 0 | Red de seguridad | backend | 0.1 | hecho |
 | 1 | Núcleo de reglas | backend | 1.1 – 1.3 | pendiente |
 | 2 | Contenido genérico | backend | 2.1 – 2.4 | pendiente |
 | 3 | Sesiones, ranking y barrendero | backend | 3.1 – 3.5 | pendiente |
@@ -35,3 +35,4 @@ bloqueo: ""
 | Fecha | Tarea | Commit | Nota |
 |---|---|---|---|
 | 2026-10-19 | — | `fce8ce0` | Diseño y flujo creados. Próxima: 0.1. |
+| 2026-10-19 | 0.1 | `2f3a018` | Transcripts de arcade, 1v1 y reconexión congelados; guardia de fuga. Próxima: 1.1. |
