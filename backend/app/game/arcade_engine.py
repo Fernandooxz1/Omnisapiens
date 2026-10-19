@@ -1,176 +1,90 @@
-"""Motor puro de la corrida arcade.
+"""El formato arcade: sus valores y la fachada sobre el motor solo.
 
-A diferencia del 1v1, una corrida no tiene techo de rondas: el historial no vive
-en el estado. Cada `resolve` devuelve el registro de la ronda para que la capa
-de arriba lo persista y el estado quede chico.
+Hasta la fase 4, el arcade sigue siendo la implementación de referencia y estos
+nombres son el contrato que usan el WebSocket, los servicios y los tests. Los
+números viven acá, que es el formato, no en `solo_engine`, que es el motor.
 """
 
-from dataclasses import dataclass, replace
-from enum import StrEnum
+from dataclasses import dataclass
 
-from app.game.answers import Answer, RejectReason, ServedQuestion, settle
+from app.game.answers import Answer, ServedQuestion
 from app.game.constants import (
     ARCADE_DIFFICULTY_TIERS,
     ARCADE_LIVES,
     ARCADE_SECONDS_FLOOR,
     ARCADE_SECONDS_START,
     ARCADE_SECONDS_STEP_EVERY,
-    CHOICES,
-    DIFFICULTY_MAX,
-    DIFFICULTY_MIN,
+    ARCADE_STREAK_BONUS_MAX,
+    ARCADE_STREAK_BONUS_STEP,
 )
-from app.game.errors import InvalidTransition
-from app.game.scoring import arcade_points
+from app.game.solo_engine import (
+    Resolved,
+    RoundRecord,
+    RunStatus,
+    SoloEngine,
+    SoloRules,
+    SoloRun,
+)
 
+__all__ = [
+    "ARCADE_ENGINE",
+    "ARCADE_RULES",
+    "ArcadeRun",
+    "Resolved",
+    "RoundRecord",
+    "RunStatus",
+    "SoloEngine",
+    "SoloRules",
+    "difficulty_for",
+    "next_question",
+    "resolve",
+    "seconds_for",
+]
 
-class RunStatus(StrEnum):
-    PLAYING = "playing"
-    FINISHED = "finished"
+ARCADE_RULES = SoloRules(
+    lives=ARCADE_LIVES,
+    difficulty_tiers=ARCADE_DIFFICULTY_TIERS,
+    seconds_start=ARCADE_SECONDS_START,
+    seconds_floor=ARCADE_SECONDS_FLOOR,
+    seconds_step_every=ARCADE_SECONDS_STEP_EVERY,
+    streak_bonus_step=ARCADE_STREAK_BONUS_STEP,
+    streak_bonus_max=ARCADE_STREAK_BONUS_MAX,
+)
+
+ARCADE_ENGINE = SoloEngine(ARCADE_RULES)
 
 
 @dataclass(frozen=True)
-class RoundRecord:
-    round_index: int
-    question_id: str
-    difficulty: int
-    seconds: int
-    correct_index: int
-    choice: int | None
-    correct: bool
-    elapsed_ms: int
-    points: int
-    rejected: RejectReason | None
+class ArcadeRun(SoloRun):
+    """La corrida arcade con sus reglas fijas.
 
+    El motor es genérico, pero el arcade de producción todavía espera este tipo:
+    se conserva hasta el port de la fase 4.
+    """
 
-@dataclass(frozen=True)
-class ArcadeRun:
-    round_index: int = 0
-    score: int = 0
+    rules: SoloRules = ARCADE_RULES
     lives: int = ARCADE_LIVES
-    streak: int = 0
-    correct_count: int = 0
-    longest_streak: int = 0
-    max_difficulty: int = DIFFICULTY_MIN
-    status: RunStatus = RunStatus.PLAYING
-
-    def __post_init__(self) -> None:
-        if self.round_index < 0:
-            raise ValueError(f"round_index negativo: {self.round_index}")
-        if self.score < 0:
-            raise ValueError(f"score negativo: {self.score}")
-        if not 0 <= self.lives <= ARCADE_LIVES:
-            raise ValueError(f"lives fuera de rango: {self.lives}")
-        if not 0 <= self.streak <= self.correct_count:
-            raise ValueError("streak no puede superar correct_count")
-        if not self.streak <= self.longest_streak <= self.correct_count:
-            raise ValueError("longest_streak debe estar entre streak y correct_count")
-        if not DIFFICULTY_MIN <= self.max_difficulty <= DIFFICULTY_MAX:
-            raise ValueError(f"max_difficulty fuera de rango: {self.max_difficulty}")
-        if (self.status is RunStatus.PLAYING) != (self.lives > 0):
-            raise ValueError("status y vidas se contradicen")
-
-    @property
-    def finished(self) -> bool:
-        return self.status is RunStatus.FINISHED
-
-
-@dataclass(frozen=True)
-class Resolved:
-    record: RoundRecord
-    run: ArcadeRun
 
 
 def difficulty_for(correct_count: int) -> int:
-    if correct_count < 0:
-        raise ValueError(f"correct_count negativo: {correct_count}")
-
-    level = DIFFICULTY_MIN
-    for index, threshold in enumerate(ARCADE_DIFFICULTY_TIERS):
-        if correct_count >= threshold:
-            level = index + DIFFICULTY_MIN
-    return level
+    return ARCADE_RULES.difficulty_for(correct_count)
 
 
 def seconds_for(correct_count: int) -> int:
-    if correct_count < 0:
-        raise ValueError(f"correct_count negativo: {correct_count}")
-
-    return max(
-        ARCADE_SECONDS_FLOOR,
-        ARCADE_SECONDS_START - correct_count // ARCADE_SECONDS_STEP_EVERY,
-    )
+    return ARCADE_RULES.seconds_for(correct_count)
 
 
-def next_question(run: ArcadeRun, *, question_id: str, now_ms: int) -> ServedQuestion:
-    if run.finished:
-        raise InvalidTransition("la corrida terminó: no hay pregunta siguiente")
-
-    return ServedQuestion(
-        round_index=run.round_index,
-        question_id=question_id,
-        difficulty=difficulty_for(run.correct_count),
-        seconds=seconds_for(run.correct_count),
-        served_at_ms=now_ms,
-    )
+def next_question(run: SoloRun, *, question_id: str, now_ms: int) -> ServedQuestion:
+    return ARCADE_ENGINE.next_question(run, question_id=question_id, now_ms=now_ms)
 
 
-def resolve(
-    run: ArcadeRun,
+def resolve[RunT: SoloRun](
+    run: RunT,
     served: ServedQuestion,
     *,
     correct_index: int,
     answer: Answer | None,
-) -> Resolved:
-    if run.finished:
-        raise InvalidTransition("la corrida terminó: no hay ronda que resolver")
-    if served.round_index != run.round_index:
-        raise InvalidTransition(
-            f"se resolvió la ronda {served.round_index} estando en la {run.round_index}"
-        )
-    if correct_index not in CHOICES:
-        raise ValueError(f"correct_index fuera de rango: {correct_index}")
-
-    settled = settle(served, answer, correct_index=correct_index)
-    points = arcade_points(
-        correct=settled.correct,
-        elapsed_ms=settled.elapsed_ms,
-        total_seconds=served.seconds,
-        streak=run.streak,
+) -> Resolved[RunT]:
+    return ARCADE_ENGINE.resolve(
+        run, served, correct_index=correct_index, answer=answer
     )
-
-    if settled.correct:
-        streak = run.streak + 1
-        lives = run.lives
-        score = run.score + points
-        correct_count = run.correct_count + 1
-    else:
-        streak = 0
-        lives = run.lives - 1
-        score = run.score
-        correct_count = run.correct_count
-
-    next_run = replace(
-        run,
-        round_index=run.round_index + 1,
-        score=score,
-        lives=lives,
-        streak=streak,
-        correct_count=correct_count,
-        longest_streak=max(run.longest_streak, streak),
-        max_difficulty=max(run.max_difficulty, served.difficulty),
-        status=RunStatus.FINISHED if lives == 0 else RunStatus.PLAYING,
-    )
-
-    record = RoundRecord(
-        round_index=served.round_index,
-        question_id=served.question_id,
-        difficulty=served.difficulty,
-        seconds=served.seconds,
-        correct_index=correct_index,
-        choice=settled.answer.choice if settled.answer is not None else None,
-        correct=settled.correct,
-        elapsed_ms=settled.elapsed_ms,
-        points=points,
-        rejected=settled.rejected,
-    )
-    return Resolved(record=record, run=next_run)

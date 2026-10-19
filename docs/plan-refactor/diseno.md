@@ -119,6 +119,23 @@ modo. La ventana temporal y el "fuera de ventana no existe" son compartidos.
 - `ScoringPolicy.points(verdict, elapsed_ms, seconds, state) -> int`: el bonus de tiempo
   es compartido; el bonus de racha es del formato `arcade`; rosco puede usar otra regla.
 
+Extraído en 1.2 (`backend/app/game/solo_engine.py`):
+
+```python
+SoloRules(lives, difficulty_tiers, seconds_start, seconds_floor,
+          seconds_step_every, streak_bonus_step, streak_bonus_max)
+
+SoloEngine(rules).start() -> SoloRun
+SoloEngine(rules).next_question(run, *, question_id, now_ms) -> ServedQuestion
+SoloEngine(rules).resolve(run, served, *, correct_index, answer) -> Resolved[run]
+```
+
+`SoloRun` lleva sus `rules` (así las vidas se validan contra el formato) y no guarda
+historial: `resolve` devuelve el `RoundRecord`. Los valores actuales viven en
+`ARCADE_RULES` (`arcade_engine.py`), no en el motor; `ArcadeRun` es la fachada de
+compatibilidad hasta la fase 4. En 1.3, `Progression` y `ScoringPolicy` se apoyan en
+estas curvas.
+
 ## 4. Datos
 
 ### 4.1 Contenido

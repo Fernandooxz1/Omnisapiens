@@ -9,7 +9,7 @@ Dos diferencias con la sala que se ven en los tipos:
 
 - Los efectos son una tupla y no `dict[user_id, mensajes]`: hay un solo
   destinatario, dirigirlos sería ceremonia.
-- La transición devuelve también el `RoundRecord`. `arcade_engine` no guarda
+- La transición devuelve también el `RoundRecord`. `SoloEngine` no guarda
   historial a propósito; el estado se queda chico y el borde acumula las rondas
   para persistirlas al cerrar.
 """
@@ -19,13 +19,7 @@ from random import Random
 
 from app.game import protocols
 from app.game.answers import Answer, ServedQuestion
-from app.game.arcade_engine import (
-    ArcadeRun,
-    RoundRecord,
-    next_question,
-    resolve,
-    seconds_for,
-)
+from app.game.arcade_engine import ARCADE_ENGINE, ArcadeRun, RoundRecord
 from app.game.constants import CHOICES
 from app.game.errors import InvalidTransition
 from app.services.question_bank import LoadedQuestion, shuffle_options
@@ -87,7 +81,7 @@ def start(run_id: str) -> Transition:
             protocols.ArcadeStart(
                 run_id=run_id,
                 lives=state.run.lives,
-                seconds=seconds_for(state.run.correct_count),
+                seconds=ARCADE_ENGINE.rules.seconds_for(state.run.correct_count),
             ),
         ),
     )
@@ -118,7 +112,9 @@ def serve(
     # llamador, olvidarlo le devolvería al cliente la respuesta en la posición
     # original (H-25).
     shuffled = shuffle_options(question, rng)
-    served = next_question(state.run, question_id=shuffled.question.id, now_ms=now_ms)
+    served = ARCADE_ENGINE.next_question(
+        state.run, question_id=shuffled.question.id, now_ms=now_ms
+    )
     session = replace(
         state,
         round=RoundInFlight(served=served, question=shuffled),
@@ -153,7 +149,7 @@ def expire(state: ArcadeState, *, now_ms: int) -> Transition:
 def _resolve(
     state: ArcadeState, round_: RoundInFlight, answer_: Answer | None
 ) -> Transition:
-    resolved = resolve(
+    resolved = ARCADE_ENGINE.resolve(
         state.run,
         round_.served,
         correct_index=round_.question.correct_index,
