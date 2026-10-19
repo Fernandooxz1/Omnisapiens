@@ -94,6 +94,28 @@ El servicio no lee relojes: `started_at`, `ended_at` y los veredictos llegan ya
 decididos por el motor o el barrido. Los intentos apuntan a los ítems por `item_key`;
 el id de la fila lo genera el servicio.
 
+## Sesiones en vivo
+
+`app/runtime/session_store.py` es el estado vivo de las sesiones solo: el contrato
+`SessionStore` (`open`, `submit`, `close`, `live`, `sessions`) y su implementación
+`InMemorySessionStore`. El handler dependerá de la interfaz, no de la clase, para poder
+mudarla a Redis cuando haya más de un proceso.
+
+- `open` registra la sesión, manda `arcade_start` y sirve el primer ítem. El borde
+  inyecta las `SoloRules`, el `ItemSource` (elegir y cargar es I/O), el reloj, el
+  `sleep` y el `rng`; el store solo aplica el `SoloEngine` y entrega.
+- Cada sesión tiene un `outbox` propio. Si el cliente deja de leer y la cola se llena,
+  se descarta lo más viejo y se conserva lo último (mismo criterio que la sala).
+- La tarea de vencimiento resuelve la ronda servida al llegar `ends_at` y sirve la
+  siguiente después de la pausa de revelación.
+- `close(session_id)` es idempotente y corta la tarea. La fila no se toca: si quedó
+  `playing`, el barrendero la invalida.
+- `live()` alimenta `Live.sessions`; una sesión terminada deja de estar viva aunque su
+  `close` llegue después.
+
+El store no persiste: `services/sessions.py` sigue siendo el único que escribe las
+cuatro tablas, y el borde es quien llama al arranque y al cierre.
+
 ## Convenciones
 
 - Código, identificadores, archivos y commits **en inglés**; los mensajes que ve el jugador,
