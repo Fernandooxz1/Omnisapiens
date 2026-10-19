@@ -1,14 +1,19 @@
-"""Las sesiones en vivo de un solo jugador: estado, entrega, reloj y vencimientos.
+"""Las sesiones en vivo: estado, entrega, reloj y vencimientos.
 
-`room_manager.py` resuelve lo mismo para una sala con sillas. Acá hay una sola
-conexión, así que sobran el lobby, la gracia y el lock por silla: queda el estado
-del motor, el `outbox` de esa conexión y una tarea que vence la ronda servida.
+Hay dos formas en el mismo store:
 
-`SessionStore` es el contrato, no la implementación. El handler dependerá de la
-interfaz y este archivo podrá mudarse a Redis el día que haya más de un proceso.
-La sesión es de una conexión: si el socket se cae, `close` la saca de memoria y
-la fila queda `playing` para que el barrendero la invalide. Media sesión no
-compite en el ranking.
+- **Solo** (`SessionStore`): una conexión, el `SoloEngine`, un `outbox` y una
+  tarea que vence la ronda servida. No hay lobby, gracia ni lock por silla.
+- **Versus** (`VersusSessionStore`): una sala con dos sillas, el `VersusEngine`,
+  un `outbox` por jugador, lock por código de sala, ventana de gracia de 20 s y
+  pausa/reanudación del reloj cuando alguien se cae.
+
+`SessionStore` y `VersusSessionStore` son los contratos, no las implementaciones.
+Los handlers dependerán de las interfaces y este archivo podrá mudarse a Redis el
+día que haya más de un proceso. En solo, si el socket se cae, `close` la saca de
+memoria y la fila queda `playing` para que el barrendero la invalide. En versus
+la silla sobrevive a la desconexión durante la gracia; vencida, la partida
+termina en abandono (o `void` si no queda nadie).
 
 El reloj y el `sleep` se inyectan para que una sesión entera, con vencimientos,
 corra en microsegundos en los tests. El contenido no vive acá: el borde inyecta
@@ -25,11 +30,12 @@ from random import Random
 from typing import Protocol
 
 from app.config import settings
-from app.game import protocols
+from app.game import protocols, versus_engine
 from app.game.answers import Answer, ServedQuestion
 from app.game.constants import CHOICES
 from app.game.errors import InvalidTransition
 from app.game.solo_engine import RoundRecord, SoloEngine, SoloRules, SoloRun
+from app.game.versus_engine import VersusConfig, VersusState
 from app.services.question_bank import LoadedQuestion, shuffle_options
 
 logger = logging.getLogger(__name__)
@@ -57,6 +63,13 @@ Effects = tuple[protocols.Message, ...]
 # timeout de inactividad. Es el mismo criterio que `room_manager.OUTBOX_MAX`.
 OUTBOX_MAX = 64
 
+# El reloj de una sesión versus no puede morir con el primer error transitorio
+# del borde (elegir la pregunta es I/O): reintenta con backoff. Si el borde está
+# caído de verdad, se rinde y avisa: una partida sin reloj tiene que cortar, no
+# quedarse muda.
+MAX_VERSUS_EXPIRY_FAILURES = 5
+VERSUS_EXPIRY_BACKOFF_S = 1.0
+
 
 @dataclass(frozen=True)
 class NextQuestion:
@@ -74,6 +87,10 @@ class NextQuestion:
 # El borde aporta la pregunta ya elegida: candidatas, dificultad, Redis y carga
 # son I/O. El store solo aplica las reglas y entrega.
 ItemSource = Callable[[SoloRun, frozenset[str]], Awaitable[NextQuestion | None]]
+
+# En versus el pool depende de la partida (tramo de dificultad y preguntas ya
+# vistas), así que el borde recibe el estado completo y devuelve la pregunta.
+VersusItemSource = Callable[[VersusState], Awaitable[LoadedQuestion | None]]
 
 
 @dataclass(frozen=True)
@@ -149,11 +166,20 @@ class SoloSessionView:
     records: tuple[RoundRecord, ...] = ()
 
 
+@dataclass(frozen=True)
+class VersusSessionView:
+    """Una foto de una sala versus viva para tests y diagnóstico."""
+
+    code: str
+    room_id: str
+    state: VersusState
+
+
 class SessionStore(Protocol):
     """Lo que el borde necesita de una sesión solo (fase 4.1).
 
-    Fase 5 extiende la implementación con sillas para el versus; el handler del
-    WebSocket sigue dependiendo de la interfaz, no de la clase.
+    El handler del WebSocket depende de la interfaz, no de la clase. El versus
+    tiene su propio contrato (`VersusSessionStore`) sobre la misma implementación.
     """
 
     async def open(
@@ -197,6 +223,80 @@ class SessionStore(Protocol):
         ...
 
 
+class VersusSessionStore(Protocol):
+    """Lo que el borde necesita de una sala versus (fase 5.1)."""
+
+    async def open_versus(
+        self,
+        *,
+        code: str,
+        room_id: str,
+        config: VersusConfig,
+        host_id: str,
+        next_item: VersusItemSource,
+    ) -> None:
+        """Da de alta la sala viva. Idempotente: reconectar no la reinicia."""
+        ...
+
+    async def join(self, *, code: str, user_id: str, nick: str, outbox: Outbox) -> None:
+        """Sienta a un jugador (o lo reconecta) y le manda el estado."""
+        ...
+
+    async def reconnect(
+        self, *, code: str, user_id: str, nick: str, outbox: Outbox
+    ) -> None:
+        """Vuelve a enganchar una silla existente a una conexión nueva."""
+        ...
+
+    async def sync(self, *, code: str, user_id: str) -> None:
+        """Reenvía el estado completo al que manda `hello`."""
+        ...
+
+    async def start(
+        self, *, code: str, user_id: str, match_id: str | None = None
+    ) -> str | None:
+        """El host arranca la partida y sirve la primera ronda."""
+        ...
+
+    async def answer(
+        self, *, code: str, user_id: str, round_index: int, choice: int
+    ) -> None: ...
+
+    async def disconnect(self, *, code: str, user_id: str, outbox: Outbox) -> None:
+        """Suelta la silla si la conexión que se va sigue siendo la vigente."""
+        ...
+
+    async def rematch(
+        self, *, code: str, user_id: str, match_id: str | None = None
+    ) -> str | None: ...
+
+    async def close(
+        self, *, session_id: str | None = None, code: str | None = None
+    ) -> None:
+        """Suelta una sesión solo, una sala versus o todo, y corta sus tareas."""
+        ...
+
+    def player_count(self, code: str) -> int:
+        """Cuántos jugadores conectados hay en la sala."""
+        ...
+
+    def seated(self, *, code: str, user_id: str) -> bool:
+        """Si ese usuario tiene silla."""
+        ...
+
+    def room_count(self) -> int:
+        """Salas versus vivas en memoria."""
+        ...
+
+    def live(self) -> frozenset[uuid.UUID]:
+        """Las partidas versus en curso, para que el barrido no las invalide."""
+        ...
+
+    def versus_sessions(self) -> Mapping[str, VersusSessionView]:
+        """Las salas versus que este proceso tiene en memoria, en una foto."""
+        ...
+
+
 @dataclass
 class _Session:
     """La sesión viva: el estado puro más lo que el estado puro no puede tener."""
@@ -217,6 +317,29 @@ class _Session:
     task: asyncio.Task[None] | None = None
 
 
+@dataclass
+class _Versus:
+    """La sala versus viva: el estado puro más la entrega y el reloj."""
+
+    code: str
+    room_id: str
+    state: VersusState
+    next_item: VersusItemSource
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    outboxes: dict[str, Outbox] = field(default_factory=dict)
+    # Despierta a la tarea de vencimientos cuando cambió el estado: así no hay
+    # polling y el plazo se recalcula con la sala ya quieta.
+    wakeup: asyncio.Event = field(default_factory=asyncio.Event)
+    # La sala quedó debiendo la ronda siguiente (su consulta falló): el reloj la
+    # reintenta. No se usa `needs_next_round` a secas porque el caso `NO_QUESTIONS`
+    # también lo deja en `True` y ahí hay que esperar, no girar en vacío.
+    retry_serve: bool = False
+    # Última vez que pasó algo (alta, join, transición). El alta de una sala nueva
+    # usa este dato para desalojar las que murieron sin que nadie las cierre (H-03).
+    last_activity_ms: int = 0
+    task: asyncio.Task[None] | None = None
+
+
 class InMemorySessionStore:
     """La implementación de un solo proceso: todas las sesiones en memoria."""
 
@@ -224,17 +347,28 @@ class InMemorySessionStore:
         self,
         *,
         reveal_seconds: float | None = None,
+        grace_seconds: int = settings.reconnect_grace_seconds,
         now_ms: Clock | None = None,
         sleep: Sleeper | None = None,
         rng: Random | None = None,
+        max_failures: int = MAX_VERSUS_EXPIRY_FAILURES,
+        backoff_s: float = VERSUS_EXPIRY_BACKOFF_S,
+        idle_timeout_seconds: int = settings.room_idle_timeout_seconds,
+        shuffle_served_options: bool = True,
     ) -> None:
         # `None` lee `settings.reveal_seconds` al dormir: el test puede bajarla o
         # subirla después de construir el store, igual que el handler viejo.
         self._reveal_seconds = reveal_seconds
+        self._grace_seconds = grace_seconds
         self._now_ms = now_ms or _system_now_ms
         self._sleep = sleep or asyncio.sleep
         self._rng = rng or Random()
+        self._max_failures = max_failures
+        self._backoff_s = backoff_s
+        self._idle_timeout_ms = idle_timeout_seconds * 1000
+        self._shuffle = shuffle_served_options
         self._sessions: dict[str, _Session] = {}
+        self._versus: dict[str, _Versus] = {}
 
     @property
     def _reveal(self) -> float:
@@ -301,25 +435,48 @@ class InMemorySessionStore:
             await self._advance(entry, transition)
             entry.wakeup.set()
 
-    async def close(self, *, session_id: str | None = None) -> None:
-        if session_id is None:
-            entries = list(self._sessions.values())
-            self._sessions.clear()
-        else:
+    async def close(
+        self, *, session_id: str | None = None, code: str | None = None
+    ) -> None:
+        """Suelta una sesión solo, una sala versus o todo; corta sus tareas."""
+        solo: list[_Session] = []
+        versus: list[_Versus] = []
+        if session_id is not None:
             entry = self._sessions.pop(session_id, None)
-            entries = [entry] if entry is not None else []
+            if entry is not None:
+                solo.append(entry)
+        elif code is not None:
+            room = self._versus.pop(code, None)
+            if room is not None:
+                versus.append(room)
+        else:
+            solo = list(self._sessions.values())
+            versus = list(self._versus.values())
+            self._sessions.clear()
+            self._versus.clear()
 
-        tasks = [entry.task for entry in entries if entry.task is not None]
+        tasks = [entry.task for entry in solo if entry.task is not None]
+        tasks.extend(room.task for room in versus if room.task is not None)
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
 
     def live(self) -> frozenset[uuid.UUID]:
-        return frozenset(
+        sessions = {
             entry.session_uuid
             for entry in self._sessions.values()
             if not entry.state.finished
-        )
+        }
+        # Una partida versus vive en `game_sessions` con el id del match desde la
+        # fase 5.2; mientras se juega, el barrido no puede invalidarla.
+        matches = {
+            uuid.UUID(room.state.match_id)
+            for room in self._versus.values()
+            if room.state.match_id is not None
+            and room.state.match is not None
+            and room.state.match.status is versus_engine.MatchStatus.PLAYING
+        }
+        return frozenset(sessions | matches)
 
     def sessions(self) -> Mapping[str, SoloSessionView]:
         return {
@@ -331,6 +488,338 @@ class InMemorySessionStore:
             )
             for session_id, entry in self._sessions.items()
         }
+
+    async def open_versus(
+        self,
+        *,
+        code: str,
+        room_id: str,
+        config: VersusConfig,
+        host_id: str,
+        next_item: VersusItemSource,
+    ) -> None:
+        """Da de alta la sala viva. Idempotente: reconectar no la reinicia."""
+        actual = self._versus.get(code)
+        if actual is not None and not self._versus_evictable(actual):
+            # El handler nuevo puede traer otro `ItemSource` (otra sesión de
+            # base): la sala sigue, pero la próxima pregunta la carga este.
+            actual.next_item = next_item
+            return
+        if actual is not None:
+            self._versus.pop(code, None)
+            _cancel(actual)
+        self._evict_versus_dead()
+        entry = _Versus(
+            code=code,
+            room_id=room_id,
+            state=VersusState(code=code, config=config, host_id=host_id),
+            next_item=next_item,
+            last_activity_ms=self._now_ms(),
+        )
+        self._versus[code] = entry
+        entry.task = asyncio.create_task(self._versus_expiry_loop(entry))
+
+    async def join(self, *, code: str, user_id: str, nick: str, outbox: Outbox) -> None:
+        entry = self._versus.get(code)
+        if entry is None:
+            return
+        async with entry.lock:
+            await self._versus_join(entry, user_id=user_id, nick=nick, outbox=outbox)
+
+    async def reconnect(
+        self, *, code: str, user_id: str, nick: str, outbox: Outbox
+    ) -> None:
+        entry = self._versus.get(code)
+        if entry is None:
+            _push(
+                outbox,
+                protocols.Error(code="NOT_IN_ROOM", message="No estás en esta sala"),
+            )
+            return
+        async with entry.lock:
+            if entry.state.player_of(user_id) is None:
+                # Una conexión nueva no puede inventar una silla: sin asiento no
+                # hay ronda que repintar ni reloj que reanudar.
+                _push(
+                    outbox,
+                    protocols.Error(
+                        code="NOT_IN_ROOM", message="No estás en esta sala"
+                    ),
+                )
+                return
+            await self._versus_join(entry, user_id=user_id, nick=nick, outbox=outbox)
+
+    async def sync(self, *, code: str, user_id: str) -> None:
+        await self._versus_act(
+            code,
+            lambda state: versus_engine.sync(
+                state, user_id=user_id, now_ms=self._now_ms()
+            ),
+        )
+
+    async def start(
+        self, *, code: str, user_id: str, match_id: str | None = None
+    ) -> str | None:
+        entry = self._versus.get(code)
+        if entry is None:
+            return None
+        # El id se acuña acá y viaja al mensaje: quien persiste la sesión lo usa.
+        nuevo = match_id or str(uuid.uuid4())
+        async with entry.lock:
+            anterior = entry.state.match_id
+            await self._versus_step(
+                entry,
+                lambda state: versus_engine.start(
+                    state, user_id=user_id, match_id=nuevo
+                ),
+            )
+            return nuevo if entry.state.match_id not in (None, anterior) else None
+
+    async def answer(
+        self, *, code: str, user_id: str, round_index: int, choice: int
+    ) -> None:
+        await self._versus_act(
+            code,
+            lambda state: versus_engine.answer(
+                state,
+                user_id=user_id,
+                round_index=round_index,
+                choice=choice,
+                now_ms=self._now_ms(),
+            ),
+        )
+
+    async def disconnect(self, *, code: str, user_id: str, outbox: Outbox) -> None:
+        entry = self._versus.get(code)
+        if entry is None:
+            return
+        async with entry.lock:
+            # Si otra conexión más nueva ya se sentó, este cierre es de un socket
+            # viejo: la silla no es suya y no puede desmontarla.
+            if entry.outboxes.get(user_id) is not outbox:
+                return
+            # Se suelta el `outbox` antes de la transición: mensajes para un
+            # socket que ya se fue no le sirven a nadie y se acumularían.
+            entry.outboxes.pop(user_id, None)
+            await self._versus_step(
+                entry,
+                lambda state: versus_engine.disconnect(
+                    state,
+                    user_id=user_id,
+                    now_ms=self._now_ms(),
+                    grace_seconds=self._grace_seconds,
+                ),
+            )
+
+    async def rematch(
+        self, *, code: str, user_id: str, match_id: str | None = None
+    ) -> str | None:
+        entry = self._versus.get(code)
+        if entry is None:
+            return None
+        nuevo = match_id or str(uuid.uuid4())
+        async with entry.lock:
+            anterior = entry.state.match_id
+            await self._versus_step(
+                entry,
+                lambda state: versus_engine.rematch(
+                    state, user_id=user_id, match_id=nuevo
+                ),
+            )
+            return nuevo if entry.state.match_id not in (None, anterior) else None
+
+    def player_count(self, code: str) -> int:
+        entry = self._versus.get(code)
+        if entry is None:
+            return 0
+        return sum(
+            1 for seat in entry.state.seats if seat is not None and seat.connected
+        )
+
+    def seated(self, *, code: str, user_id: str) -> bool:
+        entry = self._versus.get(code)
+        return entry is not None and entry.state.player_of(user_id) is not None
+
+    def room_count(self) -> int:
+        """Salas versus vivas en memoria: la métrica que vigila el desalojo."""
+        return len(self._versus)
+
+    def versus_sessions(self) -> Mapping[str, VersusSessionView]:
+        return {
+            code: VersusSessionView(
+                code=entry.code, room_id=entry.room_id, state=entry.state
+            )
+            for code, entry in self._versus.items()
+        }
+
+    async def _versus_join(
+        self, entry: _Versus, *, user_id: str, nick: str, outbox: Outbox
+    ) -> None:
+        entry.outboxes[user_id] = outbox
+        await self._versus_step(
+            entry,
+            lambda state: versus_engine.join(
+                state, user_id=user_id, nick=nick, now_ms=self._now_ms()
+            ),
+        )
+        if entry.state.player_of(user_id) is None:
+            # Un tercero: ya recibió su error y no queda colgado en la sala.
+            entry.outboxes.pop(user_id, None)
+
+    async def _versus_act(
+        self,
+        code: str,
+        transition: Callable[[VersusState], versus_engine.Transition],
+    ) -> None:
+        entry = self._versus.get(code)
+        if entry is None:
+            return
+        async with entry.lock:
+            await self._versus_step(entry, transition)
+
+    async def _versus_step(
+        self,
+        entry: _Versus,
+        transition: Callable[[VersusState], versus_engine.Transition],
+    ) -> None:
+        """Aplica una transición con el lock tomado y hace sonar lo que cuelga."""
+        before = entry.state
+        entry.last_activity_ms = self._now_ms()
+        after, effects = transition(before)
+        entry.state = after
+        await self._deliver_versus(entry, effects)
+        try:
+            # La revelación se ve antes de que corra el reloj de la próxima ronda:
+            # el `ends_at` se calcula después de la pausa, no antes. Al terminar la
+            # partida (`needs_next_round` falso) no hay pausa extra.
+            if (
+                before.round is not None
+                and after.round is None
+                and after.needs_next_round
+            ):
+                await self._sleep(self._reveal)
+            await self._serve_versus_next(entry)
+            entry.retry_serve = False
+        except Exception:
+            # Si quedó debiendo la ronda siguiente, el reloj la reintenta: el estado
+            # ya es consistente (la ronda anterior está resuelta y entregada).
+            entry.retry_serve = after.needs_next_round
+            raise
+        finally:
+            # Cambió el estado (o falló a mitad): el reloj tiene que recalcular.
+            entry.wakeup.set()
+
+    async def _serve_versus_next(self, entry: _Versus) -> None:
+        """Sirve la ronda siguiente si el motor ya la pidió."""
+        if not entry.state.needs_next_round:
+            return
+        question = await entry.next_item(entry.state)
+        if question is None:
+            # Sin banco no hay partida que seguir. La sala queda como está y la
+            # sesión `playing` la invalida el barrendero.
+            await self._deliver_versus(
+                entry,
+                _versus_error_to_seats(
+                    entry.state, "NO_QUESTIONS", "No hay preguntas para servir."
+                ),
+            )
+            return
+        if self._shuffle:
+            question = shuffle_options(question, self._rng)
+        after, effects = versus_engine.serve(
+            entry.state, question=question, now_ms=self._now_ms()
+        )
+        entry.state = after
+        await self._deliver_versus(entry, effects)
+
+    async def _versus_expiry_loop(self, entry: _Versus) -> None:
+        """Vence lo que el reloj tenga que vencer, sin polling."""
+        fallos = 0
+        while True:
+            try:
+                await self._versus_tick(entry)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                fallos += 1
+                logger.exception(
+                    "la sala %s falló al vencer (intento %d)",
+                    entry.state.code,
+                    fallos,
+                )
+                if fallos >= self._max_failures:
+                    await self._versus_surrender(entry)
+                    return
+                await self._sleep(self._backoff_s)
+            else:
+                fallos = 0
+
+    async def _versus_tick(self, entry: _Versus) -> None:
+        entry.wakeup.clear()
+        if entry.retry_serve:
+            # Una transición anterior quedó debiendo la ronda siguiente: se
+            # reintenta el servir antes de volver a esperar.
+            async with entry.lock:
+                if self._versus.get(entry.code) is not entry:
+                    return
+                await self._serve_versus_next(entry)
+                entry.retry_serve = False
+            return
+        deadline = _versus_deadline(entry.state)
+        if deadline is None:
+            await entry.wakeup.wait()
+            return
+        if not await self._wait(entry, (deadline - self._now_ms()) / 1000):
+            return
+        async with entry.lock:
+            # Bajo el lock el estado puede haberse movido: otra acción pudo
+            # resolver la ronda, reconectar o servirse una nueva.
+            if self._versus.get(entry.code) is not entry:
+                return
+            if _versus_deadline(entry.state) != deadline:
+                return
+            if self._now_ms() < deadline:
+                return
+            await self._versus_step(
+                entry,
+                lambda state: versus_engine.expire(state, now_ms=self._now_ms()),
+            )
+
+    async def _versus_surrender(self, entry: _Versus) -> None:
+        """La sala perdió el reloj: se avisa a los sentados antes de rendirse."""
+        async with entry.lock:
+            await self._deliver_versus(
+                entry,
+                _versus_error_to_seats(
+                    entry.state,
+                    "ROOM_CLOCK_DOWN",
+                    "La sala perdió el reloj. Se corta la partida.",
+                ),
+            )
+
+    async def _deliver_versus(
+        self, entry: _Versus, effects: versus_engine.Effects
+    ) -> None:
+        for user_id, messages in effects.items():
+            outbox = entry.outboxes.get(user_id)
+            if outbox is None:
+                continue
+            for message in messages:
+                _push(outbox, message)
+
+    def _evict_versus_dead(self) -> None:
+        """Saca del mapa las salas que ya no pueden revivir (H-03)."""
+        for code, entry in list(self._versus.items()):
+            if self._versus_evictable(entry):
+                self._versus.pop(code, None)
+                _cancel(entry)
+
+    def _versus_evictable(self, entry: _Versus) -> bool:
+        return (
+            not entry.outboxes
+            and entry.state.status is not versus_engine.VersusStatus.PLAYING
+            and self._now_ms() - entry.last_activity_ms >= self._idle_timeout_ms
+        )
 
     async def _apply(self, entry: _Session, transition: Transition) -> None:
         entry.state = transition.state
@@ -424,7 +913,7 @@ class InMemorySessionStore:
             await self._advance(entry, transition)
             entry.wakeup.set()
 
-    async def _wait(self, entry: _Session, timeout_s: float) -> bool:
+    async def _wait(self, entry: _Session | _Versus, timeout_s: float) -> bool:
         """`True` si venció el plazo; `False` si la sesión se despertó antes."""
         if timeout_s <= 0:
             return True
@@ -609,6 +1098,31 @@ def _deadline(state: SoloState) -> int | None:
     if state.round is None:
         return None
     return state.round.served.ends_at_ms
+
+
+def _versus_deadline(state: VersusState) -> int | None:
+    """El próximo instante que el reloj tiene que atender, si hay alguno.
+
+    Mientras hay gracia, el plazo que manda es el de la gracia: la ronda está
+    pausada, así que su `ends_at` no corre.
+    """
+    if state.grace_deadline_ms is not None:
+        return state.grace_deadline_ms
+    if state.round is not None and state.round.paused_since_ms is None:
+        return state.round.served.ends_at_ms
+    return None
+
+
+def _versus_error_to_seats(
+    state: VersusState, code: str, message: str
+) -> versus_engine.Effects:
+    error = protocols.Error(code=code, message=message)
+    return {seat.user_id: (error,) for seat in state.seats if seat is not None}
+
+
+def _cancel(entry: _Versus) -> None:
+    if entry.task is not None:
+        entry.task.cancel()
 
 
 def _push(outbox: Outbox, message: protocols.Message) -> None:

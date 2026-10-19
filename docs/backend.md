@@ -105,10 +105,14 @@ fase 10.
 
 ## Sesiones en vivo
 
-`app/runtime/session_store.py` es el estado vivo de las sesiones solo: el contrato
-`SessionStore` (`open`, `submit`, `close`, `live`, `sessions`) y su implementación
+`app/runtime/session_store.py` es el estado vivo de las sesiones: los contratos
+`SessionStore` (solo) y `VersusSessionStore` (sillas) con su implementación
 `InMemorySessionStore`. El handler dependerá de la interfaz, no de la clase, para poder
 mudarla a Redis cuando haya más de un proceso.
+
+### Solo
+
+El contrato `SessionStore` es `open`, `submit`, `close`, `live` y `sessions`.
 
 - `open` registra la sesión, manda `arcade_start` y sirve el primer ítem. El borde
   inyecta las `SoloRules`, el `ItemSource` (elegir y cargar es I/O), el reloj, el
@@ -129,6 +133,38 @@ El store no persiste: `services/sessions.py` sigue siendo el único que escribe 
 cuatro tablas, y el borde es quien llama al arranque y al cierre. `arcade_ws` es ese
 borde: elige y carga los ítems (`ItemSource`), arranca la fila, persiste el cierre y
 completa el ranking con `leaderboard.run_summary` (que desde 4.2 lee `game_sessions`).
+
+### Versus
+
+`app/game/versus_engine.py` es el motor puro del 1v1: la partida (`VersusEngine`,
+`MatchState`), las dos sillas (`VersusState`), rondas, dificultad por tramo, desempate
+con tope de 3, abandono, `void` y revancha. El estado es inmutable y cada transición
+devuelve el estado nuevo más los mensajes **por jugador** (`room_state` lleva `you`;
+`round_result`/`match_end` cambian según el lado). El motor no serializa nada: entrega
+las dataclasses de `protocols` y el borde las manda.
+
+`VersusSessionStore` vive en el mismo `session_store.py` y agrega al store:
+
+- `open_versus` (alta idempotente por código de sala), `join`, `reconnect`, `sync`,
+  `start`, `answer`, `disconnect`, `rematch` y `close(code=...)`. `open_versus` y
+  `close` llevan prefijo/parámetro porque el contrato solo ya usa esos nombres.
+- Un lock por sala y un `outbox` por silla: el vencimiento entrega aunque el otro
+  jugador no esté esperando.
+- La gracia (`grace_seconds`, 20 s por defecto): el primer ausente fija la ventana y la
+  silla no se libera. Al reconectar se reanuda el reloj corriendo por el hueco todo lo
+  que estaba servido —`served_at` y las respuestas ya recibidas—, así nadie gana ni
+  pierde segundos. Vencida la gracia, gana el presente; si no queda nadie, la partida
+  es `void`.
+- Una tarea de vencimiento que resuelve la ronda servida, cierra la gracia o reintenta
+  servir la ronda siguiente cuando la fuente de ítems falló. El reloj inyectado hace
+  que una partida entera corra en microsegundos en los tests.
+- `live()` suma los ids de las partidas versus en curso para que el barrido no las
+  invalide. La fila genérica se escribe en el borde (5.2).
+
+El protocolo del cliente no cambia: `room_state`, `match_start`, `round_start`,
+`opponent_answered`, `round_result`, `match_end`, `error` y los de reconexión siguen
+siendo los mismos. Hasta 5.2, `/ws/room` sigue pasando por `runtime/room_manager.py`;
+el store nuevo ya corre el motor y las sillas en tests.
 
 ## Convenciones
 

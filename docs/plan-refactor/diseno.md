@@ -112,6 +112,15 @@ OrderSubmission(order: tuple[int, ...])
 `Verdict` trae lo común (`correct`, `elapsed_ms`, `rejected`) y un `detail` tipado por
 modo. La ventana temporal y el "fuera de ventana no existe" son compartidos.
 
+Extraído en 5.1 (`backend/app/game/versus_engine.py`): el versus tiene su motor puro
+(`VersusEngine(config)`, `MatchState`, `RoundRecord`) y su sesión con sillas
+(`VersusState`, `Seat`, `RoundInFlight`). Cada transición recibe `now_ms` y devuelve el
+estado nuevo más los mensajes por jugador; no toca sockets, base ni reloj. La ventana,
+el tramo de dificultad, el desempate con tope de 3, el abandono, el `void` y la revancha
+viven ahí. `InMemorySessionStore` aplica ese motor con lock por sala, `outbox` por
+silla, gracia y pausa del reloj, y entrega los mensajes actuales (`room_state`,
+`match_start`, `round_start`, `round_result`, `match_end`, …) sin serializar nada.
+
 ### 3.4 `Progression` y `ScoringPolicy`
 
 - `Progression.next(state, format) -> Step`: dificultad, segundos y si la sesión sigue.
