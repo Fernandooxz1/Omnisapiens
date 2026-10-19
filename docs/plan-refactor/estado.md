@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 2
-tarea: "2.2"
+tarea: "2.3"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: a6e9353
+ultimo_commit: 56775c9
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -40,3 +40,4 @@ bloqueo: ""
 | 2026-10-19 | 1.2 | `ed73f0a` | `SoloRules`/`SoloEngine` parametrizan vidas y curvas; `arcade_engine` queda como fachada. Próxima: 1.3. |
 | 2026-10-19 | 1.3 | `8cadbf7` | `GameMode`, protocolos, tipos de contenido y registro vacío; conformance lista. Tag `refactor-fase-1`. Próxima: 2.1. |
 | 2026-10-19 | 2.1 | `a6e9353` | `content_items`/`content_solutions`, migración `0004` y constraints con tests. Próxima: 2.2. |
+| 2026-10-19 | 2.2 | `56775c9` | `backfill-content --kind quiz` idempotente, mismo UUID y hash; `make backfill-content`. Próxima: 2.3. |
