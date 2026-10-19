@@ -5,11 +5,11 @@
 
 ```yaml
 activo: true
-fase: 2
-tarea: "2.4"
+fase: 3
+tarea: "3.1"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 591c512
+ultimo_commit: dee81e3
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -20,7 +20,7 @@ bloqueo: ""
 |---|---|---|---|---|
 | 0 | Red de seguridad | backend | 0.1 | hecho |
 | 1 | Núcleo de reglas | backend | 1.1 – 1.3 | pendiente |
-| 2 | Contenido genérico | backend | 2.1 – 2.4 | pendiente |
+| 2 | Contenido genérico | backend | 2.1 – 2.4 | hecho |
 | 3 | Sesiones, ranking y barrendero | backend | 3.1 – 3.5 | pendiente |
 | 4 | Port del arcade | backend | 4.1 – 4.3 | pendiente |
 | 5 | Port del 1v1 | backend | 5.1 – 5.3 | pendiente |
@@ -42,3 +42,4 @@ bloqueo: ""
 | 2026-10-19 | 2.1 | `a6e9353` | `content_items`/`content_solutions`, migración `0004` y constraints con tests. Próxima: 2.2. |
 | 2026-10-19 | 2.2 | `56775c9` | `backfill-content --kind quiz` idempotente, mismo UUID y hash; `make backfill-content`. Próxima: 2.3. |
 | 2026-10-19 | 2.3 | `591c512` | `QuizContent` (payload/solución versionados, candidates/load); import dual-write, CLI `import-content` y admin `/admin/content/{kind}`. Próxima: 2.4. |
+| 2026-10-19 | 2.4 | `dee81e3` | Banco lee `content_items`/`content_solutions`; se corta el dual-write; `0004b` repunta las FK del historial. Tag `refactor-fase-2`. Próxima: 3.1. |
