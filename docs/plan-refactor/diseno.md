@@ -334,6 +334,9 @@ El backfill **no** va dentro de la migración: es un comando idempotente de `app
 depender de datos que pueden faltar.
 
 1. `questions` → `content_items(kind='quiz')` + `content_solutions` (mismo UUID).
+   Implementado en 2.2 como `backfill-content --kind quiz` (`make backfill-content`):
+   conserva UUID y `content_hash`, reporta leídas/creadas/ya existentes/rechazadas y se
+   puede correr dos veces sin duplicar. La tabla vieja no se borra.
 2. `arcade_runs`/`arcade_answers` → `game_sessions(mode='trivia_arcade')` + ítems +
    intentos.
 3. `matches`/`match_rounds` → `game_sessions(mode='trivia_versus')` + ídem.

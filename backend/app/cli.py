@@ -13,7 +13,7 @@ from pathlib import Path
 
 from app.db import engine, session_factory
 from app.models.question import STATUSES
-from app.services import importer
+from app.services import content_backfill, importer
 
 # Las semilla viven en el repo, en el mismo formato que importa `import-questions`:
 # así `seed` es el importador apuntado a un archivo fijo, con un solo camino probado.
@@ -39,10 +39,27 @@ def _build_parser() -> argparse.ArgumentParser:
         "--status", choices=STATUSES, default="published"
     )
 
+    backfill = sub.add_parser(
+        "backfill-content",
+        help="Copia la tabla vieja al contenido genérico (idempotente).",
+    )
+    backfill.add_argument(
+        "--kind",
+        choices=(content_backfill.QUIZ_KIND,),
+        default=content_backfill.QUIZ_KIND,
+    )
+
     return parser
 
 
 async def _dispatch(args: argparse.Namespace) -> int:
+    if args.command == "backfill-content":
+        async with session_factory() as session:
+            backfill_report = await content_backfill.backfill_quiz(session)
+            await session.commit()
+        _print_backfill(backfill_report)
+        return 0
+
     if args.command == "seed":
         archivo, formato = SEED_FILE, None
     else:
@@ -69,6 +86,15 @@ def _print_report(archivo: Path, report: importer.ImportReport) -> None:
     print(f"  rechazadas: {len(report.rejected)}")
     for fila in report.rejected:
         print(f"    fila {fila.row}: {fila.reason}")
+
+
+def _print_backfill(report: content_backfill.BackfillReport) -> None:
+    print(f"leídas: {report.read}")
+    print(f"  creadas: {report.created}")
+    print(f"  ya existentes: {report.existing}")
+    print(f"  rechazadas: {len(report.rejected)}")
+    for item in report.rejected:
+        print(f"    {item.content_id}: {item.reason}")
 
 
 async def _run(args: argparse.Namespace) -> int:
