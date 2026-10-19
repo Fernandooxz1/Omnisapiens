@@ -6,12 +6,12 @@
 
 ## Estado
 
-El **backend está terminado** (HTTP, WS, salas, arcade, ranking, panel de admin, 547 tests,
+El **backend está terminado** (HTTP, WS, salas, arcade, ranking, panel de admin, 553 tests,
 cobertura 94 %) y no se toca. El **frontend cubre el MVP** en `frontend/` (SvelteKit +
 TypeScript): inicio, creación y unión de salas, partida 1v1, arcade, ranking, panel de admin,
 sonido, teclado, PWA instalable, suite e2e y tratamiento de errores (`+error.svelte`, `Toast`
-con el código de la API y aviso de API caída). Queda retirar `frontend/dev/`, la página
-histórica de prueba del backend.
+con el código de la API y aviso de API caída). La página histórica de prueba (`frontend/dev/`)
+ya no existe.
 
 **La próxima tarea está en `docs/tareas.md`.** El detalle del backend quedó archivado en
 `docs/archive/` (no se lee).

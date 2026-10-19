@@ -193,7 +193,6 @@ a arrancar si el estado vivo está en memoria sin `SINGLE_PROCESS=1`.
 | `make import FILE=archivo.csv` | Importa un CSV propio (borrador por defecto) |
 | `make api` | API en `:8000` con reload |
 | `make front` | Frontend en `:5173` |
-| `make web` | Página de prueba histórica del backend en `:5173` |
 | `make test` | Tests del backend |
 | `make cov` | Tests con cobertura mínima del 85 % |
 | `make lint` | `ruff` + `mypy --strict` |

@@ -5,7 +5,7 @@
 
 ## Ahora
 
-- [ ] Borrar `frontend/dev/` cuando lobby + arcade anden en SvelteKit.
+- Nada pedido por ahora.
 
 ## Después
 

@@ -1,4 +1,4 @@
-.PHONY: up down api web migrate seed import check-schema test cov lint fmt
+.PHONY: up down api front migrate seed import check-schema test cov lint fmt
 
 up:
 	docker compose up -d --wait
@@ -9,11 +9,7 @@ down:
 api:
 	cd backend && uv run uvicorn app.main:app --reload
 
-# Página de prueba en :5173 (el API sigue en :8000). Sin build ni dependencias.
-web:
-	cd backend && uv run python -m http.server 5173 --bind 127.0.0.1 --directory ../frontend/dev
-
-# SPA real en :5173 (el API sigue en :8000).
+# SPA en :5173 (el API sigue en :8000).
 front:
 	cd frontend && npm run dev
 
