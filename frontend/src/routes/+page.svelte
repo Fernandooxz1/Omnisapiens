@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { ApiError, NETWORK_ERROR } from '#lib/api/client';
+	import { fetchModes, type GameMode } from '#lib/api/modes';
 	import { session } from '#lib/api/session.svelte';
 	import AccentPicker from '#lib/components/AccentPicker.svelte';
 	import Avatar from '#lib/components/Avatar.svelte';
@@ -10,6 +11,7 @@
 	import NickInput from '#lib/components/NickInput.svelte';
 	import SoundToggle from '#lib/components/SoundToggle.svelte';
 	import { t, type MessageKey } from '#lib/i18n';
+	import { modeEntry, orderModes } from '#lib/modes/registry';
 	import { toast } from '#lib/toast.svelte';
 
 	/** Falla del campo: se marca el pozo del nick en vez de avisar suelto. */
@@ -18,15 +20,30 @@
 	let nick = $state('');
 	let entering = $state(false);
 	let error = $state<MessageKey | null>(null);
+	let modes = $state<GameMode[]>([]);
+	let modesFailed = $state(false);
 	const nickReady = $derived(nick.trim().length > 0);
 	const fieldError = $derived(error && FIELD_ERRORS.includes(error) ? t(error) : undefined);
+	const catalog = $derived(orderModes(modes));
+	/** Solo los modos que publican tabla muestran el acceso al ranking. */
+	const showRanking = $derived(modes.some((mode) => mode.ranking));
 	/** El arcade da tres vidas: se muestran como pastilla del modo. */
 	const lives = [1, 2, 3];
 
 	onMount(async () => {
+		void loadModes();
 		await session.restore();
 		if (!nick && session.user) nick = session.user.nick;
 	});
+
+	async function loadModes() {
+		try {
+			modes = await fetchModes();
+			modesFailed = false;
+		} catch {
+			modesFailed = true;
+		}
+	}
 
 	/** El nick es obligatorio: la sesión se resuelve acá y recién después se entra. */
 	async function enter(path: string) {
@@ -98,40 +115,46 @@
 			<p class="home__error" role="alert">{t(error)}</p>
 		{/if}
 
-		<nav class="modes" aria-label={t('home.modes')}>
-			<Button
-				variant="green"
-				title={t('home.play_arcade')}
-				sub={t('home.play_arcade_hint')}
-				disabled={!nickReady || entering}
-				onclick={() => enter('/arcade')}
-			>
-				{#snippet aside()}
-					<span class="pill">
-						{#each lives as life (life)}
-							<span class="pill__heart"><Icon name="heart" size={17} /></span>
-						{/each}
-					</span>
-				{/snippet}
-			</Button>
-			<Button
-				variant="blue"
-				title={t('home.play_online')}
-				sub={t('home.play_online_hint')}
-				disabled={!nickReady || entering}
-				onclick={() => enter('/play')}
-			>
-				{#snippet aside()}
-					<span class="pill pill--text">{t('home.vs')}</span>
-				{/snippet}
-			</Button>
-		</nav>
+		{#if modesFailed}
+			<p class="home__error" role="alert">{t('home.modes_error')}</p>
+		{:else if catalog.length > 0}
+			<nav class="modes" aria-label={t('home.modes')}>
+				{#each catalog as mode (mode.code)}
+					{@const entry = modeEntry(mode.code)}
+					{#if entry}
+						<Button
+							variant={entry.variant}
+							title={t(entry.title)}
+							sub={t(entry.hint)}
+							disabled={!nickReady || entering}
+							onclick={() => enter(entry.route)}
+						>
+							{#snippet aside()}
+								{#if entry.aside === 'lives'}
+									<span class="pill">
+										{#each lives as life (life)}
+											<span class="pill__heart"><Icon name="heart" size={17} /></span>
+										{/each}
+									</span>
+								{:else}
+									<span class="pill pill--text">{t('home.vs')}</span>
+								{/if}
+							{/snippet}
+						</Button>
+					{:else}
+						<Button variant="slate" title={mode.name} sub={t('home.mode_unavailable')} disabled />
+					{/if}
+				{/each}
+			</nav>
+		{/if}
 	</div>
 
-	<a class="rank-link" href="/ranking">
-		<span class="rank-link__icon"><Icon name="trophy" /></span>
-		{t('home.ranking')}
-	</a>
+	{#if showRanking}
+		<a class="rank-link" href="/ranking">
+			<span class="rank-link__icon"><Icon name="trophy" /></span>
+			{t('home.ranking')}
+		</a>
+	{/if}
 </div>
 
 <style>

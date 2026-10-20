@@ -33,6 +33,14 @@ No releer lo que ya está en el contexto de la sesión. No resumir estos archivo
 La red vive en `src/lib/api/` (`client.ts`, `session.svelte.ts`, `ws.ts`) y el estado de la
 partida en `src/lib/match/live.svelte.ts`: no hay `fetch` ni `WebSocket` fuera de ahí.
 
+## Menú de inicio
+
+La home no conoce los modos: pide `GET /modes` (`src/lib/api/modes.ts`) y arma un botón por
+entrada del catálogo. `src/lib/modes/registry.ts` aporta lo que el backend no sabe (ruta,
+renderer, orden, textos y pastilla). Un modo sin entrada en el registry se muestra
+deshabilitado con `home.mode_unavailable`; la home no se rompe. El acceso al ranking aparece
+solo si algún modo publica `ranking: true`.
+
 ## Modo de trabajo
 
 1. **Una tarea por vez**: la primera sin `[x]` de `docs/tareas.md`.

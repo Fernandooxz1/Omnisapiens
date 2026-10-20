@@ -29,6 +29,8 @@
 	"home.nick_hint": "Así te ven los demás. Se puede cambiar después.",
 	"home.accent_label": "Tu color",
 	"home.modes": "Modos de juego",
+	"home.mode_unavailable": "Próximamente.",
+	"home.modes_error": "No se pudieron cargar los modos.",
 	"home.play_arcade": "Arcade",
 	"home.play_arcade_hint": "Tres vidas y dificultad creciente.",
 	"home.play_online": "Jugar 1v1",
