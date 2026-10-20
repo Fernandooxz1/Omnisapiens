@@ -1,18 +1,26 @@
 """La suite de conformidad que todo modo registrado tiene que pasar.
 
-El registro todavía está vacío: la parametrización no recolecta casos. Las
-funciones de aserción quedan listas para que la fase 6 las corra contra
-`trivia_arcade` y `trivia_versus`.
+El registro del proceso ya tiene `trivia_arcade` y `trivia_versus`: la
+parametrización recolecta un caso por modo y las aserciones se corren contra el
+contrato real, no contra una lista aparte.
 """
 
 from collections.abc import Callable, Mapping
+from random import Random
+from types import SimpleNamespace
 
 import pytest
 from pydantic import BaseModel
 
-from app.game.core import RejectReason, ServedItem, Submission, settle
+from app.game.core import (
+    ChoiceSubmission,
+    RejectReason,
+    ServedItem,
+    Submission,
+    settle,
+)
 from app.game.modes import registry
-from app.game.modes.base import GameMode, RoundRules
+from app.game.modes.base import GameMode, LoadedItem, PublicItem, RoundRules, Solution
 
 # `correct_count` es un contador legítimo; el resto solo vive en la solución.
 CLAVES_PROHIBIDAS = {"explanation", "is_correct"}
@@ -78,11 +86,64 @@ MODES = registry.all()
 @pytest.mark.parametrize("mode", MODES, ids=lambda mode: mode.code)
 def test_every_mode_declares_a_complete_contract(mode: GameMode) -> None:
     assert mode.code
+    assert mode.name
+    assert mode.input
+    assert mode.media
     assert mode.content.code == mode.content_kind
     assert mode.ruleset_version >= 1
     assert issubclass(mode.config_schema, BaseModel)
     assert issubclass(mode.public_schema, BaseModel)
     assert mode.players in {"solo", "versus"}
+
+
+def _loaded(mode: GameMode) -> LoadedItem:
+    """Un ítem de quiz mínimo: hoy los dos modos registrados son de quiz."""
+    return LoadedItem(
+        content_id=f"{mode.code}-1",
+        public=PublicItem(
+            payload={
+                "v": 1,
+                "prompt": "¿Cuál es la capital?",
+                "options": ["A", "B", "C", "D"],
+                "media": {"type": "none", "url": None},
+            }
+        ),
+        solution=Solution(payload={"v": 1, "correct_index": 1}),
+    )
+
+
+def _state() -> SimpleNamespace:
+    return SimpleNamespace(
+        round_index=0,
+        score=0,
+        streak=0,
+        correct_count=0,
+        longest_streak=0,
+        max_difficulty=1,
+        finished=False,
+    )
+
+
+@pytest.mark.parametrize("mode", MODES, ids=lambda mode: mode.code)
+def test_every_mode_serves_and_grades_inside_the_window(mode: GameMode) -> None:
+    loaded = _loaded(mode)
+    assert_public_payload(loaded.public.payload)
+
+    served = mode.rules.serve(
+        loaded, difficulty=1, seconds=10, now_ms=1_000, rng=Random(0)
+    )
+    assert_window(mode.rules, served, ChoiceSubmission(1))
+
+    verdict = mode.rules.grade(served, ChoiceSubmission(1), now_ms=1_500)
+    assert verdict.correct
+    assert_non_negative_points(
+        mode.scoring.points(verdict, verdict.elapsed_ms, served.seconds, _state())
+    )
+
+
+@pytest.mark.parametrize("mode", MODES, ids=lambda mode: mode.code)
+def test_every_mode_accepts_its_default_config(mode: GameMode) -> None:
+    mode.config_schema.model_validate({})
 
 
 class _ChoiceRules:

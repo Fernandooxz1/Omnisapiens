@@ -84,6 +84,7 @@ class _Public(BaseModel):
 def make_mode(**overrides: object) -> GameMode:
     base: dict[str, object] = {
         "code": "trivia_test",
+        "name": "Test",
         "content_kind": "quiz",
         "play_format": "arcade",
         "ruleset_version": 1,
@@ -93,6 +94,8 @@ def make_mode(**overrides: object) -> GameMode:
         "scoring": _Scoring(),
         "config_schema": _Config,
         "public_schema": _Public,
+        "input": "choice",
+        "media": ("none",),
         "ranking": None,
         "players": Players.SOLO,
         "connection": ConnectionPolicy.EPHEMERAL,
@@ -127,10 +130,13 @@ def test_an_unknown_mode_raises_key_error() -> None:
     ("overrides", "message"),
     [
         ({"code": ""}, "code"),
+        ({"name": ""}, "name"),
         ({"content_kind": ""}, "content_kind"),
         ({"play_format": ""}, "play_format"),
         ({"ruleset_version": 0}, "ruleset_version"),
         ({"content_kind": "rosco"}, "no coincide"),
+        ({"input": ""}, "input"),
+        ({"media": ()}, "media"),
     ],
 )
 def test_an_invalid_mode_is_rejected(

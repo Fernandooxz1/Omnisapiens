@@ -31,10 +31,6 @@ RANKING_TIMEZONE = ZoneInfo("America/Argentina/Buenos_Aires")
 
 ARCADE_MODE = "trivia_arcade"
 
-# Hasta la fase 6 (registro de modos) la lista vive acá; después sale de
-# `GameMode.ranking`.
-RANKED_MODES = {ARCADE_MODE}
-
 
 class Period(StrEnum):
     ALL = "all"

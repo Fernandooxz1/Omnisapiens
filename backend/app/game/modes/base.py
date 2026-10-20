@@ -210,6 +210,7 @@ class GameMode:
     """La combinación registrada que el jugador elige."""
 
     code: str
+    name: str
     content_kind: str
     play_format: str
     ruleset_version: int
@@ -219,6 +220,8 @@ class GameMode:
     scoring: ScoringPolicy
     config_schema: type[BaseModel]
     public_schema: type[BaseModel]
+    input: str
+    media: tuple[str, ...]
     ranking: RankingPolicy | None
     players: Players
     connection: ConnectionPolicy
@@ -227,6 +230,8 @@ class GameMode:
     def __post_init__(self) -> None:
         if not self.code:
             raise ValueError("code vacío")
+        if not self.name:
+            raise ValueError("name vacío")
         if not self.content_kind:
             raise ValueError("content_kind vacío")
         if not self.play_format:
@@ -238,6 +243,10 @@ class GameMode:
                 f"content_kind {self.content_kind!r} no coincide con "
                 f"ContentKind.code {self.content.code!r}"
             )
+        if not self.input:
+            raise ValueError("input vacío")
+        if not self.media or any(not item for item in self.media):
+            raise ValueError("media vacío")
 
 
 __all__ = [

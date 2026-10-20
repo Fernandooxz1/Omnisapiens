@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import errors
 from app.api.limits import BodySizeLimitMiddleware
-from app.api.routers import admin, auth, health, leaderboard, me, rooms
+from app.api.routers import admin, auth, health, leaderboard, me, modes, rooms
 from app.config import settings
 from app.db import engine, session_factory
 from app.logging_config import configure_logging
@@ -142,6 +142,7 @@ app.include_router(admin.router)
 app.include_router(health.router)
 app.include_router(leaderboard.router)
 app.include_router(me.router)
+app.include_router(modes.router)
 app.include_router(rooms.router)
 app.include_router(room_ws.router)
 app.include_router(arcade_ws.router)

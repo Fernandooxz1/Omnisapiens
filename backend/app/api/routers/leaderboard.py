@@ -11,6 +11,7 @@ from fastapi import APIRouter, Query
 
 from app.api.deps import CurrentUserDep, SessionDep
 from app.api.errors import ApiError
+from app.game.modes import get as get_mode
 from app.schemas.leaderboard import (
     LeaderboardEntry,
     LeaderboardOut,
@@ -28,7 +29,13 @@ MODE_ALIASES = {"arcade": "trivia_arcade"}
 
 def _ranked_mode(mode: str) -> str:
     resolved = MODE_ALIASES.get(mode, mode)
-    if resolved not in leaderboard.RANKED_MODES:
+    try:
+        game_mode = get_mode(resolved)
+    except KeyError:
+        raise ApiError(
+            404, "MODE_WITHOUT_RANKING", "Ese modo no tiene ranking."
+        ) from None
+    if game_mode.ranking is None:
         raise ApiError(404, "MODE_WITHOUT_RANKING", "Ese modo no tiene ranking.")
     return resolved
 

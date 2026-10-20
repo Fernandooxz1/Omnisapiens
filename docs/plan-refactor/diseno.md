@@ -59,6 +59,7 @@ ranking y esquema de configuración. El menú no se hardcodea en dos lugares.
 @dataclass(frozen=True)
 class GameMode:
     code: str                        # "trivia_arcade"
+    name: str                        # nombre visible: "Arcade", "1v1"
     content_kind: str                # "quiz"
     play_format: str                 # "arcade"
     ruleset_version: int             # se guarda en cada sesión
@@ -68,6 +69,8 @@ class GameMode:
     scoring: ScoringPolicy
     config_schema: type[BaseModel]
     public_schema: type[BaseModel]
+    input: str                       # forma de la respuesta: "choice"
+    media: tuple[str, ...]           # medios que el modo sabe mostrar
     ranking: RankingPolicy | None    # None = sin ranking
     players: Players                 # SOLO | VERSUS
     connection: ConnectionPolicy     # EPHEMERAL | RESILIENT
@@ -177,10 +180,10 @@ ScoringPolicy.points(verdict, elapsed_ms, seconds, state) -> int
 - `RankingPolicy` es un marcador en la v1: `ranking is not None` alcanza para saber si
   el modo rankea; la forma concreta se cierra en 3.4/6.1.
 - `registry.py` expone `ModeRegistry` (`register`/`get`/`all`) y el singleton
-  `registry`; arranca vacío y los modos se registran en la fase 6.
-- `tests/test_modes_conformance.py` parametriza por `registry.all()` (hoy 0 casos) y
-  deja listas las aserciones de payload sin solución, determinismo, ventana y puntos
-  no negativos.
+  `registry`; en 6.1 se registran `trivia_arcade` y `trivia_versus` y `GET /modes`
+  publica el catálogo. `mode.ranking` es la única lista de modos que rankean.
+- `tests/test_modes_conformance.py` se parametriza por `registry.all()` y corre las
+  aserciones de payload sin solución, ventana y puntos no negativos contra cada modo.
 
 ## 4. Datos
 

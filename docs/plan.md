@@ -29,6 +29,25 @@ ya no existe.
 2. **Arcade:** un jugador solo, dificultad y tiempo progresivos hasta quedarse sin vidas;
    ranking global y semanal.
 
+### Modos
+
+No es lo mismo el contenido, el formato y el modo:
+
+- **Contenido** (`quiz`, y en el futuro `rosco`, `song`, `movie`): cómo se guarda, valida,
+  importa y sirve un ítem.
+- **Formato** (`arcade`, `versus`, `fixed_solo`, `board_solo`): cómo corre una sesión
+  (sillas, reloj, progresión, final).
+- **Modo**: la combinación registrada que el jugador elige.
+
+| `mode` | Contenido | Formato | Jugadores | Ranking |
+|---|---|---|---|---|
+| `trivia_arcade` | `quiz` | `arcade` | solo | sí |
+| `trivia_versus` | `quiz` | `versus` | 1v1 | no |
+
+`GET /modes` publica el catálogo (nombre, formato, input, medios, ranking y esquema de
+configuración). El menú del cliente sale de ahí; agregar un modo es registrarlo en el
+backend, no tocar dos listas.
+
 **Fuera del MVP:** matchmaking público o salas abiertas; salas de más de 2; modo por turnos;
 preguntas con imagen/audio/video (campos listos, sin usar); cuentas reales; chat, amigos,
 notificaciones, bots; monetización; despliegue en la nube (queda preparado).

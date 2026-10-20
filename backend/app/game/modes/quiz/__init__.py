@@ -12,8 +12,13 @@ from app.game.modes.quiz.models import (
     QuizPayload,
     QuizSolution,
 )
+from app.game.modes.quiz.rules import QuizRules
 
 CONTENT_KINDS: dict[str, QuizContent] = {QUIZ.code: QUIZ}
+
+# Las reglas las comparten los dos modos de quiz: `trivia_arcade` y
+# `trivia_versus` solo cambian el formato y la progresión.
+QUIZ_RULES = QuizRules()
 
 
 def get_content_kind(code: str) -> QuizContent:
@@ -26,10 +31,12 @@ def get_content_kind(code: str) -> QuizContent:
 __all__ = [
     "CONTENT_KINDS",
     "QUIZ",
+    "QUIZ_RULES",
     "QUIZ_SCHEMA_VERSION",
     "QuizCandidatesConfig",
     "QuizContent",
     "QuizPayload",
+    "QuizRules",
     "QuizSolution",
     "get_content_kind",
 ]

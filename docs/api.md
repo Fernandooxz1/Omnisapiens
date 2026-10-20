@@ -24,6 +24,7 @@
 | `DELETE` | `/me` | sí | Baja lógica (`204`) |
 | `POST` | `/rooms` | sí | Crea sala 1v1 → `201` |
 | `GET` | `/rooms/{code}` | no | Vista previa pública |
+| `GET` | `/modes` | no | Catálogo de modos y su configuración |
 | `GET` | `/leaderboard/{mode}` | no | Tabla global o semanal del modo |
 | `GET` | `/leaderboard/{mode}/me` | sí | Posición propia en ambos períodos |
 | `GET` | `/admin/content/{kind}` | `X-Admin-Token` | Listado del contenido del kind |
@@ -71,6 +72,34 @@ Errores: `400 NICK_LENGTH` / `400 NICK_FORBIDDEN` / `409 NICK_TAKEN` / `401 AUTH
 
 `204`, sin body. El token deja de servir (`401`).
 
+### `GET /modes`
+
+Sin auth. Es la fuente de verdad del menú: el cliente no hardcodea los modos.
+
+```json
+[
+  { "code": "trivia_arcade", "name": "Arcade",
+    "content_kind": "quiz", "play_format": "arcade",
+    "players": "solo", "input": "choice",
+    "media": ["none", "image", "audio"], "ranking": true,
+    "config_schema": { "type": "object", "properties": {},
+                       "additionalProperties": false, "title": "ArcadeConfig" } },
+  { "code": "trivia_versus", "name": "1v1",
+    "content_kind": "quiz", "play_format": "versus",
+    "players": "versus", "input": "choice",
+    "media": ["none", "image", "audio"], "ranking": false,
+    "config_schema": { "type": "object",
+                       "properties": { "rounds":  { "type": "integer", "default": 5 },
+                                       "seconds": { "type": "integer", "default": 20 } },
+                       "additionalProperties": false, "title": "VersusModeConfig" } }
+]
+```
+
+`players`: `solo` | `versus`. `input`: forma de la respuesta (`choice`). `media`: tipos de
+medio que el modo sabe mostrar. `ranking`: si el modo publica tabla (ver
+`/leaderboard/{mode}`). `config_schema`: JSON Schema que valida el `config` de la sesión
+o de la sala; `{}` es válido para el arcade porque sus reglas son fijas.
+
 ### `POST /rooms`
 
 Body `{"rounds": 3|5|7, "seconds": 10|20|30}` (defaults `5` / `20`).
@@ -105,8 +134,8 @@ Body `{"rounds": 3|5|7, "seconds": 10|20|30}` (defaults `5` / `20`).
 Criterio: mejor `score` por usuario entre las sesiones `finished` con dueño (modos solo) del
 `mode`; empate → **el momento más temprano** en que alcanzó ese puntaje. La semana corta lunes
 00:00 en `America/Argentina/Buenos_Aires`. Un modo sin ranking → `404 MODE_WITHOUT_RANKING`
-(hoy solo `trivia_arcade` lo tiene). `/leaderboard/arcade` es alias de
-`/leaderboard/trivia_arcade`.
+(hoy solo `trivia_arcade` lo tiene; `GET /modes` lo publica en `ranking`).
+`/leaderboard/arcade` es alias de `/leaderboard/trivia_arcade`.
 
 ### `GET /leaderboard/{mode}/me`
 
