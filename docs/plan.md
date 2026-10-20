@@ -156,13 +156,14 @@ Cada categoría tiene su color y **manda** en el badge y en el feedback de acier
 
 | Pantalla | Contenido |
 |---|---|
-| Inicio | Nick obligatorio (1–16), dos botones (arcade como modo principal, después 1v1), enlace al ranking y elección del **color del jugador** |
-| Jugar | Una pantalla: crear sala (rondas y segundos) o unirse con el código |
-| Lobby | Código gigante, las dos sillas (sin estado de conexión), botón `start` solo para el host |
+| Inicio | Nick obligatorio (1–16), un botón por modo del catálogo (arcade como modo principal, después 1v1), enlace al ranking y elección del **color del jugador** |
+| Modo | `/play/[mode]`: el registry resuelve el modo y monta su pantalla; un modo desconocido avisa y vuelve al inicio |
+| Jugar 1v1 | `/play/trivia_versus`: crear sala (rondas y segundos) o unirse con el código |
+| Lobby | `/room/{code}`: código gigante, las dos sillas (sin estado de conexión), botón `start` solo para el host |
 | Partida | Marca arriba, pregunta, 4 `AnswerTile` en columna, `TimerBadge` + barra de tiempo, cápsulas de ronda, marcador abierto y aviso de rival |
 | Revelación | Correcta, qué eligió cada uno y puntos; el paso siguiente flota al pie sin mover el tablero |
 | Fin | Ganador, resumen ronda a ronda y revancha |
-| Arcade | Pregunta, vidas (`LifeStrip`), racha, puntaje y tiempo |
+| Arcade | `/play/trivia_arcade`: pregunta, vidas (`LifeStrip`), racha, puntaje y tiempo |
 | Fin de arcade | Puntaje, aciertos, mejor racha, mejor marca y posición |
 | Ranking | Global / semanal |
 | Admin | Solo por URL `/admin`: token, listado con filtros y paginación, subida de CSV/JSON con informe |

@@ -19,7 +19,7 @@ export interface ModeEntry {
 
 const REGISTRY: Record<string, ModeEntry> = {
 	trivia_arcade: {
-		route: '/arcade',
+		route: '/play/trivia_arcade',
 		renderer: 'arcade',
 		order: 0,
 		title: 'home.play_arcade',
@@ -28,7 +28,7 @@ const REGISTRY: Record<string, ModeEntry> = {
 		aside: 'lives'
 	},
 	trivia_versus: {
-		route: '/play',
+		route: '/play/trivia_versus',
 		renderer: 'versus',
 		order: 1,
 		title: 'home.play_online',

@@ -41,6 +41,18 @@ renderer, orden, textos y pastilla). Un modo sin entrada en el registry se muest
 deshabilitado con `home.mode_unavailable`; la home no se rompe. El acceso al ranking aparece
 solo si algún modo publica `ranking: true`.
 
+## Rutas y pantallas por modo
+
+`src/routes/play/[mode]/+page.svelte` resuelve el modo del catálogo con `modeEntry()` y monta
+su renderer: `src/lib/modes/arcade/ArcadeScreen.svelte` o
+`src/lib/modes/versus/VersusScreen.svelte`. Un `code` sin entrada en el registry muestra
+`play.mode_unknown` y vuelve al inicio, no rompe la ruta. La sala 1v1 sigue en
+`/room/{code}`, que reutiliza `VersusScreen` con el código.
+
+`/arcade` y `/play` quedan como redirecciones de compatibilidad a `/play/trivia_arcade` y
+`/play/trivia_versus`. Ninguna pantalla habla con la red: `fetch` y `WebSocket` viven solo en
+`src/lib/api/`.
+
 ## Modo de trabajo
 
 1. **Una tarea por vez**: la primera sin `[x]` de `docs/tareas.md`.

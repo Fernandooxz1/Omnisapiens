@@ -93,6 +93,7 @@
 	"play.error_offline": "No hay conexión con el servidor.",
 	"play.error_started": "La partida ya empezó.",
 	"play.error_generic": "No se pudo seguir la partida.",
+	"play.mode_unknown": "Ese modo no está disponible.",
 	"lobby.title": "Sala privada",
 	"lobby.copy": "Copiar código",
 	"lobby.copied": "¡Copiado!",
