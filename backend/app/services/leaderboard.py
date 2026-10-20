@@ -173,9 +173,10 @@ async def run_summary(
     user_id: uuid.UUID,
     session_id: uuid.UUID,
     score: int,
+    mode: str = ARCADE_MODE,
     now: datetime | None = None,
 ) -> RunSummary:
-    """Las posiciones y la mejor marca para el `arcade_end`.
+    """Las posiciones y la mejor marca para el mensaje de fin.
 
     La sesión ya está cerrada y commiteada: el ranking la ve. La mejor marca
     anterior se mira sin la sesión actual para poder distinguir "nuevo récord"
@@ -183,17 +184,17 @@ async def run_summary(
     """
     previous = await session.scalar(
         select(func.max(GameSession.score)).where(
-            GameSession.mode == ARCADE_MODE,
+            GameSession.mode == mode,
             GameSession.status == "finished",
             GameSession.owner_user_id == user_id,
             GameSession.id != session_id,
         )
     )
     global_ = await rank(
-        session, mode=ARCADE_MODE, user_id=user_id, period=Period.ALL, now=now
+        session, mode=mode, user_id=user_id, period=Period.ALL, now=now
     )
     weekly = await rank(
-        session, mode=ARCADE_MODE, user_id=user_id, period=Period.WEEK, now=now
+        session, mode=mode, user_id=user_id, period=Period.WEEK, now=now
     )
     return RunSummary(
         rank_global=global_.position if global_ is not None else None,

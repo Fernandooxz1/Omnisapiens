@@ -8,7 +8,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import errors
 from app.api.limits import BodySizeLimitMiddleware
-from app.api.routers import admin, auth, health, leaderboard, me, modes, rooms
+from app.api.routers import (
+    admin,
+    auth,
+    health,
+    leaderboard,
+    me,
+    modes,
+    rooms,
+    sessions,
+)
 from app.config import settings
 from app.db import engine, session_factory
 from app.logging_config import configure_logging
@@ -16,7 +25,7 @@ from app.redis import redis_client
 from app.runtime.live import Live, live_arcade_runs
 from app.runtime.session_store import InMemorySessionStore, session_store
 from app.services.reaper import sweep
-from app.ws import arcade_ws, room_ws
+from app.ws import arcade_ws, room_ws, session_ws
 
 logger = logging.getLogger(__name__)
 
@@ -144,8 +153,10 @@ app.include_router(leaderboard.router)
 app.include_router(me.router)
 app.include_router(modes.router)
 app.include_router(rooms.router)
+app.include_router(sessions.router)
 app.include_router(room_ws.router)
 app.include_router(arcade_ws.router)
+app.include_router(session_ws.router)
 
 
 @app.get("/")

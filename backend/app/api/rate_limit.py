@@ -51,9 +51,17 @@ async def arcade_limit(ip: str | None) -> None:
     await enforce(ip, bucket="arcade", limit=settings.rate_limit_arcade_per_minute)
 
 
+async def session_limit(ip: str | None) -> None:
+    await enforce(ip, bucket="session", limit=settings.rate_limit_session_per_minute)
+
+
 async def guest_rate_limit(request: Request) -> None:
     await guest_limit(request.client.host if request.client else None)
 
 
 async def room_rate_limit(request: Request) -> None:
     await room_limit(request.client.host if request.client else None)
+
+
+async def session_rate_limit(request: Request) -> None:
+    await session_limit(request.client.host if request.client else None)

@@ -306,6 +306,39 @@ def test_shuffle_options_moves_the_answer_with_its_text() -> None:
         assert barajada.question.options[barajada.correct_index] == "Amazonas"
 
 
+def test_shuffle_options_remaps_the_solution_with_the_public_payload() -> None:
+    original = LoadedQuestion(
+        question=RoundQuestion(
+            id="q",
+            prompt="¿Cuál es el río más largo?",
+            options=["Paraná", "Amazonas", "Orinoco", "Magdalena"],
+            category="geography",
+            difficulty=1,
+        ),
+        correct_index=1,
+        public={
+            "v": 1,
+            "prompt": "¿Cuál es el río más largo?",
+            "options": [
+                "Paraná",
+                "Amazonas",
+                "Orinoco",
+                "Magdalena",
+            ],
+        },
+        solution={"v": 1, "correct_index": 1, "explanation": None},
+    )
+
+    for seed in range(20):
+        barajada = shuffle_options(original, Random(seed))
+
+        assert barajada.solution["correct_index"] == barajada.correct_index
+        assert (
+            barajada.public["options"][barajada.correct_index]  # type: ignore[index]
+            == "Amazonas"
+        )
+
+
 def test_shuffle_options_breaks_the_position_bias() -> None:
     original = _cargada(correct_index=1)
     posiciones = {

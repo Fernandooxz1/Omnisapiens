@@ -145,12 +145,64 @@ class SoloState:
 
 
 # El cierre es I/O y lo hace el borde: persiste, calcula el ranking y devuelve
-# el `arcade_end` ya completo. El store espera a que termine antes de entregarlo,
-# para que el cliente nunca vea posiciones nulas si la base contestó.
+# el mensaje de fin ya completo. El store espera a que termine antes de
+# entregarlo, para que el cliente nunca vea posiciones nulas si la base contestó.
 FinishHandler = Callable[
-    [SoloState, tuple[RoundRecord, ...], protocols.ArcadeEnd],
-    Awaitable[protocols.ArcadeEnd],
+    [SoloState, tuple[RoundRecord, ...], protocols.Message],
+    Awaitable[protocols.Message],
 ]
+
+
+class SoloPresenter(Protocol):
+    """Traduce el estado del motor a los mensajes de un protocolo.
+
+    El store no sabe si el cliente habla `arcade_*` o el protocolo canónico:
+    cada borde inyecta su presentador en `open`. Así el mismo motor, reloj y
+    outbox sirven a los dos canales sin duplicar reglas.
+    """
+
+    def start(self, state: SoloState) -> protocols.Message: ...
+
+    def item_start(
+        self, state: SoloState, served: ServedQuestion, question: LoadedQuestion
+    ) -> protocols.Message: ...
+
+    def item_result(
+        self, run: SoloRun, record: RoundRecord, question: LoadedQuestion
+    ) -> protocols.Message: ...
+
+    def end(self, state: SoloState) -> protocols.Message: ...
+
+    def is_end(self, message: protocols.Message) -> bool:
+        """Si el mensaje cierra la sesión y el borde puede completarlo."""
+        ...
+
+
+class ArcadePresenter:
+    """El protocolo viejo del arcade: el que sigue congelado el golden."""
+
+    def start(self, state: SoloState) -> protocols.Message:
+        return protocols.ArcadeStart(
+            run_id=state.session_id,
+            lives=state.run.lives,
+            seconds=state.run.rules.seconds_for(0),
+        )
+
+    def item_start(
+        self, state: SoloState, served: ServedQuestion, question: LoadedQuestion
+    ) -> protocols.Message:
+        return _question_message(state, served, question)
+
+    def item_result(
+        self, run: SoloRun, record: RoundRecord, question: LoadedQuestion
+    ) -> protocols.Message:
+        return _result_message(run, record, question)
+
+    def end(self, state: SoloState) -> protocols.Message:
+        return _end_message(state)
+
+    def is_end(self, message: protocols.Message) -> bool:
+        return isinstance(message, protocols.ArcadeEnd)
 
 
 @dataclass(frozen=True)
@@ -198,6 +250,7 @@ class SessionStore(Protocol):
         outbox: Outbox,
         rules: SoloRules,
         next_item: ItemSource,
+        presenter: SoloPresenter | None = None,
         on_finish: FinishHandler | None = None,
     ) -> bool:
         """Registra la sesión, manda el arranque y sirve el primer ítem.
@@ -205,8 +258,9 @@ class SessionStore(Protocol):
         Devuelve `False` si esa sesión ya estaba abierta. Así el borde distingue
         un `start` repetido sin inventar un estado nuevo.
 
+        `presenter` elige el protocolo del canal (arcade viejo o canónico);
         `on_finish` es el cierre del borde (persistir y rankear); si no llega,
-        el `arcade_end` sale con las posiciones nulas.
+        el mensaje de fin sale con las posiciones nulas.
         """
         ...
 
@@ -327,6 +381,7 @@ class _Session:
     next_item: ItemSource
     state: SoloState
     outbox: Outbox
+    presenter: SoloPresenter
     on_finish: FinishHandler | None = None
     # El motor no guarda historial: se acumula acá hasta que el borde persista.
     records: list[RoundRecord] = field(default_factory=list)
@@ -407,13 +462,14 @@ class InMemorySessionStore:
         outbox: Outbox,
         rules: SoloRules,
         next_item: ItemSource,
+        presenter: SoloPresenter | None = None,
         on_finish: FinishHandler | None = None,
     ) -> bool:
         if session_id in self._sessions:
             return False
 
         session_uuid = uuid.UUID(session_id)
-        transition = _start(session_id, rules)
+        transition = _start(session_id, rules, presenter or ArcadePresenter())
         entry = _Session(
             session_id=session_id,
             owner_id=owner_id,
@@ -421,6 +477,7 @@ class InMemorySessionStore:
             next_item=next_item,
             state=transition.state,
             outbox=outbox,
+            presenter=presenter or ArcadePresenter(),
             on_finish=on_finish,
         )
         # Se registra antes de entregar: si el primer ítem tarda, el barrido ya
@@ -453,6 +510,7 @@ class InMemorySessionStore:
                 round_index=round_index,
                 choice=choice,
                 now_ms=self._now_ms(),
+                presenter=entry.presenter,
             )
             await self._apply(entry, transition)
             await self._advance(entry, transition)
@@ -905,17 +963,14 @@ class InMemorySessionStore:
         self._deliver(entry, effects)
 
     async def _finish(self, entry: _Session, effects: Effects) -> Effects:
-        """Deja que el borde cierre la fila antes de entregar el `arcade_end`."""
+        """Deja que el borde cierre la fila antes de entregar el mensaje de fin."""
         hook = entry.on_finish
         if hook is None:
             return effects
-        for message in effects:
-            if isinstance(message, protocols.ArcadeEnd):
-                end = await hook(entry.state, tuple(entry.records), message)
-                return tuple(
-                    end if isinstance(item, protocols.ArcadeEnd) else item
-                    for item in effects
-                )
+        for index, message in enumerate(effects):
+            if entry.presenter.is_end(message):
+                completed = await hook(entry.state, tuple(entry.records), message)
+                return (*effects[:index], completed, *effects[index + 1 :])
         return effects
 
     async def _advance(self, entry: _Session, transition: Transition) -> None:
@@ -944,6 +999,7 @@ class InMemorySessionStore:
             now_ms=self._now_ms(),
             rng=self._rng,
             allow_repeat=item.repeated,
+            presenter=entry.presenter,
         )
         await self._apply(entry, transition)
 
@@ -982,7 +1038,9 @@ class InMemorySessionStore:
                 return
             if self._now_ms() < deadline:
                 return
-            transition = _expire(entry.state, now_ms=self._now_ms())
+            transition = _expire(
+                entry.state, now_ms=self._now_ms(), presenter=entry.presenter
+            )
             await self._apply(entry, transition)
             await self._advance(entry, transition)
             entry.wakeup.set()
@@ -1014,20 +1072,11 @@ class InMemorySessionStore:
         )
 
 
-def _start(session_id: str, rules: SoloRules) -> Transition:
+def _start(session_id: str, rules: SoloRules, presenter: SoloPresenter) -> Transition:
     """Crea la corrida en memoria. La fila `playing` la escribe el borde."""
     engine = SoloEngine(rules)
     state = SoloState(session_id=session_id, run=engine.start())
-    return Transition(
-        state,
-        (
-            protocols.ArcadeStart(
-                run_id=session_id,
-                lives=state.run.lives,
-                seconds=rules.seconds_for(0),
-            ),
-        ),
-    )
+    return Transition(state, (presenter.start(state),))
 
 
 def _serve(
@@ -1037,6 +1086,7 @@ def _serve(
     now_ms: int,
     rng: Random,
     allow_repeat: bool = False,
+    presenter: SoloPresenter,
 ) -> Transition:
     """Sirve el próximo ítem. El caller ya lo eligió y cargó (eso es I/O)."""
     if state.finished:
@@ -1059,11 +1109,16 @@ def _serve(
         round=RoundInFlight(served=served, question=shuffled),
         seen=state.seen | {shuffled.question.id},
     )
-    return Transition(session, (_question_message(session, served, shuffled),))
+    return Transition(session, (presenter.item_start(session, served, shuffled),))
 
 
 def _answer(
-    state: SoloState, *, round_index: int, choice: int, now_ms: int
+    state: SoloState,
+    *,
+    round_index: int,
+    choice: int,
+    now_ms: int,
+    presenter: SoloPresenter,
 ) -> Transition:
     round_ = state.round
     if round_ is None or state.finished:
@@ -1076,19 +1131,23 @@ def _answer(
         return _error_transition(state, "BAD_CHOICE", "Opción fuera de rango")
 
     submission = Answer(round_index=round_index, choice=choice, answered_at_ms=now_ms)
-    return _resolve(state, round_, submission)
+    return _resolve(state, round_, submission, presenter=presenter)
 
 
-def _expire(state: SoloState, *, now_ms: int) -> Transition:
+def _expire(state: SoloState, *, now_ms: int, presenter: SoloPresenter) -> Transition:
     """La ventana se agotó: la ronda se resuelve como no contestada."""
     round_ = state.round
     if round_ is None or now_ms < round_.served.ends_at_ms:
         return Transition(state)
-    return _resolve(state, round_, None)
+    return _resolve(state, round_, None, presenter=presenter)
 
 
 def _resolve(
-    state: SoloState, round_: RoundInFlight, answer: Answer | None
+    state: SoloState,
+    round_: RoundInFlight,
+    answer: Answer | None,
+    *,
+    presenter: SoloPresenter,
 ) -> Transition:
     resolved = SoloEngine(state.run.rules).resolve(
         state.run,
@@ -1103,10 +1162,10 @@ def _resolve(
         seen=state.seen,
     )
     effects: list[protocols.Message] = [
-        _result_message(resolved.run, resolved.record, round_.question)
+        presenter.item_result(resolved.run, resolved.record, round_.question)
     ]
     if resolved.run.finished:
-        effects.append(_end_message(session))
+        effects.append(presenter.end(session))
     return Transition(session, tuple(effects), resolved.record)
 
 

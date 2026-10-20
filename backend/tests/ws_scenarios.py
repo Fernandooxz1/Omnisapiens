@@ -141,6 +141,41 @@ async def arcade_complete(api: Any, connect: Any) -> Transcript:
     return transcript
 
 
+async def session_complete(api: Any, connect: Any) -> Transcript:
+    """La misma corrida que el arcade, por el canal canónico."""
+    await _sembrar_arcade(api.session)
+    transcript = Transcript(base_ms=api.clock.now_ms())
+    session_id = await api.create()
+
+    async with connect(session_id) as raw:
+        socket = transcript.wrap("ana", raw)
+        inicio = await socket.until("session_start")
+        assert inicio["d"]["mode"] == "trivia_arcade"
+
+        for indice in range(4):
+            item = await socket.until("item_start")
+            if indice == 2:
+                # La tercera vida se va por vencimiento, sin respuesta.
+                api.clock.advance(item["d"]["ends_at"] - api.clock.now_ms())
+                await socket.until("item_result")
+                continue
+
+            opciones: list[str] = item["d"]["payload"]["options"]
+            correcta = opciones.index("correcta")
+            eleccion = correcta if indice == 0 else (correcta + 1) % 4
+            await socket.send(
+                {
+                    "t": "answer",
+                    "d": {"round": item["d"]["position"], "choice": eleccion},
+                }
+            )
+            await socket.until("item_result")
+
+        await socket.until("session_end")
+
+    return transcript
+
+
 async def versus_complete(api: Any, connect: Any) -> Transcript:
     """Partida 1v1 de tres rondas: Ana acierta y Beto no."""
     transcript = Transcript(base_ms=api.harness.clock.now_ms())
@@ -210,6 +245,7 @@ async def versus_reconnect(api: Any, connect: Any) -> Transcript:
 
 ESCENARIOS = {
     "arcade_complete": arcade_complete,
+    "session_complete": session_complete,
     "versus_complete": versus_complete,
     "versus_reconnect": versus_reconnect,
 }
@@ -217,4 +253,11 @@ ESCENARIOS = {
 
 def es_revelacion(message: dict[str, Any]) -> bool:
     """Los únicos mensajes que pueden llevar la solución."""
-    return message["t"] in {"round_result", "arcade_result", "match_end", "arcade_end"}
+    return message["t"] in {
+        "round_result",
+        "arcade_result",
+        "match_end",
+        "arcade_end",
+        "item_result",
+        "session_end",
+    }

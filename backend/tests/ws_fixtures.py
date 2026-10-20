@@ -8,13 +8,17 @@ poder pedirlas en el mismo módulo sin que las fixture se pisen.
 import uuid
 from collections.abc import AsyncIterator, Callable, Coroutine
 from dataclasses import dataclass
+from datetime import datetime
 from random import Random
+from typing import Any
 
+import httpx
 import pytest
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
+from app.api.routers.sessions import get_clock
 from app.config import settings
 from app.main import app
 from app.models import Room, User
@@ -26,10 +30,17 @@ from app.ws.arcade_ws import (
     get_arcade_runtime,
     get_session_store,
 )
+from app.ws.common import to_datetime
 from app.ws.room_ws import (
     get_room_runtime,
     get_room_session_factory,
     get_room_store,
+)
+from app.ws.session_ws import (
+    SessionRuntime,
+    get_session_redis,
+    get_session_runtime,
+    get_store,
 )
 
 from . import room_harness
@@ -101,6 +112,91 @@ def arcade_connect(arcade_api: ArcadeApi) -> Callable[[User], WebSocketClient]:
     def _connect(usuario: User) -> WebSocketClient:
         token = create_guest_token(usuario.id, usuario.nick)
         return WebSocketClient(app, "/ws/arcade", query=f"token={token}")
+
+    return _connect
+
+
+@dataclass(frozen=True)
+class SessionApi:
+    session: AsyncSession
+    redis: Redis
+    user: User
+    clock: FakeClock
+    runtime: SessionRuntime
+    store: InMemorySessionStore
+    http: httpx.AsyncClient
+
+    async def create(
+        self, *, mode: str = "trivia_arcade", config: dict[str, Any] | None = None
+    ) -> str:
+        """Crea la sesión por la ruta real, con el reloj falso del escenario."""
+        token = create_guest_token(self.user.id, self.user.nick)
+        respuesta = await self.http.post(
+            "/sessions",
+            json={"mode": mode, "config": config or {}},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert respuesta.status_code == 201, respuesta.text
+        return respuesta.json()["session_id"]
+
+
+@pytest.fixture
+async def session_api(
+    session: AsyncSession, redis: Redis, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[SessionApi]:
+    usuario = user(nick="ana")
+    session.add(usuario)
+    await session.flush()
+
+    clock = FakeClock()
+    monkeypatch.setattr(settings, "reveal_seconds", 0.0)
+
+    async def despierto() -> None:
+        return None
+
+    def dormir(seconds: float) -> Coroutine[object, object, None]:
+        if settings.reveal_seconds and seconds == settings.reveal_seconds:
+            clock.advance(int(seconds * 1000))
+            return despierto()
+        return clock.sleep(seconds)
+
+    runtime = SessionRuntime(now_ms=clock.now_ms, rng=Random(7))
+    store = InMemorySessionStore(now_ms=clock.now_ms, sleep=dormir, rng=runtime.rng)
+
+    def _ahora() -> datetime:
+        return to_datetime(clock.now_ms())
+
+    async def _sesion() -> AsyncIterator[AsyncSession]:
+        yield session
+
+    app.dependency_overrides[get_session] = _sesion
+    app.dependency_overrides[get_session_runtime] = lambda: runtime
+    app.dependency_overrides[get_session_redis] = lambda: redis
+    app.dependency_overrides[get_store] = lambda: store
+    app.dependency_overrides[get_clock] = lambda: _ahora
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as http:
+            yield SessionApi(
+                session=session,
+                redis=redis,
+                user=usuario,
+                clock=clock,
+                runtime=runtime,
+                store=store,
+                http=http,
+            )
+    finally:
+        await store.close()
+        app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def session_connect(session_api: SessionApi) -> Callable[[str], WebSocketClient]:
+    def _connect(session_id: str) -> WebSocketClient:
+        token = create_guest_token(session_api.user.id, session_api.user.nick)
+        return WebSocketClient(app, f"/ws/session/{session_id}", query=f"token={token}")
 
     return _connect
 

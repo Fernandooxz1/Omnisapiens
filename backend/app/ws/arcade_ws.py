@@ -18,47 +18,45 @@ Tres cosas que sorprenden a primera vista:
 """
 
 import asyncio
-import contextlib
-import json
 import logging
-import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
 from random import Random
-from typing import Annotated, Any, TypeGuard
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.websockets import WebSocketDisconnected
 
 from app.api.deps import SessionDep, authenticate
 from app.api.errors import ApiError
 from app.api.rate_limit import arcade_limit
 from app.config import settings
 from app.game import protocols
-from app.game.constants import CATEGORIES, DIFFICULTY_MAX, DIFFICULTY_MIN
 from app.game.modes.arcade import ARCADE_RULES
 from app.game.solo_engine import RoundRecord, SoloRun
 from app.models import User
 from app.redis import redis_client
 from app.runtime.session_store import (
-    OUTBOX_MAX,
     NextQuestion,
     SessionStore,
     SoloState,
     session_store,
 )
 from app.services import leaderboard, sessions
-from app.services.question_bank import (
-    candidates,
-    load,
-    remember_seen,
-    seen_ids,
+from app.services.solo_records import attempt_records, item_records
+from app.ws.common import (
+    ConnectionOutbox,
+    close_quietly,
+    is_gone,
+    parse_answer,
+    parse_envelope,
+    system_now_ms,
+    to_datetime,
+    write_socket,
 )
-from app.services.questions import SelectionStrategy, select
+from app.ws.selection import choose_item
 
 logger = logging.getLogger(__name__)
 
@@ -72,12 +70,8 @@ ARCADE_MODE = "trivia_arcade"
 CONTENT_KIND = "quiz"
 PLAY_FORMAT = "arcade"
 RULESET_VERSION = 1
-SOLUTION_VERSION = 1
 
 Clock = Callable[[], int]
-# El `id` viaja con el mensaje: el escritor es el único que toca el socket y el
-# `pong` tiene que poder correlacionar sin un lock de escritura.
-Envelope = tuple[protocols.Message, str | None]
 
 
 @dataclass(frozen=True)
@@ -89,7 +83,7 @@ class ArcadeRuntime:
 
 
 def get_arcade_runtime() -> ArcadeRuntime:
-    return ArcadeRuntime(now_ms=_system_now_ms, rng=Random())
+    return ArcadeRuntime(now_ms=system_now_ms, rng=Random())
 
 
 def get_arcade_redis() -> Redis:
@@ -104,37 +98,6 @@ def get_session_store() -> SessionStore:
 RuntimeDep = Annotated[ArcadeRuntime, Depends(get_arcade_runtime)]
 RedisDep = Annotated[Redis, Depends(get_arcade_redis)]
 StoreDep = Annotated[SessionStore, Depends(get_session_store)]
-
-
-class _Outbox:
-    """La única cola de la conexión.
-
-    El store escribe mensajes sueltos; el lector adjunta el `id` de correlación
-    del `pong` y de los errores. El escritor es el único que toca el socket.
-    """
-
-    def __init__(self) -> None:
-        self._queue: asyncio.Queue[Envelope] = asyncio.Queue(maxsize=OUTBOX_MAX)
-
-    def put_nowait(self, message: protocols.Message) -> None:
-        self.push(message)
-
-    def push(self, message: protocols.Message, correlation: str | None = None) -> None:
-        try:
-            self._queue.put_nowait((message, correlation))
-        except asyncio.QueueFull:
-            # El cliente dejó de leer (TCP sin drenar). Se descarta el mensaje
-            # más viejo y queda el más nuevo; la conexión la corta el timeout
-            # de inactividad.
-            self._queue.get_nowait()
-            self._queue.put_nowait((message, correlation))
-            logger.warning("el outbox del arcade se llenó: se descartó un mensaje")
-
-    def get_nowait(self) -> Envelope:
-        return self._queue.get_nowait()
-
-    async def get(self) -> Envelope:
-        return await self._queue.get()
 
 
 @router.websocket("/ws/arcade")
@@ -158,7 +121,7 @@ async def arcade_socket(
         await websocket.close(code=_CLOSE_POLICY)
         return
 
-    outbox = _Outbox()
+    outbox = ConnectionOutbox()
     connection = _Connection(
         db=session,
         redis=redis,
@@ -175,14 +138,14 @@ async def arcade_socket(
             idle_s=settings.ws_idle_timeout_seconds,
         )
     )
-    writer = asyncio.create_task(_writer(websocket, outbox))
+    writer = asyncio.create_task(write_socket(websocket, outbox))
     try:
         done, _ = await asyncio.wait(
             {reader, writer}, return_when=asyncio.FIRST_COMPLETED
         )
         for task in done:
             error = task.exception()
-            if error is not None and not _is_gone(error):
+            if error is not None and not is_gone(error):
                 # El canal se rompió: se cierra igual y el rastro queda en el log.
                 logger.error(
                     "el canal del arcade de %s se cortó", usuario.id, exc_info=error
@@ -195,7 +158,7 @@ async def arcade_socket(
         # para el barrendero; pero ya no está viva y no puede quedar en el
         # registro.
         await connection.release()
-        await _close(websocket)
+        await close_quietly(websocket)
 
 
 class _Connection:
@@ -209,7 +172,7 @@ class _Connection:
         runtime: ArcadeRuntime,
         store: SessionStore,
         user_id: uuid.UUID,
-        outbox: _Outbox,
+        outbox: ConnectionOutbox,
     ) -> None:
         self._db = db
         self._redis = redis
@@ -245,7 +208,7 @@ class _Connection:
                 play_format=PLAY_FORMAT,
                 ruleset_version=RULESET_VERSION,
                 config={},
-                started_at=_datetime(self._runtime.now_ms()),
+                started_at=to_datetime(self._runtime.now_ms()),
                 owner_user_id=self._user_id,
             )
         except Exception:
@@ -299,59 +262,21 @@ class _Connection:
         self, run: SoloRun, seen: frozenset[str]
     ) -> NextQuestion | None:
         """Elige y carga la pregunta. La base y Redis son de afuera del store."""
-        target = run.rules.difficulty_for(run.correct_count)
-        # El pool se recorta al tramo cercano; si no alcanza, se abre a todo el
-        # banco antes de aceptar una repetición (H-13 y §9.4).
-        pool = await candidates(
+        return await choose_item(
             self._db,
-            low=max(DIFFICULTY_MIN, target - 1),
-            high=min(DIFFICULTY_MAX, target + 1),
-        )
-        if not pool:
-            pool = await candidates(self._db)
-        if not pool:
-            return None
-
-        viewed = await seen_ids(self._redis, self._user_id)
-        excluded = seen | viewed
-        selection = select(
-            pool,
-            category=self._runtime.rng.choice(CATEGORIES),
-            difficulty=target,
+            self._redis,
+            user_id=self._user_id,
+            run=run,
+            seen=seen,
             rng=self._runtime.rng,
-            excluded=excluded,
         )
-        if selection.strategy is SelectionStrategy.REPEAT:
-            wider = await candidates(self._db)
-            if len(wider) > len(pool):
-                selection = select(
-                    wider,
-                    category=self._runtime.rng.choice(CATEGORIES),
-                    difficulty=target,
-                    rng=self._runtime.rng,
-                    excluded=excluded,
-                )
-
-        question = await load(self._db, selection.question_id)
-        if question is None:
-            return None
-        repeated = selection.strategy is SelectionStrategy.REPEAT
-        if repeated:
-            logger.warning(
-                "el arcade de %s se quedó sin preguntas nuevas: repite",
-                self._user_id,
-            )
-        # Se anota la vista antes de mandar la pregunta: si el cliente la recibe,
-        # el historial ya está escrito (y si Redis falla, `remember_seen` degrada).
-        await remember_seen(self._redis, self._user_id, question.question.id)
-        return NextQuestion(question, repeated=repeated)
 
     async def _finish(
         self,
         state: SoloState,
         records: tuple[RoundRecord, ...],
-        end: protocols.ArcadeEnd,
-    ) -> protocols.ArcadeEnd:
+        end: protocols.Message,
+    ) -> protocols.Message:
         """Cierra la fila y completa el `arcade_end` con el ranking.
 
         Si la base falla, el jugador igual ve su final: la fila queda `playing`
@@ -362,15 +287,15 @@ class _Connection:
                 self._db,
                 session_id=uuid.UUID(state.session_id),
                 state=sessions.SessionState(
-                    ended_at=_datetime(self._runtime.now_ms()),
+                    ended_at=to_datetime(self._runtime.now_ms()),
                     status="finished",
                     score=state.run.score,
                     correct_count=state.run.correct_count,
                     longest_streak=state.run.longest_streak,
                     max_difficulty=state.run.max_difficulty,
                 ),
-                items=_items(records),
-                attempts=_attempts(records),
+                items=item_records(records),
+                attempts=attempt_records(records),
             )
         except Exception:
             logger.exception("la corrida %s no se pudo cerrar", state.session_id)
@@ -383,7 +308,8 @@ class _Connection:
                 user_id=self._user_id,
                 session_id=uuid.UUID(state.session_id),
                 score=state.run.score,
-                now=_datetime(self._runtime.now_ms()),
+                mode=ARCADE_MODE,
+                now=to_datetime(self._runtime.now_ms()),
             )
         except Exception:
             # La corrida ya está guardada: lo único que se pierde es la posición
@@ -392,6 +318,10 @@ class _Connection:
             await self._db.rollback()
             return end
 
+        if not isinstance(end, protocols.ArcadeEnd):
+            # El presentador de este canal siempre cierra con `arcade_end`; el
+            # guardia existe para que un cambio de protocolo no explote acá.
+            return end
         return replace(
             end,
             rank_global=resumen.rank_global,
@@ -413,7 +343,7 @@ async def _identify(websocket: WebSocket, session: AsyncSession) -> User:
 
 async def _reader(
     websocket: WebSocket,
-    outbox: _Outbox,
+    outbox: ConnectionOutbox,
     connection: _Connection,
     *,
     idle_s: float,
@@ -428,7 +358,7 @@ async def _reader(
             logger.info("el arcade de %s cortó por inactividad", connection.user_id)
             return
 
-        pedido = _parse(raw)
+        pedido = parse_envelope(raw)
         if pedido is None:
             outbox.push(
                 protocols.Error(
@@ -443,7 +373,7 @@ async def _reader(
         elif tipo == "start":
             await connection.start()
         elif tipo == "answer":
-            respuesta = _answer(datos)
+            respuesta = parse_answer(datos)
             if respuesta is None:
                 outbox.push(
                     protocols.Error(
@@ -462,103 +392,3 @@ async def _reader(
                 ),
                 correlacion,
             )
-
-
-async def _writer(websocket: WebSocket, outbox: _Outbox) -> None:
-    """Lo único que escribe al socket: el `outbox` y su `id` de correlación."""
-    while True:
-        message, correlacion = await outbox.get()
-        await websocket.send_json(protocols.encode(message, id=correlacion))
-
-
-def _parse(raw: str) -> tuple[str, dict[str, Any], str | None] | None:
-    try:
-        sobre = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(sobre, dict):
-        return None
-    tipo = sobre.get("t")
-    datos = sobre.get("d", {})
-    correlacion = sobre.get("id")
-    if not isinstance(tipo, str) or not isinstance(datos, dict):
-        return None
-    if correlacion is not None and not isinstance(correlacion, str):
-        return None
-    return tipo, datos, correlacion
-
-
-def _answer(datos: dict[str, Any]) -> tuple[int, int] | None:
-    """`(ronda, opción)` si los dos son enteros. `bool` es `int`: se descarta."""
-    ronda = datos.get("round")
-    eleccion = datos.get("choice")
-    if not _is_int(ronda) or not _is_int(eleccion):
-        return None
-    return ronda, eleccion
-
-
-def _is_int(valor: object) -> TypeGuard[int]:
-    return isinstance(valor, int) and not isinstance(valor, bool)
-
-
-def _datetime(ms: int) -> datetime:
-    """El instante del servidor, en UTC. La base guarda `timestamptz`."""
-    return datetime.fromtimestamp(ms / 1000, tz=UTC)
-
-
-def _submission(choice: int | None) -> dict[str, object]:
-    """La respuesta del quiz; una omisión no inventa una opción."""
-    if choice is None:
-        return {}
-    return {"type": "choice", "index": choice}
-
-
-def _items(records: tuple[RoundRecord, ...]) -> list[sessions.ItemRecord]:
-    return [
-        sessions.ItemRecord(
-            item_key=str(record.round_index),
-            position=record.round_index,
-            content_id=uuid.UUID(record.question_id),
-            difficulty=record.difficulty,
-            seconds=record.seconds,
-            served_at=_datetime(record.served_at_ms),
-            deadline_at=_datetime(record.served_at_ms + record.seconds * 1000),
-            closed_at=_datetime(record.served_at_ms + record.elapsed_ms),
-            solution={
-                "v": SOLUTION_VERSION,
-                "correct_index": record.correct_index,
-            },
-        )
-        for record in records
-    ]
-
-
-def _attempts(records: tuple[RoundRecord, ...]) -> list[sessions.AttemptRecord]:
-    return [
-        sessions.AttemptRecord(
-            item_key=str(record.round_index),
-            attempt_seq=0,
-            submitted_at=_datetime(record.served_at_ms + record.elapsed_ms),
-            submission=_submission(record.choice),
-            correct=record.correct,
-            elapsed_ms=record.elapsed_ms,
-            points=record.points,
-            rejected=record.rejected.value if record.rejected is not None else None,
-        )
-        for record in records
-    ]
-
-
-def _is_gone(error: BaseException) -> bool:
-    """Un corte esperado: el cliente se fue, no un error del handler."""
-    return isinstance(error, (WebSocketDisconnect, WebSocketDisconnected))
-
-
-async def _close(websocket: WebSocket) -> None:
-    """Cierra el socket si sigue abierto; si el cliente se fue, no hay más que hacer."""
-    with contextlib.suppress(WebSocketDisconnect, WebSocketDisconnected):
-        await websocket.close()
-
-
-def _system_now_ms() -> int:
-    return int(time.time() * 1000)

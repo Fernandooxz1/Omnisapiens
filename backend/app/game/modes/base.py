@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.game.constants import DIFFICULTY_MAX, DIFFICULTY_MIN
 from app.game.core import ServedItem, Submission, Verdict
+from app.game.solo_engine import SoloRules
 
 
 class Players(StrEnum):
@@ -226,6 +227,9 @@ class GameMode:
     players: Players
     connection: ConnectionPolicy
     schedule: Schedule
+    # Las curvas del runtime solo lineal. Un modo SOLO que se juegue por
+    # `/ws/session/{id}` las declara acá; el versus no las usa.
+    solo_rules: SoloRules | None = None
 
     def __post_init__(self) -> None:
         if not self.code:

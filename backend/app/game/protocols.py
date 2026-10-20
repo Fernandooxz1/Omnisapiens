@@ -169,6 +169,80 @@ class ArcadeEnd(Message):
 
 
 @dataclass(frozen=True)
+class SessionStart(Message):
+    """Arranque del protocolo canónico de una sesión solo.
+
+    `session_id` es el de `game_sessions`: la sesión la crea `POST /sessions` y
+    el socket solo se engancha. `lives` es un dato del formato lineal; un modo
+    sin vidas puede mandarlo igual.
+    """
+
+    type: ClassVar[str] = "session_start"
+    session_id: str
+    mode: str
+    config: dict[str, object]
+    lives: int
+
+
+@dataclass(frozen=True)
+class ItemStart(Message):
+    """Un ítem servido. `payload` ya pasó por el `public_schema` del modo."""
+
+    type: ClassVar[str] = "item_start"
+    item_key: str
+    position: int
+    ends_at: int
+    total_seconds: int
+    payload: dict[str, object]
+
+
+@dataclass(frozen=True)
+class ItemResult(Message):
+    """El ítem cerrado. Recién acá viaja la solución.
+
+    `scores` es el estado del corredor después de la ronda: puntaje, vidas,
+    racha y aciertos. El cliente lo dibuja; no lo recalcula.
+    """
+
+    type: ClassVar[str] = "item_result"
+    item_key: str
+    correct: bool
+    submission: dict[str, object] | None
+    solution: dict[str, object] | None
+    points: int
+    scores: dict[str, int]
+
+
+@dataclass(frozen=True)
+class SessionEnd(Message):
+    """Fin de la sesión. `ranking` es nulo en un modo que no publica tabla."""
+
+    type: ClassVar[str] = "session_end"
+    session_id: str
+    score: int
+    correct_count: int
+    max_difficulty: int
+    longest_streak: int
+    ranking: dict[str, object] | None
+
+
+@dataclass(frozen=True)
+class SessionState(Message):
+    """Foto de la sesión para el cliente que pide `state`."""
+
+    type: ClassVar[str] = "session_state"
+    session_id: str
+    mode: str
+    config: dict[str, object]
+    position: int
+    ends_at: int | None
+    total_seconds: int | None
+    payload: dict[str, object] | None
+    scores: dict[str, int]
+    finished: bool
+
+
+@dataclass(frozen=True)
 class Error(Message):
     type: ClassVar[str] = "error"
     code: str

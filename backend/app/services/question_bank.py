@@ -17,8 +17,8 @@ del juego no cambia:
 
 import logging
 import uuid
-from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from random import Random
 from typing import cast
@@ -57,10 +57,18 @@ class RoundQuestion:
 
 @dataclass(frozen=True)
 class LoadedQuestion:
-    """La pregunta y, aparte, su respuesta: lo que el motor necesita y nadie más."""
+    """La pregunta y, aparte, su respuesta: lo que el motor necesita y nadie más.
+
+    `public` y `solution` son los payloads versionados del tipo de contenido,
+    tal como los devuelve `ContentKind.load`. El canal canónico los usa para no
+    reconstruir el payload desde `RoundQuestion`; el arcade sigue leyendo los
+    campos sueltos. `correct_index` es lo que hoy entiende `SoloEngine`.
+    """
 
     question: RoundQuestion
     correct_index: int
+    public: Mapping[str, object] = field(default_factory=dict)
+    solution: Mapping[str, object] = field(default_factory=dict)
 
 
 def shuffle_options(loaded: LoadedQuestion, rng: Random) -> LoadedQuestion:
@@ -77,10 +85,23 @@ def shuffle_options(loaded: LoadedQuestion, rng: Random) -> LoadedQuestion:
         return loaded
     orden = list(range(len(opciones)))
     rng.shuffle(orden)
+    barajadas = [opciones[i] for i in orden]
+    public = dict(loaded.public)
+    # El payload público es la vista del ítem: si no se baraja acá, el canal
+    # canónico le devolvería al cliente la respuesta en la posición original.
+    if isinstance(public.get("options"), list):
+        public["options"] = list(barajadas)
+    # La solución congelada también habla de índices: si no se remapea, el
+    # `item_result` revelaría una posición que ya no corresponde.
+    solution = dict(loaded.solution)
+    if isinstance(solution.get("correct_index"), int):
+        solution["correct_index"] = orden.index(loaded.correct_index)
     return replace(
         loaded,
-        question=replace(loaded.question, options=[opciones[i] for i in orden]),
+        question=replace(loaded.question, options=barajadas),
         correct_index=orden.index(loaded.correct_index),
+        public=public,
+        solution=solution,
     )
 
 
@@ -160,6 +181,8 @@ async def load(session: AsyncSession, question_id: str) -> LoadedQuestion | None
             media_url=item.media_url,
         ),
         correct_index=answer.correct_index,
+        public=public.model_dump(),
+        solution=answer.model_dump(),
     )
 
 

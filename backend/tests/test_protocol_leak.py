@@ -18,6 +18,8 @@ from .ws_scenarios import ESCENARIOS, es_revelacion
 
 arcade_api = ws_fixtures.arcade_api
 arcade_connect = ws_fixtures.arcade_connect
+session_api = ws_fixtures.session_api
+session_connect = ws_fixtures.session_connect
 room_api = ws_fixtures.room_api
 room_connect = ws_fixtures.room_connect
 abrir = ws_fixtures.abrir
@@ -109,6 +111,13 @@ async def test_the_arcade_messages_do_not_leak_before_the_result(
 ) -> None:
     transcript = await ESCENARIOS["arcade_complete"](arcade_api, arcade_connect)
     _revisar(transcript, await _soluciones(arcade_api.session))
+
+
+async def test_the_canonical_messages_do_not_leak_before_the_result(
+    session_api: Any, session_connect: Any
+) -> None:
+    transcript = await ESCENARIOS["session_complete"](session_api, session_connect)
+    _revisar(transcript, await _soluciones(session_api.session))
 
 
 async def test_the_versus_messages_do_not_leak_before_the_result(

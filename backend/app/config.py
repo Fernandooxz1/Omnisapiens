@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     rate_limit_guest_per_minute: int = 10
     rate_limit_room_per_minute: int = 60
     rate_limit_arcade_per_minute: int = 60
+    # Crear sesiones genéricas y abrir su socket: el mismo tope por IP que el
+    # arcade viejo, pero con contador propio.
+    rate_limit_session_per_minute: int = 60
     room_idle_timeout_seconds: int = 600
     # Una partida `playing` más vieja que esto es de un proceso que murió a mitad:
     # el barrendero la anula al arrancar. El techo de una partida normal (7 rondas

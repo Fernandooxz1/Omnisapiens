@@ -11,8 +11,8 @@
 - **Auth HTTP:** `Authorization: Bearer <token>`. **Auth WS:** `?token=<token>`
   (el navegador no permite headers en `new WebSocket`).
 - **CORS:** `CORS_ORIGINS` ya permite `http://localhost:5173`.
-- **Rate limit:** 60 s por IP en `POST /auth/guest`, `GET /rooms/{code}` y los WS.
-  Al pasarse: `429 RATE_LIMITED`.
+- **Rate limit:** 60 s por IP en `POST /auth/guest`, `POST /sessions`,
+  `GET /rooms/{code}` y los WS. Al pasarse: `429 RATE_LIMITED`.
 
 ## HTTP
 
@@ -22,6 +22,7 @@
 | `GET` | `/me` | sí | Perfil + marcas + historial |
 | `PATCH` | `/me` | sí | Cambia el nick → token fresco |
 | `DELETE` | `/me` | sí | Baja lógica (`204`) |
+| `POST` | `/sessions` | sí | Crea una sesión solo → `201` |
 | `POST` | `/rooms` | sí | Crea sala 1v1 → `201` |
 | `GET` | `/rooms/{code}` | no | Vista previa pública |
 | `GET` | `/modes` | no | Catálogo de modos y su configuración |
@@ -99,6 +100,35 @@ Sin auth. Es la fuente de verdad del menú: el cliente no hardcodea los modos.
 medio que el modo sabe mostrar. `ranking`: si el modo publica tabla (ver
 `/leaderboard/{mode}`). `config_schema`: JSON Schema que valida el `config` de la sesión
 o de la sala; `{}` es válido para el arcade porque sus reglas son fijas.
+
+### `POST /sessions`
+
+Crea una partida **solo** y devuelve su socket. Body:
+
+```json
+{ "mode": "trivia_arcade", "config": {} }
+```
+
+`config` se valida con el `config_schema` que publica `GET /modes`; para
+`trivia_arcade` es `{}` (sus reglas son fijas por `ruleset_version`). Respuesta `201`:
+
+```json
+{ "session_id": "6f1c…", "ws_url": "/ws/session/6f1c…" }
+```
+
+`ws_url` es una ruta del backend: el cliente le antepone el host y el esquema
+(`ws://`/`wss://`) que ya usa para el resto de los sockets.
+
+| Caso | Respuesta |
+|---|---|
+| Modo inexistente | `404 MODE_NOT_FOUND` |
+| Modo `players=versus` | `422 MODE_NOT_SOLO` |
+| `config` inválido para el modo | `422 INVALID_CONFIG` |
+| Sin token | `401 AUTH_REQUIRED` |
+| Más de N por minuto desde la IP | `429 RATE_LIMITED` |
+
+La fila nace en `playing` con `started_at`, dueño y el `config` validado. Si el
+socket no llega a abrirse, el barrendero la invalida.
 
 ### `POST /rooms`
 
@@ -239,6 +269,35 @@ Cliente → servidor: `start {}`, `answer {"round": n, "choice": 0..3}`, `ping {
 - `start` vale **una vez por conexión**: para otra corrida se abre otra conexión (no hay
   `restart`).
 
+### Sesiones — `WS /ws/session/{id}?token=...`
+
+El canal genérico de una sesión solo. La sesión se crea antes con
+`POST /sessions`; este socket no la crea ni la reinicia, solo la juega. Es
+**efímero**: si el socket se cae, la fila queda `abandoned` y no se retoma.
+
+Cliente → servidor: `answer {"round": n, "choice": 0..3}`, `state {}`, `ping {}`.
+
+| `t` | `d` |
+|---|---|
+| `session_start` | `{"session_id","mode","config","lives"}` |
+| `item_start` | `{"item_key","position","ends_at","total_seconds","payload"}` — **sin la solución** |
+| `item_result` | `{"item_key","correct","submission","solution","points","scores"}` |
+| `session_end` | `{"session_id","score","correct_count","max_difficulty","longest_streak","ranking"}` |
+| `session_state` | respuesta a `state`: `{"session_id","mode","config","position","ends_at","total_seconds","payload","scores","finished"}` |
+| `error` / `pong` | `{"code","message"}` / `{}` |
+
+- `payload` es el ítem público validado por el `public_schema` del modo. La forma
+  la define el modo, no una clase de mensaje: para `trivia_arcade` es
+  `{"v", "prompt", "options", "media"}`.
+- `solution` (y `submission`) recién aparecen en `item_result`, cuando el ítem ya
+  cerró. `submission` es `null` si la ventana venció sin respuesta.
+- `scores` es el estado del corredor después de la ronda:
+  `{"score","lives","streak","correct_count"}`.
+- `ranking` es `null` en un modo sin tabla (o si el cálculo falló). Con ranking:
+  `{"rank_global","rank_weekly","personal_best","is_new_best"}`.
+- Las opciones llegan barajadas: `choice` es el índice sobre `payload.options`.
+- Igual que el arcade, `answer` repetido o fuera de ronda → `ROUND_MISMATCH`.
+
 ### Cliente: reconexión y heartbeat
 
 - Backoff `0.5s → 10s` (exponencial con tope). Al reconectar, mandar `hello` y esperar el
@@ -267,6 +326,8 @@ Cliente → servidor: `start {}`, `answer {"round": n, "choice": 0..3}`, `ping {
 - **El token viaja en la URL del WS**: no loguearlo en el cliente.
 - **`status` de sala vencida**: `GET` da 404 y el WS `ROOM_NOT_FOUND`; no reintentar en loop.
 - **Arcade: `start` una sola vez por conexión.** Al terminar, cerrar y abrir otra.
+- **Sesión genérica: el socket no crea nada.** El id sale de `POST /sessions`; si el
+  socket se cae, la fila queda `abandoned` y hay que crear otra sesión.
 - **`answer` repetido** (doble tap, retry) → `ROUND_MISMATCH`; la ronda ya no está en vuelo.
 
 ## Revelación
@@ -288,6 +349,9 @@ El cliente no retiene la ronda por su cuenta: dibuja el resultado y espera el pr
 | `NICK_FORBIDDEN` | 400 | Nick en la lista corta de prohibidos |
 | `NICK_TAKEN` | 409 | Otro usuario vivo usa ese nick |
 | `ROOM_NOT_FOUND` | 404 | Código inexistente o sala vencida |
+| `MODE_NOT_FOUND` | 404 | No hay un modo registrado con ese `code` |
+| `MODE_NOT_SOLO` | 422 | El modo no se juega como sesión solo |
+| `INVALID_CONFIG` | 422 | El `config` no valida contra el `config_schema` del modo |
 | `MODE_WITHOUT_RANKING` | 404 | El modo pedido no publica ranking |
 | `VALIDATION_ERROR` | 422 | Body, query o `kind` inválido (incluye el campo en `message`) |
 | `IMPORT_FORMAT` | 400 | Archivo no UTF-8, encabezado o JSON roto, extensión rara |
@@ -302,6 +366,9 @@ En el WS (todos por `t: "error"`):
 | `NO_QUESTIONS` | No hay preguntas para servir en ese tramo |
 | `ROUND_MISMATCH` | `answer` de una ronda que ya no está en vuelo |
 | `RUN_NOT_STARTED` | `answer` en el arcade antes de `start` / sin corrida |
+| `NOT_PLAYING` | La sesión no existe, es de otro usuario, ya terminó o no hay ronda en vuelo |
+| `ALREADY_STARTED` | Ya hay un socket jugando esa sesión |
+| `SESSION_NOT_STARTED` | La sesión no se pudo abrir (fallo de base al cargar el primer ítem) |
 | `BAD_MESSAGE` | Sobre o `answer` mal formados |
 | `UNKNOWN_MESSAGE` | `t` desconocido |
 | `ROOM_CLOCK_DOWN` | El reloj del servidor se rindió tras fallos de base (la sala se cierra) |

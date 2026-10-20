@@ -101,6 +101,7 @@ TRIVIA_ARCADE = GameMode(
     players=Players.SOLO,
     connection=ConnectionPolicy.EPHEMERAL,
     schedule=Schedule.LINEAR,
+    solo_rules=ARCADE_RULES,
 )
 
 __all__ = [
