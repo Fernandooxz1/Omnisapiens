@@ -50,18 +50,21 @@ make import FILE=mis-preguntas.csv
 # Publicada directamente, salteando el `make`
 cd backend && uv run python -m app.cli import-questions ../mis-preguntas.csv --status published
 
-# Las 120 semilla del repo
+# Las 308 semilla del repo (base + lotes revisados)
 make seed
 
-# El lote adicional de 60 preguntas generadas y revisadas
+# Un lote suelto, publicado directamente
 cd backend && uv run python -m app.cli import-questions seeds/questions_new.csv --status published
 ```
 
-`make seed` importa `backend/seeds/questions.csv` como publicado; ese archivo es la mejor
-referencia de tono, dificultad y opciones. Hoy el banco son 120 preguntas repartidas así:
-18 de dificultad 1, 23 de 2, 27 de 3, 28 de 4 y 24 de 5, con al menos 3 de cada nivel
-3–5 en las seis categorías. Al sumar preguntas, mantené esa proporción para que las rondas
-tardías del 1v1 y el arcade no terminen cayendo en preguntas fáciles.
+`make seed` importa `backend/seeds/questions.csv`, `questions_new.csv` y
+`questions_batch_3.csv` como publicados. `questions.csv` sigue siendo la mejor referencia de
+tono, dificultad y opciones. Hoy el banco son 308 preguntas repartidas así: 64 de dificultad
+1, 64 de 2, 62 de 3, 63 de 4 y 55 de 5, con al menos 8 de cada nivel 3–5 en las seis
+categorías. Los lotes nuevos ya pasaron revisión: se descartaron duplicados semánticos y se
+recalibró la dificultad para no engordar solo los niveles fáciles. Al sumar preguntas,
+mantené esa proporción para que las rondas tardías del 1v1 y el arcade no terminen cayendo en
+preguntas fáciles.
 
 ## Extraer preguntas de una fuente
 

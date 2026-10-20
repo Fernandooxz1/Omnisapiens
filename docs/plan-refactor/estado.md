@@ -19,7 +19,7 @@ bloqueo: ""
 | Fase | Nombre | Rol | Tareas | Estado |
 |---|---|---|---|---|
 | 0 | Red de seguridad | backend | 0.1 | hecho |
-| 1 | Núcleo de reglas | backend | 1.1 – 1.3 | pendiente |
+| 1 | Núcleo de reglas | backend | 1.1 – 1.3 | hecho |
 | 2 | Contenido genérico | backend | 2.1 – 2.4 | hecho |
 | 3 | Sesiones, ranking y barrendero | backend | 3.1 – 3.5 | hecho |
 | 4 | Port del arcade | backend | 4.1 – 4.3 | hecho |

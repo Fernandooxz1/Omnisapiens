@@ -95,8 +95,9 @@ API FastAPI (un proceso, estado vivo en memoria)
 | `app/runtime/` | Salas y corridas vivas, en memoria |
 | `app/services/` | Persistencia, ranking, importación y barrido de partidas huérfanas |
 | `app/models/` · `alembic/` | Modelos SQLAlchemy y migraciones |
-| `seeds/questions.csv` | 120 preguntas de ejemplo listas para importar |
-| `seeds/questions_new.csv` | lote adicional de 60 preguntas generadas y revisadas |
+| `seeds/questions.csv` | 120 preguntas base listas para importar |
+| `seeds/questions_new.csv` | 120 preguntas adicionales generadas y revisadas |
+| `seeds/questions_batch_3.csv` | 68 preguntas adicionales revisadas (dificultad recalibrada) |
 
 La respuesta correcta nunca se envía antes de que la ronda se resuelva y las opciones se
 barajan al servir cada pregunta. El servidor también descarta las corridas de arcade con
@@ -106,7 +107,7 @@ tiempos inconsistentes.
 
 | Ruta | Responsabilidad |
 |---|---|
-| `src/routes/` | Inicio, jugar, sala, arcade, ranking y admin |
+| `src/routes/` | Inicio, jugar, sala, ranking y admin |
 | `src/lib/api/` | Cliente HTTP, sesión y WebSocket; no hay `fetch` ni `WebSocket` fuera de aquí |
 | `src/lib/match/` · `src/lib/arcade/` | Máquinas de estado de la partida y de la corrida |
 | `src/lib/components/` | Componentes propios, sin librería de UI |
@@ -132,8 +133,8 @@ cp backend/.env.example backend/.env
 
 make up          # PostgreSQL 16 y Redis 7 en Docker
 make migrate     # crea o actualiza el esquema
-make seed        # importa las 120 preguntas de ejemplo
-make import FILE=seeds/questions_new.csv  # lote adicional de 60
+make seed        # importa las 308 preguntas semilla
+make import FILE=mi-archivo.csv  # importa un archivo propio como borrador
 make api         # API con reload en http://localhost:8000
 ```
 
