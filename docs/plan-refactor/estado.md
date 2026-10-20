@@ -5,12 +5,12 @@
 
 ```yaml
 activo: true
-fase: 5
-tarea: "5.3"
+fase: 6
+tarea: "6.1"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 9c30ee6
-fecha: 2026-10-19
+ultimo_commit: cc62f9f
+fecha: 2026-10-20
 bloqueo: ""
 ```
 
@@ -23,7 +23,7 @@ bloqueo: ""
 | 2 | Contenido genérico | backend | 2.1 – 2.4 | hecho |
 | 3 | Sesiones, ranking y barrendero | backend | 3.1 – 3.5 | hecho |
 | 4 | Port del arcade | backend | 4.1 – 4.3 | hecho |
-| 5 | Port del 1v1 | backend | 5.1 – 5.3 | pendiente |
+| 5 | Port del 1v1 | backend | 5.1 – 5.3 | hecho |
 | 6 | Registro y rutas genéricas | backend | 6.1 – 6.3 | pendiente |
 | 7 | Frontend multi-modo | frontend | 7.1 – 7.3 | pendiente |
 | 8 | Rosco (**opcional**) | backend + frontend | 8.1 – 8.5 | pendiente |
@@ -53,3 +53,4 @@ bloqueo: ""
 | 2026-10-19 | 4.3 | `3859e78` | Borrados `arcade_engine`, `arcade_session` y `services/arcade_runs`; `ARCADE_RULES` en `modes/arcade.py`, tests portados al motor/store. Tag `refactor-fase-4`. Próxima: 5.1. |
 | 2026-10-19 | 5.1 | `f6a8651` | `versus_engine` puro (partida, sillas, gracia, pausa, revancha) y sesiones versus en `InMemorySessionStore` con outbox por silla y vencimientos; tests de `match_engine`/`room` portados. Próxima: 5.2. |
 | 2026-10-19 | 5.2 | `9c30ee6` | `/ws/room` corre sobre el store directo: el borde elige y carga la pregunta, persiste `game_sessions` con ítems/intentos/participantes y sigue escribiendo `matches`/`rooms`; `room_manager` eliminado. Golden y e2e de 1v1 sin cambios. Próxima: 5.3. |
+| 2026-10-20 | 5.3 | `cc62f9f` | Borrados `match_engine` y `runtime/room` con sus tests ya portados; `matches`/`match_rounds` quedan de solo lectura y `rooms` sigue en el borde. Golden y e2e de 1v1 sin cambios. Tag `refactor-fase-5`. Próxima: 6.1. |
