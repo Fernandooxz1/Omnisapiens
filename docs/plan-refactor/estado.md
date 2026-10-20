@@ -4,12 +4,12 @@
 > No se edita a mano. Si hay conflicto entre este archivo y un prompt, manda este.
 
 ```yaml
-activo: true
+activo: false
 fase: 10
 tarea: "10.2"
 rol: backend
-estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 13c46a8
+estado: hecho            # pendiente | en curso | hecho | bloqueado
+ultimo_commit: e56ed15
 fecha: 2026-10-20
 bloqueo: ""
 ```
@@ -26,9 +26,9 @@ bloqueo: ""
 | 5 | Port del 1v1 | backend | 5.1 – 5.3 | hecho |
 | 6 | Registro y rutas genéricas | backend | 6.1 – 6.3 | hecho |
 | 7 | Frontend multi-modo | frontend | 7.1 – 7.3 | hecho |
-| 8 | Rosco (**opcional**) | backend + frontend | 8.1 – 8.5 | pendiente |
-| 9 | Medios (**opcional**) | backend + frontend | 9.1 – 9.4 | pendiente |
-| 10 | Cierre | backend | 10.1 – 10.2 | en curso |
+| 8 | Rosco (**opcional**) | backend + frontend | 8.1 – 8.5 | no se hizo (opcional) |
+| 9 | Medios (**opcional**) | backend + frontend | 9.1 – 9.4 | no se hizo (opcional) |
+| 10 | Cierre | backend | 10.1 – 10.2 | hecho |
 
 ## Historial
 
@@ -61,4 +61,5 @@ bloqueo: ""
 | 2026-10-20 | 7.2 | `a36ee38` | `/play/[mode]` monta el renderer del registry: `ArcadeScreen` y `VersusScreen` (lobby + sala) viven en `src/lib/modes/`; `/arcade` y `/play` redirigen y la sala sigue en `/room/{code}`. Próxima: 7.3. |
 | 2026-10-20 | 7.3 | `498c87d` | Arcade sobre el canal canónico (`POST /sessions` + `WS /ws/session/{id}`) sin badge de categoría; e2e nuevas de catálogo y rutas `/play/trivia_*`; `/arcade` y `/play` retiradas. Tag `refactor-fase-7`. Próxima: 8.1 (opcional). |
 | 2026-10-20 | — | `2c52e3e` | Pulido frontend: «partida» en la copia, repaso final plegable, corte de sesión honesto, esqueleto/reintento del catálogo y redirects viejos restaurados. Brief backend en `docs/prompts/backend-partida.md`. Próxima: 8.1 (opcional). |
-| 2026-10-20 | 10.1 | `0006` | Migración `0006` dropea `questions`, `matches`, `match_rounds`, `arcade_runs` y `arcade_answers`; `/me`, el barrendero y el ranking leen `game_sessions`. Próxima: 10.2. |
+| 2026-10-20 | 10.1 | `9f9d084` | Migración `0006` dropea `questions`, `matches`, `match_rounds`, `arcade_runs` y `arcade_answers`; `/me`, el barrendero y el ranking leen `game_sessions`. Próxima: 10.2. |
+| 2026-10-20 | 10.2 | `e56ed15` | Cierre verificado desde base limpia: migraciones `0001`–`0006`, tres seeds, 689 tests al 92 %, `svelte-check` y build en Node 24, 11 e2e; test de aceptación de un modo nuevo. Tag `refactor-multimodo`. Refactor cerrado. |

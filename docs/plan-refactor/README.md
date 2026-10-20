@@ -82,13 +82,16 @@ proyecto: para eso está el diseño y el brief del rol.
 
 ## Cuándo termina el refactor
 
-Cuando `estado.md` diga `fase: 10` y la tarea 10.2 cierre:
+**Cerró el 2026-10-20** (`activo: false` en `estado.md`). Terminó cuando la tarea 10.2
+verificó:
 
-- se dropean las tablas viejas (`0005`);
-- `make lint`, `make cov`, `make check-schema` y e2e en verde;
+- las tablas viejas dropeadas en la migración `0006`;
+- `make lint`, `make cov`, `make check-schema` y e2e en verde desde una base limpia;
 - `activo: false` en `estado.md`;
 - el flujo normal de `AGENTS.md` vuelve a mandar (`docs/tareas.md` y
   `docs/tareas-backend.md`).
+
+Este directorio queda como historial del diseño; no se reabre.
 
 ## Si el refactor se pausa
 
