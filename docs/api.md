@@ -101,6 +101,18 @@ medio que el modo sabe mostrar. `ranking`: si el modo publica tabla (ver
 `/leaderboard/{mode}`). `config_schema`: JSON Schema que valida el `config` de la sesión
 o de la sala; `{}` es válido para el arcade porque sus reglas son fijas.
 
+**Cómo consume el cliente cualquier modo.** El catálogo manda: no hay rutas por modo.
+
+1. Leer `players` para elegir el canal: `solo` → `POST /sessions` + `WS /ws/session/{id}`;
+   `versus` → `POST /rooms` + `WS /ws/room/{code}`.
+2. Mandar el `config` tal cual lo valida `config_schema`; los defaults también los pone el
+   esquema. Un modo `solo` con `config={}` usa sus reglas fijas (`ruleset_version`).
+3. Dibujar el `payload` de `item_start` con `content_kind` + `input` + `media`; la forma la
+   define el modo y la solución nunca viene en ese mensaje.
+4. Mostrar el ranking solo si `ranking` es `true` y usar `/leaderboard/{code}`.
+5. Tratar `MODE_NOT_FOUND` (`404`), `MODE_NOT_SOLO` (`422`), `INVALID_CONFIG` (`422`) y
+   `MODE_WITHOUT_RANKING` (`404`) como parte del contrato, no como errores inesperados.
+
 ### `POST /sessions`
 
 Crea una partida **solo** y devuelve su socket. Body:
@@ -204,8 +216,9 @@ página de más → `200` con `items: []`. `source` y `tags` eran columnas de `q
 contenido genérico no las guarda: salen `null` y `[]`.
 
 **`POST /admin/content/{kind}`** — `multipart/form-data`: `file` (CSV o JSON según
-extensión) y `status` opcional (`draft` por defecto). Escribe el contenido genérico y,
-mientras dure el refactor, también `questions` (dual-write).
+extensión) y `status` opcional (`draft` por defecto). Escribe siempre en
+`content_items`/`content_solutions`; la tabla vieja `questions` ya no recibe escrituras
+(queda de solo lectura hasta la fase 10).
 
 ```json
 { "total": 12, "imported": 10, "duplicated": 1,
@@ -251,6 +264,9 @@ Cliente → servidor: `hello {}`, `start {}` (solo host, con 2 jugadores), `answ
 - `players` incluye sillas desconectadas (el servidor cuenta la silla hasta que vence la gracia).
 
 ### Arcade — `WS /ws/arcade?token=...`
+
+Adaptador de compatibilidad: mantiene los mensajes históricos tal cual. El canal nuevo es
+`WS /ws/session/{id}` (§Sesiones); la ventana de convivencia está en §Compatibilidad.
 
 Cliente → servidor: `start {}`, `answer {"round": n, "choice": 0..3}`, `ping {}`.
 
@@ -329,6 +345,29 @@ Cliente → servidor: `answer {"round": n, "choice": 0..3}`, `state {}`, `ping {
 - **Sesión genérica: el socket no crea nada.** El id sale de `POST /sessions`; si el
   socket se cae, la fila queda `abandoned` y hay que crear otra sesión.
 - **`answer` repetido** (doble tap, retry) → `ROUND_MISMATCH`; la ronda ya no está en vuelo.
+
+## Compatibilidad
+
+Durante el refactor conviven la superficie genérica y la histórica. Los alias responden
+directo (sin redirect) y devuelven exactamente lo mismo que la ruta nueva: migrar el
+cliente no cambia ningún payload.
+
+| Superficie vieja | Superficie nueva | Qué se mantiene | Hasta |
+|---|---|---|---|
+| `GET /leaderboard/arcade` y `/leaderboard/arcade/me` | `GET /leaderboard/trivia_arcade` y `/me` | status y body idénticos | se mantiene después de la fase 10 |
+| `GET /admin/questions` | `GET /admin/content/quiz` | misma página y filtros | se mantiene después de la fase 10 |
+| `POST /admin/questions/import` | `POST /admin/content/quiz` | mismo informe de importación | se mantiene después de la fase 10 |
+| `POST /admin/content/{kind}/import` | `POST /admin/content/{kind}` | mismo informe; ruta aceptada pero fuera del OpenAPI | se mantiene después de la fase 10 |
+| `WS /ws/arcade` + `arcade_start/question/result/end` | `WS /ws/session/{id}` + `session_start/item_start/item_result/session_end` | mismo motor y transcripts dorados | hasta la fase 7.3, cuando el cliente pasa al canal nuevo |
+
+- Los alias HTTP no dependen de las tablas viejas (`questions`, `arcade_runs`, `matches`):
+  por eso sobreviven al retiro de esas tablas en la fase 10.
+- Cada socket habla **un solo** protocolo: los mensajes `arcade_*` no aparecen en
+  `/ws/session/{id}` y los canónicos no aparecen en `/ws/arcade`.
+- El 1v1 no tiene todavía un canal canónico: `WS /ws/room/{code}` con sus mensajes
+  `room_state`, `match_start`, `round_start`, `round_result` y `match_end` es la única
+  superficie y no cambia.
+- El cliente nunca lee las tablas: cualquier detalle de persistencia es interno.
 
 ## Revelación
 

@@ -191,6 +191,22 @@ El protocolo del cliente no cambia: `room_state`, `match_start`, `round_start`,
 `opponent_answered`, `round_result`, `match_end`, `error` y los de reconexión siguen
 siendo los mismos.
 
+## Contrato y compatibilidad
+
+`docs/api.md` es la fuente de verdad del cliente y desde la fase 6 tiene dos superficies:
+
+- **Genérica:** `GET /modes` describe el modo y `POST /sessions` + `WS /ws/session/{id}`
+  juegan una sesión solo con el protocolo canónico (`session_start`, `item_start`,
+  `item_result`, `session_end`, `session_state`). El `payload` sale del `public_schema`
+  del modo; la solución recién viaja en `item_result`.
+- **Adaptadores:** `WS /ws/arcade` conserva los mensajes `arcade_*` y los alias HTTP
+  (`/leaderboard/arcade`, `/admin/questions[/import]`) siguen respondiendo igual. La
+  tabla de compatibilidad y su ventana están en `docs/api.md` §Compatibilidad.
+
+Un cambio de contrato se documenta en `docs/api.md` en el mismo commit; si toca un alias,
+también se actualiza esa tabla. Los tests de contrato de los alias viven en
+`tests/test_api_compat.py` y comparan status y body contra la ruta nueva.
+
 ## Convenciones
 
 - Código, identificadores, archivos y commits **en inglés**; los mensajes que ve el jugador,

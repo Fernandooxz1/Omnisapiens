@@ -48,6 +48,17 @@ No es lo mismo el contenido, el formato y el modo:
 configuración). El menú del cliente sale de ahí; agregar un modo es registrarlo en el
 backend, no tocar dos listas.
 
+Las tres piezas se combinan sin acoplarse: `trivia_arcade` y `trivia_versus` comparten el
+contenido `quiz` y cambian el formato; un formato nuevo (`fixed_solo`, `board_solo`) puede
+reusar `quiz` sin tocar el motor compartido. El cliente consume cualquier modo con el mismo
+par de rutas según `players`: `POST /sessions` + `WS /ws/session/{id}` para `solo`,
+`POST /rooms` + `WS /ws/room/{code}` para `versus`. El detalle del contrato está en
+`docs/api.md` §`GET /modes`, §Sesiones y §WebSocket.
+
+Los alias del cliente histórico (`/leaderboard/arcade`, `/admin/questions`, `/ws/arcade`)
+siguen vivos mientras convivan con las rutas nuevas; su ventana está en
+`docs/api.md` §Compatibilidad.
+
 **Fuera del MVP:** matchmaking público o salas abiertas; salas de más de 2; modo por turnos;
 preguntas con imagen/audio/video (campos listos, sin usar); cuentas reales; chat, amigos,
 notificaciones, bots; monetización; despliegue en la nube (queda preparado).

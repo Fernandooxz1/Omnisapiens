@@ -498,10 +498,11 @@ async def test_the_content_route_returns_the_same_page_as_questions(
     _content(session, created_at=datetime.now(UTC), prompt="La misma pregunta")
     await session.flush()
 
-    historica = (await client.get("/admin/questions", headers=_AUTH)).json()
-    generica = (await client.get("/admin/content/quiz", headers=_AUTH)).json()
+    historica = await client.get("/admin/questions", headers=_AUTH)
+    generica = await client.get("/admin/content/quiz", headers=_AUTH)
 
-    assert generica == historica
+    assert historica.status_code == generica.status_code == 200
+    assert generica.json() == historica.json()
 
 
 async def test_an_unknown_kind_is_a_validation_error(
