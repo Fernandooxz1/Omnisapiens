@@ -5,11 +5,11 @@
 
 ```yaml
 activo: true
-fase: 6
-tarea: "6.3"
-rol: backend
+fase: 7
+tarea: "7.1"
+rol: frontend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 892070d
+ultimo_commit: 7d994a1
 fecha: 2026-10-20
 bloqueo: ""
 ```
@@ -24,7 +24,7 @@ bloqueo: ""
 | 3 | Sesiones, ranking y barrendero | backend | 3.1 – 3.5 | hecho |
 | 4 | Port del arcade | backend | 4.1 – 4.3 | hecho |
 | 5 | Port del 1v1 | backend | 5.1 – 5.3 | hecho |
-| 6 | Registro y rutas genéricas | backend | 6.1 – 6.3 | pendiente |
+| 6 | Registro y rutas genéricas | backend | 6.1 – 6.3 | hecho |
 | 7 | Frontend multi-modo | frontend | 7.1 – 7.3 | pendiente |
 | 8 | Rosco (**opcional**) | backend + frontend | 8.1 – 8.5 | pendiente |
 | 9 | Medios (**opcional**) | backend + frontend | 9.1 – 9.4 | pendiente |
@@ -56,3 +56,4 @@ bloqueo: ""
 | 2026-10-20 | 5.3 | `cc62f9f` | Borrados `match_engine` y `runtime/room` con sus tests ya portados; `matches`/`match_rounds` quedan de solo lectura y `rooms` sigue en el borde. Golden y e2e de 1v1 sin cambios. Tag `refactor-fase-5`. Próxima: 6.1. |
 | 2026-10-20 | 6.1 | `45c4042` | `trivia_arcade` y `trivia_versus` registrados con reglas/progresión/scoring, `config_schema` y `public_schema`; `GET /modes` y el ranking salen de `mode.ranking`. `GameMode` gana `name`/`input`/`media`. Próxima: 6.2. |
 | 2026-10-20 | 6.2 | `892070d` | `POST /sessions` valida modo, formato solo y `config_schema`; `WS /ws/session/{id}` juega con el protocolo canónico (`session_start`/`item_start`/`item_result`/`session_end`/`session_state`) sobre el mismo store, con presentador inyectable. El arcade viejo queda como adaptador y el golden no cambia. Próxima: 6.3. |
+| 2026-10-20 | 6.3 | `7d994a1` | Contrato multi-modo documentado (catálogo, `POST /sessions`, protocolo canónico, ranking por modo y errores), matriz de compatibilidad con la ventana de cada alias y tests de paridad en `test_api_compat.py`; `dual-write` eliminado de `api.md`. Tag `refactor-fase-6`. Próxima: 7.1. |
