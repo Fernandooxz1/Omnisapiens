@@ -14,7 +14,7 @@ Tres cosas que sorprenden a primera vista:
   correlación; el lector nunca toca el socket y no hace falta lock de escritura.
 - La sesión es de una conexión, no de una sala. Si el socket se cae, el store la
   suelta y la fila queda `playing` para que el barrendero la invalide: media
-  corrida no compite en el ranking.
+  partida no compite en el ranking.
 """
 
 import asyncio
@@ -154,7 +154,7 @@ async def arcade_socket(
         for task in (reader, writer):
             task.cancel()
         await asyncio.gather(reader, writer, return_exceptions=True)
-        # Si el socket se fue a mitad de la corrida, la fila queda `playing`
+        # Si el socket se fue a mitad de la partida, la fila queda `playing`
         # para el barrendero; pero ya no está viva y no puede quedar en el
         # registro.
         await connection.release()
@@ -193,7 +193,7 @@ class _Connection:
 
     async def start(self) -> None:
         if self._session_id is not None:
-            self._error("ALREADY_STARTED", "La corrida ya arrancó.")
+            self._error("ALREADY_STARTED", "La partida ya arrancó.")
             return
 
         session_id = uuid.uuid4()
@@ -213,12 +213,12 @@ class _Connection:
             )
         except Exception:
             # No se juega sin fila: el cierre no tendría dónde escribir y la
-            # corrida desaparecería sin que el jugador se entere.
-            logger.exception("la corrida de %s no se pudo registrar", self._user_id)
+            # partida desaparecería sin que el jugador se entere.
+            logger.exception("la partida de %s no se pudo registrar", self._user_id)
             await self._db.rollback()
             self._error(
                 "RUN_NOT_STARTED",
-                "No se pudo registrar la corrida. Probá de nuevo.",
+                "No se pudo registrar la partida. Probá de nuevo.",
             )
             return
 
@@ -233,24 +233,24 @@ class _Connection:
             )
         except Exception:
             # La fila quedó `playing`: el barrendero la invalida.
-            logger.exception("la corrida %s no se pudo abrir", session_id)
+            logger.exception("la partida %s no se pudo abrir", session_id)
             await self._db.rollback()
             self._error(
                 "RUN_NOT_STARTED",
-                "No se pudo registrar la corrida. Probá de nuevo.",
+                "No se pudo registrar la partida. Probá de nuevo.",
             )
             return
 
         if not opened:
             # El id es nuevo, así que no debería pasar; no se miente con un
             # arranque que no existe.
-            self._error("ALREADY_STARTED", "La corrida ya arrancó.")
+            self._error("ALREADY_STARTED", "La partida ya arrancó.")
             return
         self._session_id = str(session_id)
 
     async def answer(self, *, round_index: int, choice: int) -> None:
         if self._session_id is None:
-            self._error("NOT_PLAYING", "Primero hay que arrancar la corrida.")
+            self._error("NOT_PLAYING", "Primero hay que arrancar la partida.")
             return
         await self._store.submit(
             session_id=self._session_id,
@@ -298,7 +298,7 @@ class _Connection:
                 attempts=attempt_records(records),
             )
         except Exception:
-            logger.exception("la corrida %s no se pudo cerrar", state.session_id)
+            logger.exception("la partida %s no se pudo cerrar", state.session_id)
             await self._db.rollback()
             return end
 
@@ -312,9 +312,9 @@ class _Connection:
                 now=to_datetime(self._runtime.now_ms()),
             )
         except Exception:
-            # La corrida ya está guardada: lo único que se pierde es la posición
+            # La partida ya está guardada: lo único que se pierde es la posición
             # en este mensaje. El ranking la va a mostrar en la próxima consulta.
-            logger.exception("el ranking de la corrida %s falló", state.session_id)
+            logger.exception("el ranking de la partida %s falló", state.session_id)
             await self._db.rollback()
             return end
 

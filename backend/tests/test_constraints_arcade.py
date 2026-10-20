@@ -1,4 +1,4 @@
-"""`arcade_runs` y `arcade_answers`: la corrida sola y sus rondas."""
+"""`arcade_runs` y `arcade_answers`: la partida sola y sus rondas."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -153,7 +153,7 @@ async def test_a_finished_run_is_accepted(session: AsyncSession) -> None:
 
 
 async def test_an_invalidated_run_is_accepted(session: AsyncSession) -> None:
-    # `invalid` es lo que saca una corrida del ranking sin borrarla.
+    # `invalid` es lo que saca una partida del ranking sin borrarla.
     ana = user()
     await acepta(session, ana)
 

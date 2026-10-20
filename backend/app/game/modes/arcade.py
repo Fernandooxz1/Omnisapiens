@@ -44,7 +44,7 @@ ARCADE_RULES = SoloRules(
 
 
 class ArcadeConfig(BaseModel):
-    """La corrida arcade no tiene parámetros: sus reglas son fijas."""
+    """La partida arcade no tiene parámetros: sus reglas son fijas."""
 
     model_config = ConfigDict(extra="forbid")
 

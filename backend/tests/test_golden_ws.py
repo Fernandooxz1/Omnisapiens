@@ -6,7 +6,7 @@ el JSONL de `tests/golden/`. Para regenerarlos (después de un cambio deliberado
     UPDATE_GOLDEN=1 uv run pytest tests/test_golden_ws.py
 
 Los ids, el código de sala y los `ends_at` se reemplazan por placeholders: el
-golden cuida el orden y el contenido, no los valores que cambian en cada corrida.
+golden cuida el orden y el contenido, no los valores que cambian en cada partida.
 """
 
 import json

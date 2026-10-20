@@ -219,7 +219,7 @@ class _Connection:
     async def release(self) -> None:
         """El socket se fue: la sesión no se retoma, la fila se abandona.
 
-        El canal es de una conexión (`connection=EPHEMERAL`): una corrida a
+        El canal es de una conexión (`connection=EPHEMERAL`): una partida a
         medias no compite en el ranking y no se puede reanudar. Si el cierre ya
         la había terminado, `abandon_session` no toca nada.
         """

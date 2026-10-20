@@ -1,8 +1,8 @@
 """Reloj de test que el test mueve a mano.
 
 `sleep` registra el vencimiento y se queda ahí: el tiempo no pasa solo. El test
-avanza la hora y despierta a los que ya vencieron. Así una partida o una corrida
-entera por vencimientos corre en milisegundos.
+avanza la hora y despierta a los que ya vencieron. Así una partida entera por
+vencimientos corre en milisegundos.
 
 Dos detalles cubren la carrera entre el test y la tarea que duerme:
 

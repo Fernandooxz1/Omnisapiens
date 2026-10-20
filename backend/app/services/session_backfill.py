@@ -1,8 +1,8 @@
 """Backfill de `arcade_runs`/`matches` a las tablas genéricas de sesión.
 
 Es un comando de mantenimiento, no una migración: las tablas viejas quedan de
-solo lectura hasta la fase 10. La sesión conserva el UUID de la corrida o de la
-partida, así que correr el backfill dos veces no duplica nada y el `id` es la
+solo lectura hasta la fase 10. La sesión conserva el UUID de la partida
+original, así que correr el backfill dos veces no duplica nada y el `id` es la
 última red.
 
 Las tablas viejas no guardan el instante de cada ronda, solo el `started_at` y
@@ -264,7 +264,7 @@ async def _write_arcade(
             play_format="arcade",
             ruleset_version=RULESET_VERSION,
             status=run.status,
-            # La corrida vieja no tenía configuración: las reglas son las fijas
+            # La partida vieja no tenía configuración: las reglas son las fijas
             # de `ruleset_version`.
             config={},
             owner_user_id=run.user_id,
@@ -347,7 +347,7 @@ def _group[RowT](rows: Iterable[RowT], key: str) -> dict[uuid.UUID, list[RowT]]:
 
 
 async def backfill_sessions(session: AsyncSession) -> BackfillReport:
-    """Copia corridas y partidas viejas a `game_sessions` y sus hijos.
+    """Copia las partidas viejas a `game_sessions` y sus hijos.
 
     No borra ni modifica las tablas viejas. Un id ya presente en
     `game_sessions` se cuenta como existente y no se vuelve a escribir.
@@ -375,7 +375,7 @@ async def backfill_sessions(session: AsyncSession) -> BackfillReport:
     for run in runs:
         read += 1
         if run.status == "playing":
-            skipped.append(SkippedSession(run.id, "la corrida sigue jugando"))
+            skipped.append(SkippedSession(run.id, "la partida sigue jugando"))
             continue
         if run.id in existing_ids:
             existing_count += 1

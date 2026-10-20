@@ -60,7 +60,7 @@ async def _recreate_database() -> None:
         TEST_URL.set(database="postgres"), isolation_level="AUTOCOMMIT"
     )
     async with admin.connect() as connection:
-        # FORCE desengancha lo que haya quedado colgado de una corrida anterior.
+        # FORCE desengancha lo que haya quedado colgado de una partida anterior.
         await connection.execute(
             sa.text(f"DROP DATABASE IF EXISTS {TEST_DATABASE_NAME} WITH (FORCE)")
         )

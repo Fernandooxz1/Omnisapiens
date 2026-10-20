@@ -24,7 +24,7 @@ room_api = ws_fixtures.room_api
 room_connect = ws_fixtures.room_connect
 abrir = ws_fixtures.abrir
 
-# `correct_count` es un contador legítimo de la corrida; el resto de las claves
+# `correct_count` es un contador legítimo de la partida; el resto de las claves
 # con `correct`, `answer` o `solution` solo existen en el resultado.
 CLAVES_PROHIBIDAS = {"is_correct"}
 

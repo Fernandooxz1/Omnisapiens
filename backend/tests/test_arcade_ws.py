@@ -1,7 +1,7 @@
 """El WebSocket del arcade, de punta a punta.
 
 Los clientes corren la app en el mismo event loop del test (`ws_client.py`), así
-el handler comparte la sesión y el reloj falso: una corrida entera, con
+el handler comparte la sesión y el reloj falso: una partida entera, con
 vencimientos, corre en milisegundos y sin tocar `trivia_test`.
 """
 
@@ -374,7 +374,7 @@ async def test_the_end_does_not_take_an_extra_pause(
 
         await socket.until("arcade_end")
 
-    # Tres rondas de 20 s y solo dos revelaciones: la última cierra la corrida.
+    # Tres rondas de 20 s y solo dos revelaciones: la última cierra la partida.
     assert api.clock.now_ms() == arranco + 3 * 20_000 + 2 * 2_500
 
 
@@ -548,7 +548,7 @@ async def test_a_finished_run_closes_with_all_its_rounds(
             api.clock.advance(ronda["d"]["ends_at"] - api.clock.now_ms())
             await socket.until("arcade_result")
 
-        # A mitad de corrida no hay historial: las rondas se escriben al cerrar.
+        # A mitad de partida no hay historial: las rondas se escriben al cerrar.
         assert (await _session_row(api, inicio["d"]["run_id"])).status == "playing"
         assert await _history(api, inicio["d"]["run_id"]) == ([], [])
 
@@ -612,7 +612,7 @@ async def test_a_run_that_cannot_be_saved_is_reported_and_can_retry(
         error = await socket.until("error")
         assert error["d"]["code"] == "RUN_NOT_STARTED"
 
-        # La corrida no quedó a medias: el jugador puede volver a intentar.
+        # La partida no quedó a medias: el jugador puede volver a intentar.
         await socket.send({"t": "start"})
         assert (await socket.until("arcade_start"))["d"]["lives"] == 3
         await socket.until("arcade_question")
@@ -712,7 +712,7 @@ async def test_a_worse_run_keeps_the_previous_personal_best(
 
     assert fin["d"]["personal_best"] == 250
     assert fin["d"]["is_new_best"] is False
-    # Su mejor corrida sigue siendo la de 250, así que es el primero de la tabla.
+    # Su mejor partida sigue siendo la de 250, así que es el primero de la tabla.
     assert fin["d"]["rank_global"] == 1
 
 
@@ -740,7 +740,7 @@ async def test_a_ranking_failure_does_not_break_the_end(
     assert fin["d"]["score"] == 0
     assert fin["d"]["rank_global"] is None
     assert fin["d"]["is_new_best"] is False
-    # La corrida sí se guardó: lo único que faltó fue la posición del mensaje.
+    # La partida sí se guardó: lo único que faltó fue la posición del mensaje.
     assert (await _session_row(api, inicio["d"]["run_id"])).status == "finished"
 
 

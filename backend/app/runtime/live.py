@@ -1,12 +1,12 @@
 """Lo que este proceso tiene vivo, para que el barrendero no mate lo que se juega.
 
-El barrido periódico corre en el mismo proceso que las salas y las corridas, pero
+El barrido periódico corre en el mismo proceso que las salas y las partidas, pero
 la base no sabe nada de las conexiones. Sin esta vista:
 
 - una sala `waiting` con dos personas conectadas y `expires_at` viejo se marcaría
   `expired` mientras la partida espera para arrancar;
 - una partida viva de más de `stale_match_minutes` se anularía en pleno juego;
-- una corrida de arcade legítima y larga se marcaría `invalid` a mitad.
+- una partida de arcade legítima y larga se marcaría `invalid` a mitad.
 
 Con las sesiones genéricas pasa lo mismo: una sesión `playing` con un socket del
 otro lado no se puede invalidar a mitad de partida.
@@ -44,7 +44,7 @@ class Live:
 
 
 class LiveArcadeRuns:
-    """Las corridas con socket abierto. El handler las anota y las suelta.
+    """Las partidas con socket abierto. El handler las anota y las suelta.
 
     No guarda la conexión ni el estado: solo el id, que es lo que el `UPDATE` del
     barrendero necesita para no incluir.
@@ -57,7 +57,7 @@ class LiveArcadeRuns:
         self._ids.add(run_id)
 
     def discard(self, run_id: uuid.UUID) -> None:
-        """Idempotente: cierra el socket y el fin de la corrida se pisan sin drama."""
+        """Idempotente: cierra el socket y el fin de la partida se pisan sin drama."""
         self._ids.discard(run_id)
 
     def ids(self) -> frozenset[uuid.UUID]:

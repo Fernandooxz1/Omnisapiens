@@ -186,7 +186,7 @@ Criterio: mejor `score` por usuario entre las sesiones `finished` con dueño (mo
   "week":   { "rank": null, "score": null, "achieved_at": null } }
 ```
 
-Los tres campos van juntos: sin corridas en el período, los tres son `null`.
+Los tres campos van juntos: sin partidas en el período, los tres son `null`.
 
 ### Admin
 
@@ -282,7 +282,7 @@ Cliente → servidor: `start {}`, `answer {"round": n, "choice": 0..3}`, `ping {
   manda la próxima `arcade_question` sin que el cliente la pida.
 - `rank_global`, `rank_weekly` y `personal_best` pueden ser `null` (si el ranking falló);
   `is_new_best` igual llega.
-- `start` vale **una vez por conexión**: para otra corrida se abre otra conexión (no hay
+- `start` vale **una vez por conexión**: para otra partida se abre otra conexión (no hay
   `restart`).
 
 ### Sesiones — `WS /ws/session/{id}?token=...`
@@ -404,7 +404,7 @@ En el WS (todos por `t: "error"`):
 | `NOT_READY` | `start` sin dos jugadores o desde un estado que no es `waiting` |
 | `NO_QUESTIONS` | No hay preguntas para servir en ese tramo |
 | `ROUND_MISMATCH` | `answer` de una ronda que ya no está en vuelo |
-| `RUN_NOT_STARTED` | `answer` en el arcade antes de `start` / sin corrida |
+| `RUN_NOT_STARTED` | `answer` en el arcade antes de `start` / sin partida |
 | `NOT_PLAYING` | La sesión no existe, es de otro usuario, ya terminó o no hay ronda en vuelo |
 | `ALREADY_STARTED` | Ya hay un socket jugando esa sesión |
 | `SESSION_NOT_STARTED` | La sesión no se pudo abrir (fallo de base al cargar el primer ítem) |

@@ -20,7 +20,7 @@ class LeaderboardOut(BaseModel):
 
 
 class RankOut(BaseModel):
-    # Los tres van juntos: sin corridas en el período no hay posición ni marca.
+    # Los tres van juntos: sin partidas en el período no hay posición ni marca.
     rank: int | None = None
     score: int | None = None
     achieved_at: datetime | None = None

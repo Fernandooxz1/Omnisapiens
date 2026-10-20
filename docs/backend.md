@@ -72,7 +72,7 @@ partida entera sin esperar en tiempo real. No metas `asyncio.sleep` crudo en el 
 - **Sesión**: `game_sessions` resume cualquier formato; ítems e intentos cuelgan de ella y
   `solution_snapshot` la deja auditable aunque el contenido se archive. `playing` ⇔
   `ended_at` nulo, y `rooms.mode` decide qué `config_schema` valida el `config`.
-- **Barrido**: `sweep` expira salas `waiting`, anula partidas y corridas colgadas, e
+- **Barrido**: `sweep` expira salas `waiting`, anula partidas 1v1 y de arcade colgadas, e
   invalida las sesiones `playing` más viejas que el umbral que este proceso no reporta
   vivas (`Live.sessions`). Es idempotente: el segundo barrido no encuentra nada.
 - **Errores**: `{"error": {"code", "message"}}` con la tabla de `docs/api.md`; no se inventan

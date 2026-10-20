@@ -215,7 +215,7 @@ async def room_api(
     session: AsyncSession, abrir: Callable[..., Harness]
 ) -> AsyncIterator[RoomApi]:
     # Preguntas con ids fijos: el selector ordena por id y con UUIDs aleatorios
-    # el golden cambiaría de contenido en cada corrida.
+    # el golden cambiaría de contenido en cada partida.
     harness = abrir()
     ana, beto = user(nick="ana"), user(nick="beto")
     session.add_all([ana, beto])

@@ -8,8 +8,8 @@ Cuatro barridos, los cuatro idempotentes y en bloque:
 - Partidas `playing` más viejas que `stale_match_minutes` → `void` con `ended_at`.
   La fila se escribe al arrancar la partida; si el proceso muere en el medio,
   nadie más la cierra.
-- Corridas de arcade `playing` más viejas que lo mismo → `invalid` con `ended_at`.
-  Una corrida cortada a la mitad no compite en el ranking, y `invalid` es el
+- Partidas de arcade `playing` más viejas que lo mismo → `invalid` con `ended_at`.
+  Una partida cortada a la mitad no compite en el ranking, y `invalid` es el
   estado que el esquema declara justamente para sacarla de circulación.
 - Sesiones genéricas `playing` más viejas que lo mismo → `invalid` con `ended_at`.
   Vale para cualquier modo: si el proceso murió, la fila abierta no puede volver.
@@ -18,10 +18,10 @@ Cuatro barridos, los cuatro idempotentes y en bloque:
 
 Corre al arrancar la API y después cada `reaper_interval_seconds`. Al arrancar
 no puede haber nada vivo en este proceso, así que cualquier fila abierta es de un
-proceso que ya no está. En régimen, en cambio, hay salas con gente, corridas y
+proceso que ya no está. En régimen, en cambio, hay salas con gente, partidas y
 sesiones jugándose: por eso el barrido recibe `live`, lo que este proceso tiene en
 memoria (`runtime/live.py`), y lo excluye. Sin eso, una sala `waiting` con dos
-personas conectadas se expiraría y una corrida o sesión larga se invalidaría a
+personas conectadas se expiraría y una partida o sesión larga se invalidaría a
 mitad.
 
 El barrido es best-effort: una base que no contesta no impide levantar el

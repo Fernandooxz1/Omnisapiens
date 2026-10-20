@@ -1,7 +1,7 @@
-"""Motor puro de una corrida de un jugador.
+"""Motor puro de una partida de un jugador.
 
 El formato aporta sus curvas (`SoloRules`); el motor solo las aplica: vidas,
-racha, dificultad, segundos y fin de corrida. El historial no vive en el estado:
+racha, dificultad, segundos y fin de partida. El historial no vive en el estado:
 cada `resolve` devuelve el registro de la ronda para que la capa de arriba lo
 persista y el estado quede chico.
 """
@@ -158,7 +158,7 @@ class SoloEngine:
         self, run: SoloRun, *, question_id: str, now_ms: int
     ) -> ServedQuestion:
         if run.finished:
-            raise InvalidTransition("la corrida terminó: no hay pregunta siguiente")
+            raise InvalidTransition("la partida terminó: no hay pregunta siguiente")
 
         return ServedQuestion(
             round_index=run.round_index,
@@ -177,7 +177,7 @@ class SoloEngine:
         answer: Answer | None,
     ) -> Resolved[RunT]:
         if run.finished:
-            raise InvalidTransition("la corrida terminó: no hay ronda que resolver")
+            raise InvalidTransition("la partida terminó: no hay ronda que resolver")
         if served.round_index != run.round_index:
             raise InvalidTransition(
                 f"se resolvió la ronda {served.round_index} "

@@ -1,4 +1,4 @@
-"""El barrendero: lo que quedó abierto de una corrida que ya no existe.
+"""El barrendero: lo que quedó abierto de una partida que ya no existe.
 
 Los barridos se prueban con una hora fija: el barrendero recibe `now` para no
 depender del reloj real.

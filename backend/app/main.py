@@ -34,7 +34,7 @@ def _check_process_scope() -> None:
     """Fuera de `local`, el despliegue tiene que declarar un solo proceso (H-07).
 
     Con `--workers 2` cada worker tendría su propio store y su propio registro
-    de corridas vivas: dos verdades para el mismo código de sala, y dos
+    de partidas vivas: dos verdades para el mismo código de sala, y dos
     jugadores que se ven como si el otro no hubiera llegado. Desde adentro del
     proceso no hay forma de contar los workers, así que el guard exige que quien
     despliega lo declare; el día que exista el store sobre Redis esta
@@ -53,7 +53,7 @@ def _check_process_scope() -> None:
 async def _sweep_once(*, startup: bool = False) -> None:
     """Un barrido con lo que este proceso tiene vivo en este instante.
 
-    Al arrancar no hay salas ni corridas en memoria, así que `live` queda vacío y
+    Al arrancar no hay salas ni partidas en memoria, así que `live` queda vacío y
     toda fila abierta es de un proceso anterior; en régimen, `live` protege lo
     que está jugándose.
     """
@@ -72,8 +72,8 @@ async def _sweep_once(*, startup: bool = False) -> None:
         or resultado.invalidated_sessions
     ):
         logger.info(
-            "%s: %d salas expiradas, %d partidas anuladas, %d corridas "
-            "invalidadas, %d sesiones invalidadas",
+            "%s: %d salas expiradas, %d partidas 1v1 anuladas, %d partidas de "
+            "arcade invalidadas, %d sesiones invalidadas",
             "barrido inicial" if startup else "barrido periódico",
             resultado.expired_rooms,
             resultado.voided_matches,
@@ -83,7 +83,7 @@ async def _sweep_once(*, startup: bool = False) -> None:
 
 
 async def _sweep_on_startup() -> None:
-    """Cierra lo que quedó abierto de una corrida anterior.
+    """Cierra lo que quedó abierto de una partida anterior.
 
     Best-effort: si la base no contesta, la API arranca igual y el barrido
     periódico lo reintenta.

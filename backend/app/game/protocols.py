@@ -150,7 +150,7 @@ class ArcadeResult(Message):
 
 @dataclass(frozen=True)
 class ArcadeEnd(Message):
-    """Fin de corrida.
+    """Fin de partida.
 
     La máquina pura no consulta el ranking: deja `None` y el borde lo completa
     con la fila ya cerrada. Si el ranking falla, estos campos salen en `None`.

@@ -1,4 +1,4 @@
-"""El motor solo: curvas parametrizadas, vidas y fin de corrida.
+"""El motor solo: curvas parametrizadas, vidas y fin de partida.
 
 Las curvas genéricas fijan que las reglas salgan de `SoloRules` y que el estado
 no esconda historial. La sección final juega con `ARCADE_RULES`: son los valores

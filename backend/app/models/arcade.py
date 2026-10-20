@@ -1,4 +1,4 @@
-"""Las dos tablas del arcade: la corrida y sus rondas."""
+"""Las dos tablas del arcade: la partida y sus rondas."""
 
 import uuid
 from datetime import datetime
@@ -26,7 +26,7 @@ from app.models.base import Base
 from app.models.checks import number_list, quoted_list
 
 # `invalid` no existe en el motor: es el estado que usa la base para sacar de
-# circulación una corrida sospechosa. El ranking solo mira las `finished`.
+# circulación una partida sospechosa. El ranking solo mira las `finished`.
 INVALID_STATUS = "invalid"
 RUN_STATUSES = (*RunStatus, INVALID_STATUS)
 
@@ -72,7 +72,7 @@ class ArcadeRun(Base):
             "ended_at IS NULL OR ended_at >= started_at", name="ends_after_start"
         ),
         Index(None, "user_id"),
-        # Los tres índices del ranking, parciales: una corrida en curso o dudosa no
+        # Los tres índices del ranking, parciales: una partida en curso o dudosa no
         # ocupa lugar, y el que ordena por puntaje no escanea historial inútil.
         Index(
             "ix_arcade_runs_best_by_user",

@@ -1073,7 +1073,7 @@ class InMemorySessionStore:
 
 
 def _start(session_id: str, rules: SoloRules, presenter: SoloPresenter) -> Transition:
-    """Crea la corrida en memoria. La fila `playing` la escribe el borde."""
+    """Crea la partida en memoria. La fila `playing` la escribe el borde."""
     engine = SoloEngine(rules)
     state = SoloState(session_id=session_id, run=engine.start())
     return Transition(state, (presenter.start(state),))

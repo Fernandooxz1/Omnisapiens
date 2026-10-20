@@ -63,7 +63,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser(
         "backfill-sessions",
-        help="Copia corridas y partidas viejas a las tablas de sesión (idempotente).",
+        help="Copia las partidas viejas a las tablas de sesión (idempotente).",
     )
 
     return parser

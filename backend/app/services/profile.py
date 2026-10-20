@@ -5,7 +5,7 @@ distintas: el máximo aparece en el encabezado, y las dos listas tienen formas
 que no comparten columnas. Mezclarlas en una timeline obligaría a inventar un
 `type` y campos opcionales para ahorrar una vuelta a la base.
 
-Solo entra lo `finished`. Una corrida cortada o una partida anulada no es una
+Solo entra lo `finished`. Una partida cortada o anulada no es una
 marca ni un resultado: mostrarlas en el perfil sería ruido.
 """
 
@@ -35,7 +35,7 @@ class Outcome(StrEnum):
 
 @dataclass(frozen=True)
 class BestMarks:
-    """Los dos máximos del arcade. `None` mientras no haya corridas válidas."""
+    """Los dos máximos del arcade. `None` mientras no haya partidas válidas."""
 
     all_time: int | None
     week: int | None
@@ -77,7 +77,7 @@ async def best_marks(
 async def recent_runs(
     session: AsyncSession, *, user_id: uuid.UUID, limit: int = HISTORY_LIMIT
 ) -> list[ArcadeRun]:
-    """Las últimas corridas, de la más nueva a la más vieja."""
+    """Las últimas partidas, de la más nueva a la más vieja."""
     return list(
         (
             await session.scalars(

@@ -14,7 +14,7 @@ from .ws_client import WebSocketClient
 class Transcript:
     """Lo recibido por cada cliente, normalizado para que el JSONL sea estable.
 
-    Los ids y los `ends_at` cambian en cada corrida; el resto del contenido no.
+    Los ids y los `ends_at` cambian en cada partida; el resto del contenido no.
     Los ids se numeran en orden de aparición y los tiempos se guardan como
     desplazamiento desde el arranque del escenario.
     """
@@ -108,7 +108,7 @@ async def _sembrar_arcade(session: Any) -> None:
 
 
 async def arcade_complete(api: Any, connect: Any) -> Transcript:
-    """Corrida hasta perder las tres vidas: un acierto, dos errores y un vencimiento."""
+    """Partida hasta perder las tres vidas: un acierto, dos errores y un vencimiento."""
     await _sembrar_arcade(api.session)
     transcript = Transcript(base_ms=api.clock.now_ms())
 
@@ -142,7 +142,7 @@ async def arcade_complete(api: Any, connect: Any) -> Transcript:
 
 
 async def session_complete(api: Any, connect: Any) -> Transcript:
-    """La misma corrida que el arcade, por el canal canónico."""
+    """La misma partida que el arcade, por el canal canónico."""
     await _sembrar_arcade(api.session)
     transcript = Transcript(base_ms=api.clock.now_ms())
     session_id = await api.create()
