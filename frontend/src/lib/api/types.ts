@@ -55,7 +55,7 @@ export interface Leaderboard {
 	entries: LeaderboardEntry[];
 }
 
-/** Los tres campos van juntos: sin corridas en el período, los tres son `null`. */
+/** Los tres campos van juntos: sin partidas en el período, los tres son `null`. */
 export interface ArcadeRank {
 	rank: number | null;
 	score: number | null;

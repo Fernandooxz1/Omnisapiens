@@ -2,7 +2,7 @@ import { expect, type Page } from '@playwright/test';
 
 export type Mode = 'arcade' | 'online';
 
-/** El nick es único por usuario: cada corrida usa uno distinto para no chocar con la BD. */
+/** El nick es único por usuario: cada partida usa uno distinto para no chocar con la BD. */
 export function uniqueNick(prefix: string): string {
 	return `${prefix}${Math.random().toString(36).slice(2, 7)}`.slice(0, 16);
 }

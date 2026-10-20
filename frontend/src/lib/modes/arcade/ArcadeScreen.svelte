@@ -103,7 +103,7 @@
 			run = live;
 		})();
 
-		// Irse de la pantalla abandona la corrida: el servidor la invalida.
+		// Irse de la pantalla abandona la partida: el servidor la invalida.
 		return () => {
 			live?.close();
 		};

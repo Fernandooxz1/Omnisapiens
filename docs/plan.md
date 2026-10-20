@@ -135,7 +135,7 @@ ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # sin O, 0, I, 1
   ordena por mejor puntaje y desempata por el `ended_at` más temprano; `/leaderboard/arcade`
   sigue como alias para el cliente actual.
 - **Revelación:** 2,5 s, igual que el 1v1; el servidor pausa antes de la próxima pregunta.
-- Anti-trampa: puntajes y tiempos siempre del servidor; una corrida con tiempos
+- Anti-trampa: puntajes y tiempos siempre del servidor; una partida con tiempos
   imposibles se marca `invalid` y no entra al ranking.
 
 ### Categorías y color

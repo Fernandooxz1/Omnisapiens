@@ -99,8 +99,8 @@ interface EndWire {
 }
 
 /**
- * Una corrida arcade sobre el canal canónico de una sesión solo. La sesión se
- * crea antes (`POST /sessions`) y el socket solo la juega: otra corrida es otra
+ * Una partida arcade sobre el canal canónico de una sesión solo. La sesión se
+ * crea antes (`POST /sessions`) y el socket solo la juega: otra partida es otra
  * sesión, no un `restart`.
  */
 export function createArcadeRun(token: string, mode = 'trivia_arcade') {
@@ -250,14 +250,14 @@ export function createArcadeRun(token: string, mode = 'trivia_arcade') {
 
 	function answer(choice: number) {
 		if (phase !== 'question' || !question) return;
-		// Sin canal no se manda: la corrida no se puede reanudar (es de una conexión).
+		// Sin canal no se manda: la partida no se puede reanudar (es de una conexión).
 		if (!socket?.send('answer', { round: question.round, choice })) return;
 
 		picked = choice;
 		phase = 'answered';
 	}
 
-	/** Otra corrida: la anterior ya terminó, así que se crea otra sesión. */
+	/** Otra partida: la anterior ya terminó, así que se crea otra sesión. */
 	function again() {
 		socket?.close();
 		socket = null;
