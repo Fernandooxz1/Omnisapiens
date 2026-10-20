@@ -1,6 +1,6 @@
 """El motor puro del versus: rondas, tramos, desempate, abandono y anulación.
 
-Es el port de `test_match_engine.py` al motor nuevo; las expectativas no cambian.
+Conserva las expectativas del motor viejo ya borrado; el comportamiento no cambió.
 """
 
 import pytest

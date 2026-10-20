@@ -374,17 +374,14 @@ async def test_a_complete_match_writes_the_generic_session_history(
     assert len(intentos) == 6
     assert sum(1 for intento in intentos if intento.correct) == 3
 
-    # La tabla vieja sigue escribiéndose hasta la fase 10.
-    vieja = await api.session.get(Match, match_id)
-    assert vieja is not None
-    assert vieja.status == "finished"
-    assert vieja.winner_id == api.host.id
+    # Las tablas viejas quedaron de solo lectura en 5.3.
+    assert await api.session.get(Match, match_id) is None
     rondas = (
         await api.session.scalars(
             select(MatchRound).where(MatchRound.match_id == match_id)
         )
     ).all()
-    assert len(rondas) == 3
+    assert rondas == []
 
 
 async def test_an_abandoned_match_is_closed_for_both_players(
@@ -419,10 +416,7 @@ async def test_an_abandoned_match_is_closed_for_both_players(
     ).all()
     assert {silla.outcome for silla in sillas} == {"abandoned"}
 
-    vieja = await api.session.get(Match, match_id)
-    assert vieja is not None
-    assert vieja.status == "abandoned"
-    assert vieja.winner_id == api.host.id
+    assert await api.session.get(Match, match_id) is None
 
     # Al irse uno de una sala terminada, vuelve al lobby en la base.
     sala = await api.session.get(Room, api.room.id)

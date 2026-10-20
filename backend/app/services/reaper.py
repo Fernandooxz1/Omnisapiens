@@ -36,12 +36,11 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.game.match_engine import MatchStatus
 from app.game.solo_engine import RunStatus
+from app.game.versus_engine import MatchStatus, VersusStatus
 from app.models import ArcadeRun, GameSession, Match, Room
 from app.models.arcade import INVALID_STATUS
 from app.runtime.live import Live
-from app.runtime.room import RoomStatus
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,7 @@ async def sweep(
     stale_after = stale_after or timedelta(minutes=settings.stale_match_minutes)
 
     salas_vencidas = [
-        Room.status == RoomStatus.WAITING.value,
+        Room.status == VersusStatus.WAITING.value,
         Room.expires_at < now,
     ]
     if live.rooms.room_ids:
@@ -105,7 +104,7 @@ async def sweep(
             await session.execute(
                 update(Room)
                 .where(*salas_vencidas)
-                .values(status=RoomStatus.EXPIRED.value)
+                .values(status=VersusStatus.EXPIRED.value)
                 .returning(Room.id)
             )
         )

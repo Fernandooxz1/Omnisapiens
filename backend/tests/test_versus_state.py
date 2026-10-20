@@ -1,6 +1,6 @@
 """La sala versus: sillas, lobby, gracia, revancha y reloj, sin sockets.
 
-Es el port de `test_room.py` al motor nuevo; las expectativas no cambian.
+Conserva las expectativas de la sala vieja ya borrada; el comportamiento no cambió.
 """
 
 from app.game import versus_engine as V  # noqa: N812 — alias de todo el archivo

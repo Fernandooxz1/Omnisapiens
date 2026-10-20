@@ -1,7 +1,9 @@
 """La unidad "partida": la sala, la partida y sus rondas.
 
-Las tres tablas van juntas porque el `config` es el mismo objeto (`MatchConfig`)
-en las dos primeras y su validación tiene que ser idéntica.
+Las tres tablas van juntas porque el `config` es el mismo objeto (`VersusConfig`)
+en las dos primeras y su validación tiene que ser idéntica. `matches` y
+`match_rounds` quedan de solo lectura desde la fase 5.3: el camino en vivo escribe
+`game_sessions`; las tablas viejas se borran en la fase 10.
 """
 
 import uuid
@@ -34,11 +36,14 @@ from app.game.constants import (
     ROOM_CODE_ALPHABET,
     ROOM_CODE_LENGTH,
 )
-from app.game.match_engine import MatchStatus
 from app.models.base import Base
 from app.models.checks import number_list, quoted_list
 
 ROOM_STATUSES = ("waiting", "playing", "finished", "expired")
+# El historial viejo conserva los mismos estados que el motor, sin importarlo:
+# `question_bank` importa `app.models`, así que el modelo no puede depender del
+# versus sin cerrar un ciclo.
+MATCH_STATUSES = ("playing", "finished", "abandoned", "void")
 
 
 def _config_constraint(name: str) -> CheckConstraint:
@@ -123,7 +128,9 @@ class Match(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
-        CheckConstraint(f"status IN ({quoted_list(MatchStatus)})", name="status_known"),
+        CheckConstraint(
+            f"status IN ({quoted_list(MATCH_STATUSES)})", name="status_known"
+        ),
         _config_constraint("config_valid"),
         CheckConstraint("player_a_id <> player_b_id", name="players_differ"),
         CheckConstraint(

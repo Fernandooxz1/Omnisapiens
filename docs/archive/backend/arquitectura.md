@@ -112,6 +112,8 @@ declaración deja de hacer falta y se levanta sin tocar el resto.
   playing` al arrancar y `UPDATE` + `INSERT` en bloque de `match_rounds` al terminar. El
   estado `void` necesita una fila que exista; cero escrituras por ronda. El barrendero
   marca `void` toda partida `playing` más vieja que N minutos, salvo la que el proceso tiene viva.
+  Quedó vigente hasta la fase 5.3; desde entonces el camino en vivo escribe
+  `game_sessions` y estas tablas son de solo lectura (ver A4).
 - **A3.3 `score_a`/`score_b` son copia derivada,** escritas solo por el motor desde el
   historial de rondas (una verdad, una copia).
 - **A3.4 `matches` con `player_a_id`/`player_b_id`,** no tabla de jugadores (suficiente
@@ -153,6 +155,11 @@ Notas que quedan fijadas:
   `arcade_runs`/`arcade_answers`; usa `game_sessions` con sus ítems e intentos. Se
   borraron `game/arcade_engine.py`, `runtime/arcade_session.py` y
   `services/arcade_runs.py`; las reglas del formato viven en `game/modes/arcade.py`.
+  Las dos tablas viejas siguen existiendo, de solo lectura, hasta la fase 10.
+- **Transición (fase 5.3)**: el camino en vivo del 1v1 ya no escribe
+  `matches`/`match_rounds`; desde 5.2 usa `game_sessions` con ítems, intentos y
+  participantes. Se borraron `game/match_engine.py` y `runtime/room.py`; las reglas
+  viven en `game/versus_engine.py` y el estado vivo en `runtime/session_store.py`.
   Las dos tablas viejas siguen existiendo, de solo lectura, hasta la fase 10.
 
 ## A5. Migraciones y tests

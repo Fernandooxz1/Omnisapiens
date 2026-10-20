@@ -17,8 +17,8 @@ from enum import StrEnum
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.game.match_engine import MatchStatus
 from app.game.solo_engine import RunStatus
+from app.game.versus_engine import MatchStatus
 from app.models import ArcadeRun, Match, User
 from app.services.leaderboard import week_start
 

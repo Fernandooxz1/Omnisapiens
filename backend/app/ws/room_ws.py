@@ -2,9 +2,10 @@
 
 Es el controlador del canal en vivo. La sala la decide `runtime/session_store`
 (sillas, gracia, pausa, vencimientos y entrega); acá viven el socket, la elección
-y carga de la pregunta, y las dos escrituras de la partida: la fila genérica de
-`game_sessions` con su historial y la vieja `matches`, que sigue de solo lectura
-hasta la fase 10.
+y carga de la pregunta, y la escritura de la sesión genérica de `game_sessions`
+con su historial. Las tablas viejas (`matches`/`match_rounds`) ya no reciben
+escrituras: quedan de solo lectura hasta la fase 10. `rooms` sigue siendo el
+lobby y el borde mantiene su estado.
 
 Tres cosas que sorprenden a primera vista:
 
@@ -43,7 +44,7 @@ from app.db import session_factory
 from app.game import protocols, versus_engine
 from app.game.constants import CATEGORIES, DIFFICULTY_MIN
 from app.game.versus_engine import MatchStatus, VersusConfig, VersusState
-from app.models import GameSession, Match, MatchRound, Room, User
+from app.models import GameSession, Room, User
 from app.runtime.session_store import (
     OUTBOX_MAX,
     VersusSessionStore,
@@ -218,7 +219,7 @@ class _Border:
             return await load(session, selection.question_id)
 
     async def match_started(self, state: VersusState, now_ms: int) -> None:
-        """La fila `playing` de la sesión genérica y la vieja `matches`."""
+        """La fila `playing` de la sesión genérica; la sala pasa a `playing`."""
         match = state.match
         if match is None or state.match_id is None:
             return
@@ -229,7 +230,7 @@ class _Border:
         ]
         try:
             async with self._db() as session:
-                await _open_legacy_match(session, state, self._room_id, now_ms)
+                await _mark_room_playing(session, self._room_id, state.config, now_ms)
                 await sessions.start_session(
                     session,
                     session_id=uuid.UUID(state.match_id),
@@ -269,7 +270,7 @@ class _Border:
                     return
                 if row.status != "playing":
                     return
-                await _close_legacy_match(session, match_id, match, now_ms)
+                await _mark_room_finished(session, self._room_id)
                 items, attempts = _history(match, row.started_at)
                 await sessions.finish_session(
                     session,
@@ -478,97 +479,28 @@ def _datetime(ms: int) -> datetime:
     return datetime.fromtimestamp(ms / 1000, tz=UTC)
 
 
-async def _open_legacy_match(
-    session: AsyncSession, state: VersusState, room_id: str, now_ms: int
+async def _mark_room_playing(
+    session: AsyncSession, room_id: str, config: VersusConfig, now_ms: int
 ) -> None:
-    """Compatibilidad hasta la fase 10: la fila `matches` del 1v1 viejo.
+    """La sala deja de ser `waiting` y su vencimiento pasa a ser el techo de la partida.
 
-    La sala deja de ser `waiting` y su vencimiento pasa a ser el techo de la
-    partida: si el barrendero mirara solo `expires_at`, una partida viva con la
-    fecha vieja sería una víctima (H-04).
+    Si el barrendero mirara solo `expires_at`, una partida viva con la fecha vieja
+    sería una víctima (H-04).
     """
-    match = state.match
-    assert match is not None
-    assert state.match_id is not None
-    seat_a, seat_b = state.seats
-    assert seat_a is not None
-    assert seat_b is not None
-
-    session.add(
-        Match(
-            id=uuid.UUID(state.match_id),
-            room_id=uuid.UUID(room_id),
-            player_a_id=uuid.UUID(seat_a.user_id),
-            player_b_id=uuid.UUID(seat_b.user_id),
-            config={"rounds": state.config.rounds, "seconds": state.config.seconds},
-            status=MatchStatus.PLAYING.value,
-        )
+    sala = await session.get(Room, uuid.UUID(room_id))
+    if sala is None:
+        return
+    sala.status = versus_engine.VersusStatus.PLAYING.value
+    sala.expires_at = _datetime(now_ms) + timedelta(
+        seconds=_match_ceiling_seconds(config)
     )
+
+
+async def _mark_room_finished(session: AsyncSession, room_id: str) -> None:
+    """La sala pasa a `finished` al cerrar la sesión genérica."""
     sala = await session.get(Room, uuid.UUID(room_id))
     if sala is not None:
-        sala.status = versus_engine.VersusStatus.PLAYING.value
-        sala.expires_at = _datetime(now_ms) + timedelta(
-            seconds=_match_ceiling_seconds(state.config)
-        )
-
-
-async def _close_legacy_match(
-    session: AsyncSession,
-    match_id: uuid.UUID,
-    match: versus_engine.MatchState,
-    now_ms: int,
-) -> None:
-    """Cierra la fila vieja con el mismo resultado que la sesión genérica."""
-    row = await session.get(Match, match_id)
-    if row is None:
-        logger.warning("la partida %s no estaba en la tabla vieja", match_id)
-        return
-    row.status = match.status.value
-    row.score_a = match.score_a
-    row.score_b = match.score_b
-    row.winner_id = (
-        None
-        if match.winner is None
-        else _seat_user_id(match.winner, row.player_a_id, row.player_b_id)
-    )
-    row.ended_at = _datetime(now_ms)
-    session.add_all(_round_rows(match_id, match.rounds))
-    sala = await session.get(Room, row.room_id)
-    if sala is not None:
         sala.status = versus_engine.VersusStatus.FINISHED.value
-
-
-def _seat_user_id(
-    winner: versus_engine.Player, player_a_id: uuid.UUID, player_b_id: uuid.UUID
-) -> uuid.UUID:
-    return player_a_id if winner is versus_engine.Player.A else player_b_id
-
-
-def _round_rows(
-    match_id: uuid.UUID, rounds: tuple[versus_engine.RoundRecord, ...]
-) -> list[MatchRound]:
-    return [
-        MatchRound(
-            id=uuid.uuid4(),
-            match_id=match_id,
-            round_index=record.round_index,
-            question_id=uuid.UUID(record.question_id),
-            difficulty=record.difficulty,
-            seconds=record.seconds,
-            correct_index=record.correct_index,
-            a_choice=record.a_choice,
-            b_choice=record.b_choice,
-            a_ms=record.a_ms,
-            b_ms=record.b_ms,
-            a_correct=record.a_correct,
-            b_correct=record.b_correct,
-            a_points=record.a_points,
-            b_points=record.b_points,
-            a_rejected=record.a_rejected.value if record.a_rejected else None,
-            b_rejected=record.b_rejected.value if record.b_rejected else None,
-        )
-        for record in rounds
-    ]
 
 
 def _match_ceiling_seconds(config: VersusConfig) -> int:

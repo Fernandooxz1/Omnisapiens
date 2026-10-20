@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.game.constants import ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH
+from app.game.versus_engine import VersusStatus
 from app.models import Room, User
-from app.runtime.room import RoomStatus
 
 ROOM_CODE_ATTEMPTS = 5
 
@@ -47,10 +47,10 @@ def room_is_available(sala: Room, *, now: datetime | None = None) -> bool:
     (H-10): si no, abrir el WS la resucitaba en memoria y el código vencido seguía
     sirviendo. `playing` y `finished` siguen abiertas para reconectar/revancha.
     """
-    if sala.status == RoomStatus.EXPIRED.value:
+    if sala.status == VersusStatus.EXPIRED.value:
         return False
     ahora = now or datetime.now(UTC)
-    return not (sala.status == RoomStatus.WAITING.value and sala.expires_at <= ahora)
+    return not (sala.status == VersusStatus.WAITING.value and sala.expires_at <= ahora)
 
 
 async def create_room(

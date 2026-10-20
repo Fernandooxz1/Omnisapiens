@@ -107,7 +107,9 @@ El versus escribe acá desde 5.2: `/ws/room` arranca la sesión con
 `mode='trivia_versus'` y `play_format='versus'`, y la cierra con los ítems y los
 intentos de las dos sillas. El historial se reconstruye contiguo desde
 `started_at`, igual que el backfill; el `id` de la sesión es el de la partida,
-así la fila vieja de `matches` y la genérica se corresponden uno a uno.
+así las filas viejas de `matches` que ya existan se corresponden uno a uno. Desde
+5.3 `game/match_engine.py` y `runtime/room.py` no existen: las reglas viven en
+`game/versus_engine.py` y el estado vivo en `runtime/session_store.py`.
 
 ## Sesiones en vivo
 
@@ -179,10 +181,11 @@ y es el borde el que hace lo que antes hacía el manager:
   `mode='trivia_versus'` y `play_format='versus'`; ítems e intentos se reconstruyen
   contiguos desde `started_at` con el mismo criterio que el backfill. Los dos
   participantes llevan su puntaje y `win`/`lose`/`draw`/`abandoned`/`void`.
-- Sigue escribiendo `matches`/`match_rounds` hasta 5.3, cuando queden de solo
-  lectura hasta la fase 10; `rooms` sigue siendo la tabla del lobby. `on_match_start`
-  revierte el arranque si la fila no se pudo escribir; un cierre que falla deja la
-  sesión `playing` para el barrendero.
+- Desde 5.3 no escribe `matches`/`match_rounds`: esas tablas quedan de solo lectura
+  hasta la fase 10. `rooms` sigue siendo la tabla del lobby y el borde mantiene su
+  estado (`playing`/`finished`) y el techo de vencimiento de la partida.
+  `on_match_start` revierte el arranque si la fila no se pudo escribir; un cierre
+  que falla deja la sesión `playing` para el barrendero.
 
 El protocolo del cliente no cambia: `room_state`, `match_start`, `round_start`,
 `opponent_answered`, `round_result`, `match_end`, `error` y los de reconexión siguen
