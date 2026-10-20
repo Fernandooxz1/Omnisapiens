@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 5
-tarea: "5.2"
+tarea: "5.3"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: f6a8651
+ultimo_commit: 9c30ee6
 fecha: 2026-10-19
 bloqueo: ""
 ```
@@ -52,3 +52,4 @@ bloqueo: ""
 | 2026-10-19 | 4.2 | `be75081` | `arcade_ws` vive sobre el store y el `SoloEngine`: escribe `game_sessions`/ítems/intentos, `run_summary` lee `game_sessions`, `on_finish` completa el ranking antes del `arcade_end`; golden y e2e de arcade sin cambios. Próxima: 4.3. |
 | 2026-10-19 | 4.3 | `3859e78` | Borrados `arcade_engine`, `arcade_session` y `services/arcade_runs`; `ARCADE_RULES` en `modes/arcade.py`, tests portados al motor/store. Tag `refactor-fase-4`. Próxima: 5.1. |
 | 2026-10-19 | 5.1 | `f6a8651` | `versus_engine` puro (partida, sillas, gracia, pausa, revancha) y sesiones versus en `InMemorySessionStore` con outbox por silla y vencimientos; tests de `match_engine`/`room` portados. Próxima: 5.2. |
+| 2026-10-19 | 5.2 | `9c30ee6` | `/ws/room` corre sobre el store directo: el borde elige y carga la pregunta, persiste `game_sessions` con ítems/intentos/participantes y sigue escribiendo `matches`/`rooms`; `room_manager` eliminado. Golden y e2e de 1v1 sin cambios. Próxima: 5.3. |
