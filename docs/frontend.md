@@ -53,7 +53,8 @@ su renderer: `src/lib/modes/arcade/ArcadeScreen.svelte` o
 `play.mode_unknown` y vuelve al inicio, no rompe la ruta. La sala 1v1 sigue en
 `/room/{code}`, que reutiliza `VersusScreen` con el código.
 
-`/arcade` y `/play` ya no existen: el menú, el registry y las e2e usan las rutas del modo.
+`/arcade` y `/play` quedan como redirecciones de compatibilidad a `/play/trivia_arcade` y
+`/play/trivia_versus`; el menú, el registry y las e2e usan las rutas del modo.
 El arcade se juega sobre el canal canónico (`POST /sessions` + `WS /ws/session/{id}`) con
 `createArcadeRun`; su `payload` no publica categoría, así que la tarjeta dibuja el enunciado
 sin badge. El 1v1 sigue en `WS /ws/room/{code}` y conserva el badge de categoría.
