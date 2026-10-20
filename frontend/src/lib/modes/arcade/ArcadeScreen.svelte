@@ -11,7 +11,6 @@
 	import LifeStrip from '#lib/components/LifeStrip.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
 	import TimerBadge from '#lib/components/TimerBadge.svelte';
-	import { categoryKey } from '#lib/categories';
 	import { t, type MessageKey } from '#lib/i18n';
 	import { bindAnswerKeys } from '#lib/keyboard.svelte';
 	import { sound } from '#lib/sound.svelte';
@@ -259,8 +258,6 @@
 		</div>
 
 		<QuestionCard
-			category={question.category}
-			categoryLabel={t(categoryKey(question.category))}
 			prompt={question.prompt}
 			badge={phase === 'question' ? t('play.answer_badge') : undefined}
 		/>

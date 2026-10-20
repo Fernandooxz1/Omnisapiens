@@ -30,8 +30,9 @@ Después, solo lo que la tarea pida, y por sección (`grep`), nunca un archivo e
 
 No releer lo que ya está en el contexto de la sesión. No resumir estos archivos al usuario.
 
-La red vive en `src/lib/api/` (`client.ts`, `session.svelte.ts`, `ws.ts`) y el estado de la
-partida en `src/lib/match/live.svelte.ts`: no hay `fetch` ni `WebSocket` fuera de ahí.
+La red vive en `src/lib/api/` (`client.ts`, `session.svelte.ts`, `sessions.ts`, `ws.ts`) y el
+estado de la partida en `src/lib/match/live.svelte.ts`: no hay `fetch` ni `WebSocket` fuera
+de ahí.
 
 ## Menú de inicio
 
@@ -49,9 +50,12 @@ su renderer: `src/lib/modes/arcade/ArcadeScreen.svelte` o
 `play.mode_unknown` y vuelve al inicio, no rompe la ruta. La sala 1v1 sigue en
 `/room/{code}`, que reutiliza `VersusScreen` con el código.
 
-`/arcade` y `/play` quedan como redirecciones de compatibilidad a `/play/trivia_arcade` y
-`/play/trivia_versus`. Ninguna pantalla habla con la red: `fetch` y `WebSocket` viven solo en
-`src/lib/api/`.
+`/arcade` y `/play` ya no existen: el menú, el registry y las e2e usan las rutas del modo.
+El arcade se juega sobre el canal canónico (`POST /sessions` + `WS /ws/session/{id}`) con
+`createArcadeRun`; su `payload` no publica categoría, así que la tarjeta dibuja el enunciado
+sin badge. El 1v1 sigue en `WS /ws/room/{code}` y conserva el badge de categoría.
+
+Ninguna pantalla habla con la red: `fetch` y `WebSocket` viven solo en `src/lib/api/`.
 
 ## Modo de trabajo
 

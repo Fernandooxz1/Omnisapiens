@@ -1,6 +1,6 @@
 import { ApiError } from '#lib/api/client';
-import { connectArcade, type Envelope, type Socket, type SocketStatus } from '#lib/api/ws';
-import { isCategory, type Category } from '#lib/categories';
+import { createSoloSession } from '#lib/api/sessions';
+import { connectSession, type Envelope, type Socket, type SocketStatus } from '#lib/api/ws';
 
 export type ArcadePhase =
 	| 'connecting'
@@ -15,21 +15,14 @@ export interface ArcadeQuestion {
 	round: number;
 	prompt: string;
 	options: string[];
-	category: Category;
-	difficulty: number;
 	/** Duración total de esta pregunta (baja con los aciertos). */
 	seconds: number;
 	endsAt: number;
-	score: number;
-	lives: number;
-	streak: number;
-	correctCount: number;
 }
 
 export interface ArcadeScore {
 	/** `null` si no llegó a responder. */
 	choice: number | null;
-	ms: number;
 	points: number;
 	correct: boolean;
 }
@@ -60,65 +53,61 @@ interface StartWire {
 	lives: number;
 }
 
-interface QuestionWire {
-	round: number;
-	prompt: string;
-	options: string[];
-	category: string;
-	difficulty: number;
-	seconds: number;
+interface ItemStartWire {
+	item_key: string;
+	position: number;
 	ends_at: number;
-	score: number;
-	lives: number;
-	streak: number;
-	correct_count: number;
+	total_seconds: number;
+	payload: {
+		prompt: string;
+		options: string[];
+	};
 }
 
-interface ResultWire {
-	round: number;
-	correct_index: number;
-	you?: Partial<ArcadeScore>;
-	score: number;
-	lives: number;
-	streak: number;
-	correct_count: number;
+interface SubmissionWire {
+	index?: number;
+}
+
+interface ItemResultWire {
+	item_key: string;
+	correct: boolean;
+	submission: SubmissionWire | null;
+	solution: { correct_index?: number } | null;
+	points: number;
+	scores: {
+		score?: number;
+		lives?: number;
+		streak?: number;
+		correct_count?: number;
+	};
+}
+
+interface RankingWire {
+	rank_global?: number | null;
+	rank_weekly?: number | null;
+	personal_best?: number | null;
+	is_new_best?: boolean;
 }
 
 interface EndWire {
-	run_id: string;
+	session_id: string;
 	score: number;
 	correct_count: number;
 	max_difficulty: number;
 	longest_streak: number;
-	rank_global: number | null;
-	rank_weekly: number | null;
-	personal_best: number | null;
-	is_new_best: boolean;
-}
-
-function category(value: string): Category {
-	return isCategory(value) ? value : 'science';
-}
-
-function asScore(value: unknown): ArcadeScore {
-	const raw = (value ?? {}) as Partial<ArcadeScore>;
-	return {
-		choice: raw.choice ?? null,
-		ms: raw.ms ?? 0,
-		points: raw.points ?? 0,
-		correct: raw.correct ?? false
-	};
+	ranking: RankingWire | null;
 }
 
 /**
- * Una corrida arcade vista desde el socket. `start` vale una vez por conexión:
- * para otra corrida se cierra y se abre otra (`again`).
+ * Una corrida arcade sobre el canal canónico de una sesión solo. La sesión se
+ * crea antes (`POST /sessions`) y el socket solo la juega: otra corrida es otra
+ * sesión, no un `restart`.
  */
-export function createArcadeRun(token: string) {
+export function createArcadeRun(token: string, mode = 'trivia_arcade') {
 	let phase = $state<ArcadePhase>('connecting');
 	let status = $state<SocketStatus>('connecting');
 	let failure = $state<ApiError | null>(null);
-	/** Error suelto del servidor (`NO_QUESTIONS`, `RUN_NOT_STARTED`…). */
+	/** Error suelto del servidor (`NO_QUESTIONS`, `ROUND_MISMATCH`…). */
 	let notice = $state<string | null>(null);
 
 	let question = $state<ArcadeQuestion | null>(null);
@@ -131,12 +120,13 @@ export function createArcadeRun(token: string) {
 	let correctCount = $state(0);
 
 	let socket: Socket | null = null;
-	/** El socket viejo no puede pisar el estado del nuevo al reconectar o reintentar. */
+	/** El socket (o la creación) vieja no puede pisar el estado de la nueva. */
 	let generation = 0;
+	let disposed = false;
 
 	function onMessage(message: Envelope) {
 		switch (message.t) {
-			case 'arcade_start': {
+			case 'session_start': {
 				const start = message.d as StartWire;
 				score = 0;
 				lives = start.lives;
@@ -145,68 +135,63 @@ export function createArcadeRun(token: string) {
 				phase = 'starting';
 				break;
 			}
-			case 'arcade_question': {
-				const next = message.d as QuestionWire;
+			case 'item_start': {
+				const next = message.d as ItemStartWire;
 				question = {
-					round: next.round,
-					prompt: next.prompt,
-					options: next.options,
-					category: category(next.category),
-					difficulty: next.difficulty,
-					seconds: next.seconds,
-					endsAt: next.ends_at,
-					score: next.score,
-					lives: next.lives,
-					streak: next.streak,
-					correctCount: next.correct_count
+					round: next.position,
+					prompt: next.payload.prompt,
+					options: next.payload.options,
+					seconds: next.total_seconds,
+					endsAt: next.ends_at
 				};
-				score = next.score;
-				lives = next.lives;
-				streak = next.streak;
-				correctCount = next.correct_count;
 				picked = null;
 				result = null;
 				notice = null;
 				phase = 'question';
 				break;
 			}
-			case 'arcade_result': {
-				const resolved = message.d as ResultWire;
+			case 'item_result': {
+				const resolved = message.d as ItemResultWire;
 				result = {
-					round: resolved.round,
-					correctIndex: resolved.correct_index,
-					you: asScore(resolved.you),
-					score: resolved.score,
-					lives: resolved.lives,
-					streak: resolved.streak,
-					correctCount: resolved.correct_count
+					round: Number(resolved.item_key),
+					correctIndex: resolved.solution?.correct_index ?? -1,
+					you: {
+						choice: resolved.submission?.index ?? null,
+						points: resolved.points,
+						correct: resolved.correct
+					},
+					score: resolved.scores.score ?? 0,
+					lives: resolved.scores.lives ?? 0,
+					streak: resolved.scores.streak ?? 0,
+					correctCount: resolved.scores.correct_count ?? 0
 				};
-				score = resolved.score;
-				lives = resolved.lives;
-				streak = resolved.streak;
-				correctCount = resolved.correct_count;
+				score = result.score;
+				lives = result.lives;
+				streak = result.streak;
+				correctCount = result.correctCount;
 				picked = result.you.choice;
 				phase = 'reveal';
 				break;
 			}
-			case 'arcade_end': {
+			case 'session_end': {
 				const final = message.d as EndWire;
+				const ranking = final.ranking;
 				end = {
-					runId: final.run_id,
+					runId: final.session_id,
 					score: final.score,
 					correctCount: final.correct_count,
 					maxDifficulty: final.max_difficulty,
 					longestStreak: final.longest_streak,
-					rankGlobal: final.rank_global,
-					rankWeekly: final.rank_weekly,
-					personalBest: final.personal_best,
-					isNewBest: final.is_new_best
+					rankGlobal: ranking?.rank_global ?? null,
+					rankWeekly: ranking?.rank_weekly ?? null,
+					personalBest: ranking?.personal_best ?? null,
+					isNewBest: ranking?.is_new_best ?? false
 				};
 				score = final.score;
 				correctCount = final.correct_count;
 				phase = 'over';
-				// La corrida terminó: el socket ya no tiene nada que hacer (y `start`
-				// vale una vez por conexión). `again` abre uno nuevo.
+				// La sesión terminó: el socket ya no tiene nada que hacer y el canal
+				// es de una conexión. `again` crea otra sesión.
 				socket?.close();
 				break;
 			}
@@ -218,6 +203,7 @@ export function createArcadeRun(token: string) {
 
 	function reset() {
 		phase = 'connecting';
+		status = 'connecting';
 		failure = null;
 		notice = null;
 		question = null;
@@ -230,29 +216,37 @@ export function createArcadeRun(token: string) {
 		correctCount = 0;
 	}
 
-	function connect() {
+	async function connect() {
 		const mine = ++generation;
 
-		socket = connectArcade(token, {
-			onMessage: (message) => {
-				if (mine === generation) onMessage(message);
-			},
-			onStatus: (next) => {
-				if (mine === generation) status = next;
-			},
-			// `start` vale una vez por conexión: al abrir (o reabrir) arranca la corrida.
-			onOpen: () => {
-				if (mine === generation) socket?.send('start');
-			},
-			onRejected: (error) => {
-				if (mine !== generation) return;
-				failure = error;
-				phase = 'over';
-			}
-		});
+		try {
+			const created = await createSoloSession(token, mode);
+			if (disposed || mine !== generation) return;
+
+			socket = connectSession(created.session_id, token, {
+				onMessage: (message) => {
+					if (mine === generation) onMessage(message);
+				},
+				onStatus: (next) => {
+					if (mine === generation) status = next;
+				},
+				onRejected: (error) => {
+					if (mine !== generation) return;
+					failure = error;
+					phase = 'over';
+				}
+			});
+		} catch (error) {
+			if (disposed || mine !== generation) return;
+			failure =
+				error instanceof ApiError
+					? error
+					: new ApiError(0, 'UNKNOWN', 'No se pudo crear la sesión.');
+			phase = 'over';
+		}
 	}
 
-	connect();
+	void connect();
 
 	function answer(choice: number) {
 		if (phase !== 'question' || !question) return;
@@ -263,11 +257,12 @@ export function createArcadeRun(token: string) {
 		phase = 'answered';
 	}
 
-	/** Otra corrida: la anterior ya terminó, así que se abre una conexión nueva. */
+	/** Otra corrida: la anterior ya terminó, así que se crea otra sesión. */
 	function again() {
 		socket?.close();
+		socket = null;
 		reset();
-		connect();
+		void connect();
 	}
 
 	return {
@@ -309,7 +304,11 @@ export function createArcadeRun(token: string) {
 		},
 		answer,
 		again,
-		close: () => socket?.close()
+		close: () => {
+			disposed = true;
+			generation += 1;
+			socket?.close();
+		}
 	};
 }
 

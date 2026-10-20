@@ -18,7 +18,9 @@ export async function enter(page: Page, nick: string, mode: Mode): Promise<void>
 			: page.getByRole('button', { name: /^Jugar 1v1/ });
 	await button.click();
 
-	await expect(page).toHaveURL(mode === 'arcade' ? /\/arcade$/ : /\/play$/);
+	await expect(page).toHaveURL(
+		mode === 'arcade' ? /\/play\/trivia_arcade$/ : /\/play\/trivia_versus$/
+	);
 }
 
 /** Crea una sala y devuelve el código que muestra el lobby. */
@@ -34,7 +36,7 @@ export async function createRoom(page: Page, rounds: 3 | 5 | 7 = 3): Promise<str
 
 /** El código completo dispara la entrada solo: no hace falta pulsar `Entrar`. */
 export async function joinRoom(page: Page, code: string): Promise<void> {
-	await page.goto('/play');
+	await page.goto('/play/trivia_versus');
 	await page.getByLabel('Carácter 1 de 6').click();
 	await page.keyboard.type(code);
 

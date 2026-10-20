@@ -3,8 +3,9 @@
 	import CategoryBadge from './CategoryBadge.svelte';
 
 	interface Props {
-		category: Category;
-		categoryLabel: string;
+		/** Vacío cuando el protocolo del modo no publica la categoría. */
+		category?: Category;
+		categoryLabel?: string;
 		prompt: string;
 		/** Texto del esticker flotante (ej. "Responde"), o nada. */
 		badge?: string;
@@ -15,6 +16,6 @@
 
 <div class="question-card" data-cat={category}>
 	{#if badge}<span class="responde-badge">{badge}</span>{/if}
-	<CategoryBadge {category} label={categoryLabel} />
+	{#if category && categoryLabel}<CategoryBadge {category} label={categoryLabel} />{/if}
 	<p class="question-card__prompt">{prompt}</p>
 </div>

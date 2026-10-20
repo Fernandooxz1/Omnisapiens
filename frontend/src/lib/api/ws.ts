@@ -213,7 +213,17 @@ export function connectRoom(code: string, token: string, handlers: Handlers): So
 	});
 }
 
-/** Arcade: `start` vale una vez por conexión; para otra corrida se abre otra. */
-export function connectArcade(token: string, handlers: Handlers): Socket {
-	return createSocket({ ...handlers, url: endpoint('/ws/arcade', token) });
+/**
+ * Sesión solo: el socket no la crea ni la reinicia, solo la juega. El canal es
+ * efímero (`connection=EPHEMERAL`): si se cae, la fila se abandona y no se retoma.
+ */
+export function connectSession(
+	sessionId: string,
+	token: string,
+	handlers: Handlers
+): Socket {
+	return createSocket({
+		...handlers,
+		url: endpoint(`/ws/session/${encodeURIComponent(sessionId)}`, token)
+	});
 }

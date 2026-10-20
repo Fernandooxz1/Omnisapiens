@@ -152,6 +152,10 @@ Cada categoría tiene su color y **manda** en el badge y en el feedback de acier
 | `entertainment` | Entretenimiento |
 | `sports` | Deportes |
 
+El 1v1 manda la categoría en `round_start`, así que dibuja el badge. El canal canónico del
+arcade (`WS /ws/session/{id}`) publica el `payload` del quiz sin categoría: ahí la tarjeta va
+sin badge y el color de acento es el del modo.
+
 ## Pantallas
 
 | Pantalla | Contenido |
@@ -163,7 +167,7 @@ Cada categoría tiene su color y **manda** en el badge y en el feedback de acier
 | Partida | Marca arriba, pregunta, 4 `AnswerTile` en columna, `TimerBadge` + barra de tiempo, cápsulas de ronda, marcador abierto y aviso de rival |
 | Revelación | Correcta, qué eligió cada uno y puntos; el paso siguiente flota al pie sin mover el tablero |
 | Fin | Ganador, resumen ronda a ronda y revancha |
-| Arcade | `/play/trivia_arcade`: pregunta, vidas (`LifeStrip`), racha, puntaje y tiempo |
+| Arcade | `/play/trivia_arcade`: pregunta, vidas (`LifeStrip`), racha, puntaje y tiempo; `POST /sessions` + `WS /ws/session/{id}` |
 | Fin de arcade | Puntaje, aciertos, mejor racha, mejor marca y posición |
 | Ranking | Global / semanal |
 | Admin | Solo por URL `/admin`: token, listado con filtros y paginación, subida de CSV/JSON con informe |
@@ -177,8 +181,8 @@ Componentes, tokens y reglas visuales: `docs/diseno.md`.
   y bisel, sin degradados de color. El jugador elige su **color de acento** (5 swatches,
   `data-accent` sobre `<html>` + `localStorage`, clave `omni-accent`).
 - **Estado:** `session` (`src/lib/api/session.svelte.ts`), `createLiveMatch`
-  (`src/lib/match/live.svelte.ts`) y `createArcadeRun` (`src/lib/arcade/live.svelte.ts`) como
-  máquinas de estados; `ws.ts` con reconexión y heartbeat.
+  (`src/lib/match/live.svelte.ts`) y `createArcadeRun` (`src/lib/arcade/live.svelte.ts`, sobre
+  el canal canónico de sesión) como máquinas de estados; `ws.ts` con reconexión y heartbeat.
 - **PWA:** manifest + service worker nativo (`src/service-worker.ts`), cachea el app shell;
   el juego **no** funciona offline.
 - **i18n:** todas las cadenas en `src/lib/i18n/es.json`; ninguna cadena visible en un componente.
@@ -188,7 +192,8 @@ Componentes, tokens y reglas visuales: `docs/diseno.md`.
 ## Testing (frontend)
 
 - `svelte-check` en verde y build que no avise.
-- **Playwright:** una partida 1v1 completa (dos contextos) y un arcade hasta el final.
+- **Playwright:** una partida 1v1 completa (dos contextos), un arcade hasta el final y la
+  home armada desde `GET /modes` (con un modo desconocido deshabilitado).
 - Las e2e corren contra el backend real levantado (`make up && make migrate && make seed`),
   no contra mocks.
 
