@@ -192,6 +192,7 @@ a arrancar si el estado vivo está en memoria sin `SINGLE_PROCESS=1`.
 | `make migrate` | Aplica las migraciones de Alembic |
 | `make seed` | Importa las preguntas de ejemplo como publicadas |
 | `make import FILE=archivo.csv` | Importa un CSV propio (borrador por defecto) |
+| `make check-seeds` | Valida los CSV de semilla (o `FILE=...`) sin tocar la base |
 | `make api` | API en `:8000` con reload |
 | `make front` | Frontend en `:5173` |
 | `make test` | Tests del backend |

@@ -50,12 +50,19 @@ make import FILE=mis-preguntas.csv
 # Publicada directamente, salteando el `make`
 cd backend && uv run python -m app.cli import-questions ../mis-preguntas.csv --status published
 
-# Las 308 semilla del repo (base + lotes revisados)
+# Valida los CSV de seeds sin tocar la base (encabezado, filas, duplicados,
+# similitud) y después carga las 308 semilla del repo
+make check-seeds
 make seed
 
 # Un lote suelto, publicado directamente
 cd backend && uv run python -m app.cli import-questions seeds/questions_new.csv --status published
 ```
+
+`make check-seeds` valida `backend/seeds/*.csv` (o el `FILE` que le pases) sin base ni
+API: reusa la validación del importador y agrega detección de duplicados exactos y de
+preguntas reescritas (misma respuesta y vocabulario casi igual). Un par sospechoso falla;
+`--allow-similar` lo deja como aviso para revisarlo a mano.
 
 `make seed` importa `backend/seeds/questions.csv`, `questions_new.csv` y
 `questions_batch_3.csv` como publicados. `questions.csv` sigue siendo la mejor referencia de

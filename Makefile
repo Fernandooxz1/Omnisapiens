@@ -1,4 +1,4 @@
-.PHONY: up down api front migrate seed import check-schema test cov lint fmt
+.PHONY: up down api front migrate seed import check-seeds check-schema test cov lint fmt
 
 up:
 	docker compose up -d --wait
@@ -25,6 +25,10 @@ seed:
 # Carga un archivo propio: make import FILE=mis-preguntas.csv
 import:
 	cd backend && uv run python -m app.cli import-questions $(FILE)
+
+# Valida los seeds (o FILE) antes de importarlos: no toca la base.
+check-seeds:
+	cd backend && uv run python -m tools.check_seeds $(FILE)
 
 # Guardarraíl: falla si los modelos y las migraciones se desincronizaron.
 check-schema:

@@ -51,6 +51,7 @@ Después, solo lo que la tarea pida, y por sección (`grep`), nunca un archivo e
 make up       # Postgres 16 + Redis 7 (Docker)
 make migrate  # alembic upgrade head
 make seed     # 308 preguntas semilla
+make check-seeds  # valida los CSV antes de importarlos
 make api      # uvicorn en :8000 (CORS permite :5173)
 make test     # pytest
 make cov      # pytest --cov=app --cov-fail-under=85

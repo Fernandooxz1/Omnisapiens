@@ -44,6 +44,7 @@ jobs:
           cache-dependency-glob: backend/uv.lock
       - run: uv sync --frozen --project backend
       - run: make lint
+      - run: make check-seeds
       # La base de desarrollo tiene que estar migrada para que `check` compare.
       - run: make migrate
       - run: make check-schema
