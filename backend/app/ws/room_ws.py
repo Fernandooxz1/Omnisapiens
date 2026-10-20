@@ -1,9 +1,10 @@
-"""El WebSocket de una sala: traduce §10.1 a llamadas del `RoomStore`.
+"""El WebSocket de una sala: el borde del versus sobre el store de sesiones.
 
-Es el controlador del canal en vivo. Analogía Java: un `@ServerEndpoint`, que
-vive mientras dura la conexión y no por pedido. Acá no hay lógica de juego: el
-estado lo decide `runtime/room.py` y lo ejecuta `room_manager.py`; este módulo
-lee el socket, llama, y empuja lo que el store dejó en el `outbox`.
+Es el controlador del canal en vivo. La sala la decide `runtime/session_store`
+(sillas, gracia, pausa, vencimientos y entrega); acá viven el socket, la elección
+y carga de la pregunta, y las dos escrituras de la partida: la fila genérica de
+`game_sessions` con su historial y la vieja `matches`, que sigue de solo lectura
+hasta la fase 10.
 
 Tres cosas que sorprenden a primera vista:
 
@@ -12,14 +13,22 @@ Tres cosas que sorprenden a primera vista:
 - El socket lo escribe una sola corrutina en régimen: la que drena el `outbox`.
   El lector, cuando responde por su cuenta (`pong`, un error), pasa por el mismo
   lock: dos `send` en paralelo sobre el mismo socket no son seguros.
-- Un corte de red silencioso no genera `disconnect`: lo detecta el timeout de
-  inactividad, y recién ahí el `RoomStore` abre la ventana de gracia.
+- El store avisa cuándo empieza y termina una partida, pero no toca la base: el
+  borde abre una sesión propia para persistir, porque el vencimiento puede
+  cerrar la partida después de que el handler ya se fue.
 """
 
 import asyncio
 import contextlib
 import json
 import logging
+import time
+import uuid
+from collections.abc import Callable, Iterable
+from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from random import Random
 from typing import Annotated, Any, TypeGuard
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
@@ -30,10 +39,19 @@ from app.api.deps import SessionDep, authenticate
 from app.api.errors import ApiError
 from app.api.rate_limit import room_limit
 from app.config import settings
-from app.game import protocols
-from app.game.match_engine import MatchConfig
-from app.models import Room, User
-from app.runtime.room_manager import OUTBOX_MAX, Outbox, RoomStore, room_store
+from app.db import session_factory
+from app.game import protocols, versus_engine
+from app.game.constants import CATEGORIES, DIFFICULTY_MIN
+from app.game.versus_engine import MatchStatus, VersusConfig, VersusState
+from app.models import GameSession, Match, MatchRound, Room, User
+from app.runtime.session_store import (
+    OUTBOX_MAX,
+    VersusSessionStore,
+    session_store,
+)
+from app.services import sessions
+from app.services.question_bank import LoadedQuestion, candidates, load
+from app.services.questions import select
 from app.services.rooms import get_by_code, room_is_available
 
 logger = logging.getLogger(__name__)
@@ -43,22 +61,59 @@ router = APIRouter()
 # Rechazo de entrada (token, sala, sala llena): el cliente no debe reintentar igual.
 _CLOSE_POLICY = 1008
 
+# La sesión genérica de la sala: el formato versus fija su configuración con
+# `ruleset_version` y su solución con `solution_version`.
+VERSUS_MODE = "trivia_versus"
+CONTENT_KIND = "quiz"
+PLAY_FORMAT = "versus"
+RULESET_VERSION = 1
+SOLUTION_VERSION = 1
 
-def get_room_store() -> RoomStore:
+Clock = Callable[[], int]
+# El borde abre su propia sesión de base: el vencimiento puede correr cuando el
+# handler (y su `SessionDep`) ya no existen.
+SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
+
+
+@dataclass(frozen=True)
+class RoomRuntime:
+    """Lo que el handler no puede inventar: el reloj y el azar."""
+
+    now_ms: Clock
+    rng: Random
+
+
+def get_room_store() -> VersusSessionStore:
     """El store del proceso, inyectado.
 
     Los tests ponen uno con reloj falso y su propia sesión; en producción es el
     global del proceso, el mismo que apaga el lifespan.
     """
-    return room_store
+    return session_store
 
 
-StoreDep = Annotated[RoomStore, Depends(get_room_store)]
+def get_room_runtime() -> RoomRuntime:
+    return RoomRuntime(now_ms=_system_now_ms, rng=Random())
+
+
+def get_room_session_factory() -> SessionFactory:
+    """La fábrica del borde; los tests la apuntan a su sesión compartida."""
+    return session_factory
+
+
+StoreDep = Annotated[VersusSessionStore, Depends(get_room_store)]
+RuntimeDep = Annotated[RoomRuntime, Depends(get_room_runtime)]
+FactoryDep = Annotated[SessionFactory, Depends(get_room_session_factory)]
 
 
 @router.websocket("/ws/room/{code}")
 async def room_socket(
-    websocket: WebSocket, code: str, session: SessionDep, store: StoreDep
+    websocket: WebSocket,
+    code: str,
+    session: SessionDep,
+    store: StoreDep,
+    runtime: RuntimeDep,
+    db_factory: FactoryDep,
 ) -> None:
     # Se acepta antes de autenticar: si no, un token malo no tiene por dónde
     # recibir el `error` con el que el cliente vuelve al inicio (§12).
@@ -74,14 +129,19 @@ async def room_socket(
 
     codigo = sala.code
     user_id = str(usuario.id)
-    await store.open(
+    border = _Border(db=db_factory, runtime=runtime, room_id=str(sala.id))
+    await store.open_versus(
         code=codigo,
         room_id=str(sala.id),
-        config=MatchConfig(**sala.config),
+        config=VersusConfig(**sala.config),
         host_id=str(sala.host_user_id),
+        next_item=border.next_item,
+        on_match_start=border.match_started,
+        on_match_end=border.match_finished,
+        on_room_reopened=border.room_reopened,
     )
 
-    outbox: Outbox = asyncio.Queue(maxsize=OUTBOX_MAX)
+    outbox: asyncio.Queue[protocols.Message] = asyncio.Queue(maxsize=OUTBOX_MAX)
     await store.join(code=codigo, user_id=user_id, nick=usuario.nick, outbox=outbox)
     send_lock = asyncio.Lock()
     if not store.seated(code=codigo, user_id=user_id):
@@ -120,6 +180,124 @@ async def room_socket(
         await store.disconnect(code=codigo, user_id=user_id, outbox=outbox)
 
 
+class _Border:
+    """La parte del borde que el store llama: ítems y persistencia."""
+
+    def __init__(
+        self, *, db: SessionFactory, runtime: RoomRuntime, room_id: str
+    ) -> None:
+        self._db = db
+        self._runtime = runtime
+        self._room_id = room_id
+
+    async def next_item(self, state: VersusState) -> LoadedQuestion | None:
+        """Elige y carga la pregunta. La base es de afuera del store."""
+        match = state.match
+        if match is None:
+            return None
+        low, high = versus_engine.difficulty_range(match)
+        used = {record.question_id for record in match.rounds}
+        async with self._db() as session:
+            pool = await candidates(session, low=low, high=high)
+            if not pool:
+                # Sin banco no hay partida que seguir: el store avisa y espera.
+                logger.warning(
+                    "la sala %s no tiene preguntas en el tramo %s-%s",
+                    state.code,
+                    low,
+                    high,
+                )
+                return None
+            selection = select(
+                pool,
+                category=self._runtime.rng.choice(CATEGORIES),
+                difficulty=self._runtime.rng.randint(low, high),
+                rng=self._runtime.rng,
+                excluded=used,
+            )
+            return await load(session, selection.question_id)
+
+    async def match_started(self, state: VersusState, now_ms: int) -> None:
+        """La fila `playing` de la sesión genérica y la vieja `matches`."""
+        match = state.match
+        if match is None or state.match_id is None:
+            return
+        participants = [
+            sessions.Participant(seat=seat, user_id=uuid.UUID(player.user_id))
+            for seat, player in enumerate(state.seats)
+            if player is not None
+        ]
+        try:
+            async with self._db() as session:
+                await _open_legacy_match(session, state, self._room_id, now_ms)
+                await sessions.start_session(
+                    session,
+                    session_id=uuid.UUID(state.match_id),
+                    mode=VERSUS_MODE,
+                    content_kind=CONTENT_KIND,
+                    play_format=PLAY_FORMAT,
+                    ruleset_version=RULESET_VERSION,
+                    config={
+                        "rounds": state.config.rounds,
+                        "seconds": state.config.seconds,
+                    },
+                    started_at=_datetime(now_ms),
+                    room_id=uuid.UUID(self._room_id),
+                    participants=participants,
+                )
+        except Exception:
+            # Sin fila no se juega: el store revierte el arranque y el cliente
+            # puede reintentarlo en otra conexión.
+            logger.exception("la partida %s no se pudo registrar", state.match_id)
+            raise
+
+    async def match_finished(self, state: VersusState, now_ms: int) -> None:
+        """Cierra la sesión genérica y guarda el historial de las dos sillas.
+
+        Es best-effort: si la base falla, el jugador ya vio su final y la fila
+        queda `playing` para que el barrendero la invalide.
+        """
+        match = state.match
+        if match is None or state.match_id is None:
+            return
+        match_id = uuid.UUID(state.match_id)
+        try:
+            async with self._db() as session:
+                row = await session.get(GameSession, match_id)
+                if row is None:
+                    logger.error("la partida %s no estaba en la base", match_id)
+                    return
+                if row.status != "playing":
+                    return
+                await _close_legacy_match(session, match_id, match, now_ms)
+                items, attempts = _history(match, row.started_at)
+                await sessions.finish_session(
+                    session,
+                    session_id=match_id,
+                    state=_summary(match, now_ms),
+                    items=items,
+                    attempts=attempts,
+                    participants=_participants(match, state.seats),
+                )
+        except Exception:
+            logger.exception("la partida %s no se pudo cerrar", match_id)
+
+    async def room_reopened(self, state: VersusState, now_ms: int) -> None:
+        """Una sala terminada vuelve al lobby: la fila tiene que decir lo mismo."""
+        try:
+            async with self._db() as session:
+                sala = await session.get(Room, uuid.UUID(self._room_id))
+                if sala is None:
+                    return
+                sala.status = versus_engine.VersusStatus.WAITING.value
+                sala.expires_at = _datetime(now_ms) + timedelta(
+                    seconds=settings.room_idle_timeout_seconds
+                )
+                await session.commit()
+        except Exception:
+            logger.exception("la sala %s no se pudo reabrir", self._room_id)
+
+
 async def _identify(websocket: WebSocket, session: AsyncSession) -> User:
     token = websocket.query_params.get("token")
     if not token:
@@ -137,7 +315,7 @@ async def _load_room(session: AsyncSession, code: str) -> Room:
 async def _reader(
     websocket: WebSocket,
     lock: asyncio.Lock,
-    store: RoomStore,
+    store: VersusSessionStore,
     *,
     code: str,
     user_id: str,
@@ -179,7 +357,7 @@ async def _reader(
 async def _dispatch(
     websocket: WebSocket,
     lock: asyncio.Lock,
-    store: RoomStore,
+    store: VersusSessionStore,
     *,
     code: str,
     user_id: str,
@@ -222,7 +400,11 @@ async def _dispatch(
         )
 
 
-async def _writer(websocket: WebSocket, lock: asyncio.Lock, outbox: Outbox) -> None:
+async def _writer(
+    websocket: WebSocket,
+    lock: asyncio.Lock,
+    outbox: asyncio.Queue[protocols.Message],
+) -> None:
     """Lo que el store entrega, al socket. En régimen, el único que escribe."""
     while True:
         await _send(websocket, await outbox.get(), lock=lock)
@@ -273,7 +455,9 @@ async def _send(
         await websocket.send_json(protocols.encode(message, id=correlacion))
 
 
-async def _flush(websocket: WebSocket, outbox: Outbox) -> None:
+async def _flush(
+    websocket: WebSocket, outbox: asyncio.Queue[protocols.Message]
+) -> None:
     while not outbox.empty():
         await _send(websocket, outbox.get_nowait())
 
@@ -287,3 +471,272 @@ async def _close(websocket: WebSocket) -> None:
     """Cierra el socket si sigue abierto; si el cliente se fue, no hay más que hacer."""
     with contextlib.suppress(WebSocketDisconnect, WebSocketDisconnected):
         await websocket.close()
+
+
+def _datetime(ms: int) -> datetime:
+    """El instante del servidor, en UTC. La base guarda `timestamptz`."""
+    return datetime.fromtimestamp(ms / 1000, tz=UTC)
+
+
+async def _open_legacy_match(
+    session: AsyncSession, state: VersusState, room_id: str, now_ms: int
+) -> None:
+    """Compatibilidad hasta la fase 10: la fila `matches` del 1v1 viejo.
+
+    La sala deja de ser `waiting` y su vencimiento pasa a ser el techo de la
+    partida: si el barrendero mirara solo `expires_at`, una partida viva con la
+    fecha vieja sería una víctima (H-04).
+    """
+    match = state.match
+    assert match is not None
+    assert state.match_id is not None
+    seat_a, seat_b = state.seats
+    assert seat_a is not None
+    assert seat_b is not None
+
+    session.add(
+        Match(
+            id=uuid.UUID(state.match_id),
+            room_id=uuid.UUID(room_id),
+            player_a_id=uuid.UUID(seat_a.user_id),
+            player_b_id=uuid.UUID(seat_b.user_id),
+            config={"rounds": state.config.rounds, "seconds": state.config.seconds},
+            status=MatchStatus.PLAYING.value,
+        )
+    )
+    sala = await session.get(Room, uuid.UUID(room_id))
+    if sala is not None:
+        sala.status = versus_engine.VersusStatus.PLAYING.value
+        sala.expires_at = _datetime(now_ms) + timedelta(
+            seconds=_match_ceiling_seconds(state.config)
+        )
+
+
+async def _close_legacy_match(
+    session: AsyncSession,
+    match_id: uuid.UUID,
+    match: versus_engine.MatchState,
+    now_ms: int,
+) -> None:
+    """Cierra la fila vieja con el mismo resultado que la sesión genérica."""
+    row = await session.get(Match, match_id)
+    if row is None:
+        logger.warning("la partida %s no estaba en la tabla vieja", match_id)
+        return
+    row.status = match.status.value
+    row.score_a = match.score_a
+    row.score_b = match.score_b
+    row.winner_id = (
+        None
+        if match.winner is None
+        else _seat_user_id(match.winner, row.player_a_id, row.player_b_id)
+    )
+    row.ended_at = _datetime(now_ms)
+    session.add_all(_round_rows(match_id, match.rounds))
+    sala = await session.get(Room, row.room_id)
+    if sala is not None:
+        sala.status = versus_engine.VersusStatus.FINISHED.value
+
+
+def _seat_user_id(
+    winner: versus_engine.Player, player_a_id: uuid.UUID, player_b_id: uuid.UUID
+) -> uuid.UUID:
+    return player_a_id if winner is versus_engine.Player.A else player_b_id
+
+
+def _round_rows(
+    match_id: uuid.UUID, rounds: tuple[versus_engine.RoundRecord, ...]
+) -> list[MatchRound]:
+    return [
+        MatchRound(
+            id=uuid.uuid4(),
+            match_id=match_id,
+            round_index=record.round_index,
+            question_id=uuid.UUID(record.question_id),
+            difficulty=record.difficulty,
+            seconds=record.seconds,
+            correct_index=record.correct_index,
+            a_choice=record.a_choice,
+            b_choice=record.b_choice,
+            a_ms=record.a_ms,
+            b_ms=record.b_ms,
+            a_correct=record.a_correct,
+            b_correct=record.b_correct,
+            a_points=record.a_points,
+            b_points=record.b_points,
+            a_rejected=record.a_rejected.value if record.a_rejected else None,
+            b_rejected=record.b_rejected.value if record.b_rejected else None,
+        )
+        for record in rounds
+    ]
+
+
+def _match_ceiling_seconds(config: VersusConfig) -> int:
+    """Techo de una partida: cada ronda con su ventana y una gracia por ronda."""
+    return config.rounds * (config.seconds + settings.reconnect_grace_seconds) + 60
+
+
+def _summary(match: versus_engine.MatchState, now_ms: int) -> sessions.SessionState:
+    """El resumen de la sesión, con el mismo criterio que el backfill."""
+    return sessions.SessionState(
+        ended_at=_datetime(now_ms),
+        status=_session_status(match.status),
+        score=max(match.score_a, match.score_b),
+        correct_count=sum(
+            1
+            for record in match.rounds
+            for correct in (record.a_correct, record.b_correct)
+            if correct
+        ),
+        longest_streak=max(
+            _longest_streak(record.a_correct for record in match.rounds),
+            _longest_streak(record.b_correct for record in match.rounds),
+        ),
+        max_difficulty=max(
+            (record.difficulty for record in match.rounds), default=DIFFICULTY_MIN
+        ),
+    )
+
+
+def _session_status(status: MatchStatus) -> str:
+    return {
+        MatchStatus.FINISHED: "finished",
+        MatchStatus.ABANDONED: "abandoned",
+        MatchStatus.VOID: "void",
+    }[status]
+
+
+def _participants(
+    match: versus_engine.MatchState, seats: tuple[versus_engine.Seat | None, ...]
+) -> list[sessions.ParticipantResult]:
+    """El resultado de cada silla, con el mismo criterio que el backfill."""
+    outcomes = _outcomes(match)
+    results: list[sessions.ParticipantResult] = []
+    for seat, player in enumerate(seats):
+        if player is None:
+            continue
+        results.append(
+            sessions.ParticipantResult(
+                seat=seat,
+                score=match.score_a if seat == 0 else match.score_b,
+                outcome=outcomes[seat],
+            )
+        )
+    return results
+
+
+def _outcomes(match: versus_engine.MatchState) -> tuple[str, str]:
+    if match.status is MatchStatus.FINISHED:
+        if match.winner is None:
+            return "draw", "draw"
+        if match.winner is versus_engine.Player.A:
+            return "win", "lose"
+        return "lose", "win"
+    if match.status is MatchStatus.ABANDONED:
+        return "abandoned", "abandoned"
+    return "void", "void"
+
+
+def _longest_streak(flags: Iterable[bool]) -> int:
+    best = current = 0
+    for correct in flags:
+        current = current + 1 if correct else 0
+        best = max(best, current)
+    return best
+
+
+def _history(
+    match: versus_engine.MatchState, started_at: datetime
+) -> tuple[list[sessions.ItemRecord], list[sessions.AttemptRecord]]:
+    """Reconstruye ítems e intentos contiguos desde el arranque, como el backfill.
+
+    Las tablas viejas no guardan el instante de cada ronda; el camino en vivo
+    tampoco lo necesita para auditar: lo que importa es la secuencia, los
+    puntajes y los milisegundos de cada respuesta.
+    """
+    items: list[sessions.ItemRecord] = []
+    attempts: list[sessions.AttemptRecord] = []
+    cursor = started_at
+    window_ms = 0
+
+    for record in match.rounds:
+        served_at = cursor
+        window_ms = record.seconds * 1000
+        a_elapsed = record.a_ms if record.a_ms is not None else window_ms
+        b_elapsed = record.b_ms if record.b_ms is not None else window_ms
+        closed_at = served_at + _delta_ms(max(a_elapsed, b_elapsed))
+        items.append(
+            sessions.ItemRecord(
+                item_key=str(record.round_index),
+                position=record.round_index,
+                content_id=uuid.UUID(record.question_id),
+                difficulty=record.difficulty,
+                seconds=record.seconds,
+                served_at=served_at,
+                deadline_at=served_at + _delta_ms(window_ms),
+                closed_at=closed_at,
+                solution={
+                    "v": SOLUTION_VERSION,
+                    "correct_index": record.correct_index,
+                },
+            )
+        )
+        attempts.append(
+            _attempt(
+                item_key=str(record.round_index),
+                seat=0,
+                served_at=served_at,
+                choice=record.a_choice,
+                elapsed_ms=a_elapsed,
+                correct=record.a_correct,
+                points=record.a_points,
+                rejected=record.a_rejected.value if record.a_rejected else None,
+            )
+        )
+        attempts.append(
+            _attempt(
+                item_key=str(record.round_index),
+                seat=1,
+                served_at=served_at,
+                choice=record.b_choice,
+                elapsed_ms=b_elapsed,
+                correct=record.b_correct,
+                points=record.b_points,
+                rejected=record.b_rejected.value if record.b_rejected else None,
+            )
+        )
+        cursor = closed_at
+
+    return items, attempts
+
+
+def _attempt(
+    *,
+    item_key: str,
+    seat: int,
+    served_at: datetime,
+    choice: int | None,
+    elapsed_ms: int,
+    correct: bool,
+    points: int,
+    rejected: str | None,
+) -> sessions.AttemptRecord:
+    return sessions.AttemptRecord(
+        item_key=item_key,
+        attempt_seq=0,
+        seat=seat,
+        submitted_at=served_at + _delta_ms(elapsed_ms),
+        submission={} if choice is None else {"type": "choice", "index": choice},
+        correct=correct,
+        elapsed_ms=elapsed_ms,
+        points=points,
+        rejected=rejected,
+    )
+
+
+def _delta_ms(ms: int) -> timedelta:
+    return timedelta(milliseconds=ms)
+
+
+def _system_now_ms() -> int:
+    return int(time.time() * 1000)

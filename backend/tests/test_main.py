@@ -112,7 +112,7 @@ async def test_the_lifespan_accepts_one_process_or_a_local_run(
     monkeypatch.setattr(main, "_sweep_on_startup", _no_barre)
     monkeypatch.setattr(main, "_reap_forever", _reaper_vacio)
     monkeypatch.setattr(main, "engine", _Nulo())
-    monkeypatch.setattr(main, "room_store", _Nulo())
+    monkeypatch.setattr(main, "session_store", _Nulo())
     monkeypatch.setattr(main, "redis_client", _Nulo())
 
     for entorno, declarado in (("local", False), ("prod", True)):

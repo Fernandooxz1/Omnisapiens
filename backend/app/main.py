@@ -14,8 +14,7 @@ from app.db import engine, session_factory
 from app.logging_config import configure_logging
 from app.redis import redis_client
 from app.runtime.live import Live, live_arcade_runs
-from app.runtime.room_manager import InMemoryRoomStore, room_store
-from app.runtime.session_store import session_store
+from app.runtime.session_store import InMemorySessionStore, session_store
 from app.services.reaper import sweep
 from app.ws import arcade_ws, room_ws
 
@@ -25,20 +24,20 @@ logger = logging.getLogger(__name__)
 def _check_process_scope() -> None:
     """Fuera de `local`, el despliegue tiene que declarar un solo proceso (H-07).
 
-    Con `--workers 2` cada worker tendría su propio `room_store` y su propio
-    registro de corridas vivas: dos verdades para el mismo código de sala, y dos
+    Con `--workers 2` cada worker tendría su propio store y su propio registro
+    de corridas vivas: dos verdades para el mismo código de sala, y dos
     jugadores que se ven como si el otro no hubiera llegado. Desde adentro del
     proceso no hay forma de contar los workers, así que el guard exige que quien
-    despliega lo declare; el día que exista el `RoomStore` sobre Redis esta
-    comprobación se cae sola, porque el store deja de ser el en memoria.
+    despliega lo declare; el día que exista el store sobre Redis esta
+    comprobación se cae sola, porque deja de ser el en memoria.
     """
     if settings.env == "local" or settings.single_process:
         return
-    if isinstance(room_store, InMemoryRoomStore):
+    if isinstance(session_store, InMemorySessionStore):
         raise RuntimeError(
             "ENV != local con el estado vivo en memoria: corré un solo worker "
             "(--workers 1) y declaralo con SINGLE_PROCESS=1, o implementá el "
-            "RoomStore sobre Redis (H-07 en docs/archive/backend/observaciones.md)."
+            "SessionStore sobre Redis (H-07 en docs/archive/backend/observaciones.md)."
         )
 
 
@@ -50,7 +49,7 @@ async def _sweep_once(*, startup: bool = False) -> None:
     que está jugándose.
     """
     live = Live(
-        rooms=room_store.live(),
+        rooms=session_store.live_rooms(),
         arcade_runs=live_arcade_runs.ids(),
         sessions=session_store.live(),
     )
@@ -114,9 +113,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     reaper.cancel()
     with suppress(asyncio.CancelledError):
         await reaper
-    # El estado de las salas vive en memoria: al apagar hay que cortar sus tareas
-    # de vencimiento o quedan colgadas.
-    await room_store.close()
+    # El estado de las sesiones vive en memoria: al apagar hay que cortar sus
+    # tareas de vencimiento o quedan colgadas.
+    await session_store.close()
     await engine.dispose()
     await redis_client.aclose()
 

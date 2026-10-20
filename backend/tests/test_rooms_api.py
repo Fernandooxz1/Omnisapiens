@@ -1,5 +1,6 @@
 """`POST /rooms` y `GET /rooms/{code}` contra la API y la base reales."""
 
+import asyncio
 import re
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -9,13 +10,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.game.constants import ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH
-from app.game.match_engine import MatchConfig
+from app.game.versus_engine import VersusConfig, VersusState
 from app.models import Room
-from app.runtime.room_manager import Outbox, room_store
+from app.runtime.session_store import session_store
 
 from .factories import room, user
 
 CODIGO_RE = re.compile(f"^[{ROOM_CODE_ALPHABET}]{{{ROOM_CODE_LENGTH}}}$")
+
+
+async def _sin_items(state: VersusState) -> None:
+    """La vista previa no sirve preguntas: alcanza con que la sala exista."""
+    return None
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -128,18 +134,19 @@ async def test_preview_reports_the_connected_players(
     sala = await session.scalar(select(Room).where(Room.code == creada["code"]))
     assert sala is not None
 
-    await room_store.open(
+    await session_store.open_versus(
         code=sala.code,
         room_id=str(sala.id),
-        config=MatchConfig(**sala.config),
+        config=VersusConfig(**sala.config),
         host_id=str(sala.host_user_id),
+        next_item=_sin_items,
     )
     try:
-        await room_store.join(
+        await session_store.join(
             code=sala.code,
             user_id=str(sala.host_user_id),
             nick="ana",
-            outbox=Outbox(),
+            outbox=asyncio.Queue(),
         )
 
         respuesta = await client.get(f"/rooms/{sala.code}")
@@ -147,7 +154,7 @@ async def test_preview_reports_the_connected_players(
         assert respuesta.status_code == 200
         assert respuesta.json()["players"] == 1
     finally:
-        await room_store.close()
+        await session_store.close(code=sala.code)
 
 
 async def test_preview_does_not_require_a_token(client: httpx.AsyncClient) -> None:

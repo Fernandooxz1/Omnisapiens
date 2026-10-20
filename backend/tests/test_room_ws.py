@@ -1,34 +1,50 @@
 """El WebSocket de la sala: dos clientes simulados hasta el final de la partida.
 
 Los clientes corren la app en el mismo event loop del test (`ws_client.py`), así
-el handler comparte la sesión y el reloj falso del `RoomStore`: una partida
-entera, con corte y reconexión, corre en milisegundos y sin tocar `trivia_test`.
+el handler comparte la sesión, el reloj falso y el `Random` del
+`InMemorySessionStore`: una partida entera, con corte y reconexión, corre en
+milisegundos y sin tocar `trivia_test`.
 """
 
 import asyncio
+import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 
 import pytest
 from redis.asyncio import Redis
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import rate_limit
 from app.api.deps import get_session
 from app.config import settings
 from app.main import app
-from app.models import Room, User
+from app.models import (
+    GameParticipant,
+    GameSession,
+    Match,
+    MatchRound,
+    Room,
+    SessionAttempt,
+    SessionItem,
+    User,
+)
 from app.security.tokens import create_guest_token
-from app.ws.room_ws import get_room_store
+from app.ws.room_ws import (
+    get_room_runtime,
+    get_room_session_factory,
+    get_room_store,
+)
 
-from . import test_room_manager
+from . import room_harness
 from .factories import user
-from .test_room_manager import Harness
+from .room_harness import Harness, correr
 from .ws_client import WebSocketClient, WebSocketClosed
 
-# El armado y el reloj falso son del `RoomStore`: un solo dueño, no una copia.
-abrir = test_room_manager.abrir
-sala_armada = test_room_manager.sala_armada
+# El armado y el reloj falso son del store: un solo dueño, no una copia.
+abrir = room_harness.abrir
+sala_armada = room_harness.sala_armada
 
 
 @dataclass(frozen=True)
@@ -51,6 +67,8 @@ async def api(
 
     app.dependency_overrides[get_session] = _sesion
     app.dependency_overrides[get_room_store] = lambda: harness.store
+    app.dependency_overrides[get_room_runtime] = lambda: harness.runtime
+    app.dependency_overrides[get_room_session_factory] = lambda: harness.session_factory
     try:
         yield Api(harness=harness, session=session, host=ana, guest=beto, room=fila)
     finally:
@@ -284,3 +302,129 @@ async def test_a_mute_socket_is_cut_by_inactivity(
         finally:
             tarea.cancel()
             await asyncio.gather(tarea, return_exceptions=True)
+
+
+async def test_a_complete_match_writes_the_generic_session_history(
+    api: Api, connect: Callable[..., WebSocketClient]
+) -> None:
+    async with connect(api.host) as ana, connect(api.guest) as beto:
+        await ana.until("room_state")
+        await beto.until("room_state")
+        await ana.send({"t": "start"})
+        arranque = await ana.until("match_start")
+        await beto.until("match_start")
+
+        for ronda in range(3):
+            await ana.until("round_start")
+            await beto.until("round_start")
+            await ana.send({"t": "answer", "d": {"round": ronda, "choice": 1}})
+            await beto.send({"t": "answer", "d": {"round": ronda, "choice": 0}})
+            await ana.until("round_result")
+            await beto.until("round_result")
+        await ana.until("match_end")
+        await beto.until("match_end")
+
+    match_id = uuid.UUID(arranque["d"]["match_id"])
+    partida = await api.session.get(GameSession, match_id)
+    assert partida is not None
+    assert partida.mode == "trivia_versus"
+    assert partida.content_kind == "quiz"
+    assert partida.play_format == "versus"
+    assert partida.status == "finished"
+    assert partida.room_id == api.room.id
+    assert partida.owner_user_id is None
+    assert partida.config == {"rounds": 3, "seconds": 10}
+    assert partida.score > 0
+    assert partida.correct_count == 3
+    assert partida.longest_streak == 3
+    assert partida.ended_at is not None
+
+    sillas = (
+        await api.session.scalars(
+            select(GameParticipant)
+            .where(GameParticipant.session_id == match_id)
+            .order_by(GameParticipant.seat)
+        )
+    ).all()
+    assert [(silla.seat, silla.user_id) for silla in sillas] == [
+        (0, api.host.id),
+        (1, api.guest.id),
+    ]
+    assert [silla.score for silla in sillas] == [partida.score, 0]
+    assert [silla.outcome for silla in sillas] == ["win", "lose"]
+
+    items = (
+        await api.session.scalars(
+            select(SessionItem)
+            .where(SessionItem.session_id == match_id)
+            .order_by(SessionItem.position)
+        )
+    ).all()
+    assert [item.item_key for item in items] == ["0", "1", "2"]
+    assert all(item.content_id is not None for item in items)
+    assert all(item.solution_snapshot["v"] == 1 for item in items)
+
+    intentos = (
+        await api.session.scalars(
+            select(SessionAttempt)
+            .join(SessionItem, SessionAttempt.item_id == SessionItem.id)
+            .where(SessionItem.session_id == match_id)
+        )
+    ).all()
+    assert len(intentos) == 6
+    assert sum(1 for intento in intentos if intento.correct) == 3
+
+    # La tabla vieja sigue escribiéndose hasta la fase 10.
+    vieja = await api.session.get(Match, match_id)
+    assert vieja is not None
+    assert vieja.status == "finished"
+    assert vieja.winner_id == api.host.id
+    rondas = (
+        await api.session.scalars(
+            select(MatchRound).where(MatchRound.match_id == match_id)
+        )
+    ).all()
+    assert len(rondas) == 3
+
+
+async def test_an_abandoned_match_is_closed_for_both_players(
+    api: Api, connect: Callable[..., WebSocketClient]
+) -> None:
+    async with connect(api.host) as ana:
+        await ana.until("room_state")
+        async with connect(api.guest) as beto:
+            await ana.until("room_state")
+            await beto.until("room_state")
+            await ana.send({"t": "start"})
+            arranque = await ana.until("match_start")
+            await beto.until("match_start")
+            await ana.until("round_start")
+            await beto.until("round_start")
+
+        assert (await ana.until("reconnect_pending"))["d"]["seconds_left"] == 20
+        await correr(api.harness, 20_000)
+        fin = await ana.until("match_end")
+        assert fin["d"]["reason"] == "abandoned"
+
+    match_id = uuid.UUID(arranque["d"]["match_id"])
+    partida = await api.session.get(GameSession, match_id)
+    assert partida is not None
+    assert partida.status == "abandoned"
+    assert partida.ended_at is not None
+    assert partida.score == 0
+    sillas = (
+        await api.session.scalars(
+            select(GameParticipant).where(GameParticipant.session_id == match_id)
+        )
+    ).all()
+    assert {silla.outcome for silla in sillas} == {"abandoned"}
+
+    vieja = await api.session.get(Match, match_id)
+    assert vieja is not None
+    assert vieja.status == "abandoned"
+    assert vieja.winner_id == api.host.id
+
+    # Al irse uno de una sala terminada, vuelve al lobby en la base.
+    sala = await api.session.get(Room, api.room.id)
+    assert sala is not None
+    assert sala.status == "waiting"

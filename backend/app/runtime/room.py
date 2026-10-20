@@ -4,8 +4,9 @@ Una sala es una máquina de estados: lobby, partida, desempate, ventana de
 reconexión y revancha. Acá vive **solo la lógica**: no hay sockets, ni base, ni
 `time.time()`, ni `asyncio`. Cada transición recibe el instante (`now_ms`) y lo ya
 cargado (la pregunta, el id del match) y devuelve el estado nuevo más los mensajes
-a mandar. El reloj, el lock y la entrega son del `RoomStore` (`room_manager.py`),
-igual que `services/questions.py` decide y `question_bank.py` toca la base.
+a mandar. Quedó como referencia de las transiciones viejas: desde la fase 5.2 el
+camino en vivo usa `versus_engine` y `session_store.py`; este módulo se borra en
+5.3, junto con su `RoomStore` (`room_manager.py`).
 
 Dos decisiones se ven en los tipos:
 

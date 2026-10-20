@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
 from app.config import settings
-from app.game.match_engine import MatchConfig
 from app.main import app
 from app.models import Room, User
 from app.runtime.session_store import InMemorySessionStore
@@ -27,15 +26,19 @@ from app.ws.arcade_ws import (
     get_arcade_runtime,
     get_session_store,
 )
-from app.ws.room_ws import get_room_store
+from app.ws.room_ws import (
+    get_room_runtime,
+    get_room_session_factory,
+    get_room_store,
+)
 
-from . import test_room_manager
+from . import room_harness
 from .clock import FakeClock
 from .factories import quiz_content, room, user
-from .test_room_manager import Harness
+from .room_harness import Harness
 from .ws_client import WebSocketClient
 
-abrir = test_room_manager.abrir
+abrir = room_harness.abrir
 
 
 @dataclass(frozen=True)
@@ -135,18 +138,14 @@ async def room_api(
             )
         )
     await session.flush()
-    await harness.store.open(
-        code=fila.code,
-        room_id=str(fila.id),
-        config=MatchConfig(rounds=3, seconds=10),
-        host_id=str(ana.id),
-    )
 
     async def _sesion() -> AsyncIterator[AsyncSession]:
         yield session
 
     app.dependency_overrides[get_session] = _sesion
     app.dependency_overrides[get_room_store] = lambda: harness.store
+    app.dependency_overrides[get_room_runtime] = lambda: harness.runtime
+    app.dependency_overrides[get_room_session_factory] = lambda: harness.session_factory
     try:
         yield RoomApi(harness=harness, session=session, host=ana, guest=beto, room=fila)
     finally:

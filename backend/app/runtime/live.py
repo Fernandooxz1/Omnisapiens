@@ -11,9 +11,9 @@ la base no sabe nada de las conexiones. Sin esta vista:
 Con las sesiones genéricas pasa lo mismo: una sesión `playing` con un socket del
 otro lado no se puede invalidar a mitad de partida.
 
-Es de un solo proceso a propósito, igual que `InMemoryRoomStore`: el día que haya
-más instancias, cada barrido solo ve lo suyo y este registro se muda a Redis con
-el resto del estado vivo.
+Es de un solo proceso a propósito, igual que `InMemorySessionStore`: el día que
+haya más instancias, cada barrido solo ve lo suyo y este registro se muda a
+Redis con el resto del estado vivo.
 """
 
 import uuid

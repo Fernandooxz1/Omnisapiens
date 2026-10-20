@@ -6,7 +6,7 @@ from app.api.deps import CurrentUserDep, SessionDep
 from app.api.errors import ApiError
 from app.api.rate_limit import room_rate_limit
 from app.models import User
-from app.runtime.room_manager import room_store
+from app.runtime.session_store import session_store
 from app.schemas.rooms import RoomCreate, RoomOut, RoomPreview
 from app.services.rooms import create_room, get_by_code, room_is_available
 
@@ -36,5 +36,5 @@ async def room_preview(code: str, session: SessionDep) -> RoomPreview:
         config=sala.config,
         host_nick=host.nick if host is not None else None,
         expires_at=sala.expires_at,
-        players=room_store.player_count(sala.code),
+        players=session_store.player_count(sala.code),
     )

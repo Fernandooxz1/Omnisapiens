@@ -36,6 +36,7 @@ from app.game.constants import CHOICES
 from app.game.errors import InvalidTransition
 from app.game.solo_engine import RoundRecord, SoloEngine, SoloRules, SoloRun
 from app.game.versus_engine import VersusConfig, VersusState
+from app.runtime.live import LiveRooms
 from app.services.question_bank import LoadedQuestion, shuffle_options
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ Effects = tuple[protocols.Message, ...]
 
 # Tope por conexión: un cliente que deja de leer no puede hacer crecer la cola
 # sin fin (H-13). Si se llena se descarta lo más viejo; la conexión la corta el
-# timeout de inactividad. Es el mismo criterio que `room_manager.OUTBOX_MAX`.
+# timeout de inactividad. Es el mismo criterio que usa el borde del arcade.
 OUTBOX_MAX = 64
 
 # El reloj de una sesión versus no puede morir con el primer error transitorio
@@ -91,6 +92,13 @@ ItemSource = Callable[[SoloRun, frozenset[str]], Awaitable[NextQuestion | None]]
 # En versus el pool depende de la partida (tramo de dificultad y preguntas ya
 # vistas), así que el borde recibe el estado completo y devuelve la pregunta.
 VersusItemSource = Callable[[VersusState], Awaitable[LoadedQuestion | None]]
+
+# El borde persiste la partida: el store avisa cuando empieza una y cuando
+# termina, con el instante que ya usó para juzgar. Así la fila no depende de un
+# reloj leído después. Un arranque que falle revierte; un cierre que falle deja
+# la fila para el barrendero y el jugador igual ve su final.
+VersusMatchHandler = Callable[[VersusState, int], Awaitable[None]]
+VersusRoomHandler = Callable[[VersusState, int], Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -234,8 +242,16 @@ class VersusSessionStore(Protocol):
         config: VersusConfig,
         host_id: str,
         next_item: VersusItemSource,
+        on_match_start: VersusMatchHandler | None = None,
+        on_match_end: VersusMatchHandler | None = None,
+        on_room_reopened: VersusRoomHandler | None = None,
     ) -> None:
-        """Da de alta la sala viva. Idempotente: reconectar no la reinicia."""
+        """Da de alta la sala viva. Idempotente: reconectar no la reinicia.
+
+        El borde actualiza la fuente de ítems y los cierres en cada conexión: la
+        sala sigue, pero la próxima pregunta y la persistencia las hace el
+        handler nuevo.
+        """
         ...
 
     async def join(self, *, code: str, user_id: str, nick: str, outbox: Outbox) -> None:
@@ -292,6 +308,10 @@ class VersusSessionStore(Protocol):
         """Las partidas versus en curso, para que el barrido no las invalide."""
         ...
 
+    def live_rooms(self) -> LiveRooms:
+        """Las salas con presencia y sus partidas en curso (barrido de salas)."""
+        ...
+
     def versus_sessions(self) -> Mapping[str, VersusSessionView]:
         """Las salas versus que este proceso tiene en memoria, en una foto."""
         ...
@@ -325,6 +345,9 @@ class _Versus:
     room_id: str
     state: VersusState
     next_item: VersusItemSource
+    on_match_start: VersusMatchHandler | None = None
+    on_match_end: VersusMatchHandler | None = None
+    on_room_reopened: VersusRoomHandler | None = None
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     outboxes: dict[str, Outbox] = field(default_factory=dict)
     # Despierta a la tarea de vencimientos cuando cambió el estado: así no hay
@@ -478,6 +501,26 @@ class InMemorySessionStore:
         }
         return frozenset(sessions | matches)
 
+    def live_rooms(self) -> LiveRooms:
+        """Las salas con alguna conexión y las partidas versus en curso.
+
+        Es la vista que necesita el barrido de salas: una `waiting` con gente
+        conectada no se expira, y una `matches` viva no se anula.
+        """
+        rooms = {
+            uuid.UUID(entry.room_id)
+            for entry in self._versus.values()
+            if entry.outboxes
+        }
+        matches = {
+            uuid.UUID(entry.state.match_id)
+            for entry in self._versus.values()
+            if entry.state.match_id is not None
+            and entry.state.match is not None
+            and entry.state.match.status is versus_engine.MatchStatus.PLAYING
+        }
+        return LiveRooms(room_ids=frozenset(rooms), match_ids=frozenset(matches))
+
     def sessions(self) -> Mapping[str, SoloSessionView]:
         return {
             session_id: SoloSessionView(
@@ -497,13 +540,20 @@ class InMemorySessionStore:
         config: VersusConfig,
         host_id: str,
         next_item: VersusItemSource,
+        on_match_start: VersusMatchHandler | None = None,
+        on_match_end: VersusMatchHandler | None = None,
+        on_room_reopened: VersusRoomHandler | None = None,
     ) -> None:
         """Da de alta la sala viva. Idempotente: reconectar no la reinicia."""
         actual = self._versus.get(code)
         if actual is not None and not self._versus_evictable(actual):
-            # El handler nuevo puede traer otro `ItemSource` (otra sesión de
-            # base): la sala sigue, pero la próxima pregunta la carga este.
+            # El handler nuevo trae otro `ItemSource` y otros cierres (otra
+            # sesión de base): la sala sigue, pero la próxima pregunta y la
+            # persistencia las hace este.
             actual.next_item = next_item
+            actual.on_match_start = on_match_start
+            actual.on_match_end = on_match_end
+            actual.on_room_reopened = on_room_reopened
             return
         if actual is not None:
             self._versus.pop(code, None)
@@ -514,6 +564,9 @@ class InMemorySessionStore:
             room_id=room_id,
             state=VersusState(code=code, config=config, host_id=host_id),
             next_item=next_item,
+            on_match_start=on_match_start,
+            on_match_end=on_match_end,
+            on_room_reopened=on_room_reopened,
             last_activity_ms=self._now_ms(),
         )
         self._versus[code] = entry
@@ -687,6 +740,27 @@ class InMemorySessionStore:
         entry.last_activity_ms = self._now_ms()
         after, effects = transition(before)
         entry.state = after
+        now_ms = self._now_ms()
+        if _match_started(before, after) and entry.on_match_start is not None:
+            try:
+                await entry.on_match_start(after, now_ms)
+            except Exception:
+                # Sin fila no se juega: el cliente puede reintentar el arranque.
+                entry.state = before
+                entry.wakeup.set()
+                raise
+        elif _match_ended(before, after) and entry.on_match_end is not None:
+            try:
+                await entry.on_match_end(after, now_ms)
+            except Exception:
+                # La partida ya terminó: el jugador ve su final y la fila queda
+                # `playing` para que el barrendero la invalide.
+                logger.exception("la partida %s no se pudo cerrar", after.match_id)
+        if _room_reopened(before, after) and entry.on_room_reopened is not None:
+            try:
+                await entry.on_room_reopened(after, now_ms)
+            except Exception:
+                logger.exception("la sala %s no se pudo reabrir", entry.code)
         await self._deliver_versus(entry, effects)
         try:
             # La revelación se ve antes de que corra el reloj de la próxima ronda:
@@ -1098,6 +1172,36 @@ def _deadline(state: SoloState) -> int | None:
     if state.round is None:
         return None
     return state.round.served.ends_at_ms
+
+
+def _match_started(before: VersusState, after: VersusState) -> bool:
+    """Arrancó una partida nueva (o una revancha), no una transición cualquiera."""
+    return (
+        after.match is not None
+        and after.match.status is versus_engine.MatchStatus.PLAYING
+        and (before.match is None or before.match_id != after.match_id)
+    )
+
+
+def _match_ended(before: VersusState, after: VersusState) -> bool:
+    """La partida pasó de `playing` a cualquiera de sus finales."""
+    return (
+        before.match is not None
+        and before.match.status is versus_engine.MatchStatus.PLAYING
+        and (
+            after.match is None
+            or after.match.status is not versus_engine.MatchStatus.PLAYING
+        )
+    )
+
+
+def _room_reopened(before: VersusState, after: VersusState) -> bool:
+    """Una sala terminada vuelve al lobby cuando se va uno de los dos."""
+    return (
+        before.status is versus_engine.VersusStatus.FINISHED
+        and after.status is versus_engine.VersusStatus.WAITING
+        and after.match is None
+    )
 
 
 def _versus_deadline(state: VersusState) -> int | None:

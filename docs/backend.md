@@ -103,6 +103,12 @@ desde 4.3, tampoco existen los módulos viejos (`game/arcade_engine.py`,
 viven en `game/modes/arcade.py` y las tablas quedan de solo lectura hasta la
 fase 10.
 
+El versus escribe acá desde 5.2: `/ws/room` arranca la sesión con
+`mode='trivia_versus'` y `play_format='versus'`, y la cierra con los ítems y los
+intentos de las dos sillas. El historial se reconstruye contiguo desde
+`started_at`, igual que el backfill; el `id` de la sesión es el de la partida,
+así la fila vieja de `matches` y la genérica se corresponden uno a uno.
+
 ## Sesiones en vivo
 
 `app/runtime/session_store.py` es el estado vivo de las sesiones: los contratos
@@ -159,12 +165,28 @@ las dataclasses de `protocols` y el borde las manda.
   servir la ronda siguiente cuando la fuente de ítems falló. El reloj inyectado hace
   que una partida entera corra en microsegundos en los tests.
 - `live()` suma los ids de las partidas versus en curso para que el barrido no las
-  invalide. La fila genérica se escribe en el borde (5.2).
+  invalide; `live_rooms()` da la vista de salas que necesita el barrido de `rooms`.
+
+Desde 5.2 `/ws/room` usa el store directo (`runtime/room_manager.py` ya no existe)
+y es el borde el que hace lo que antes hacía el manager:
+
+- Elige y carga la pregunta con el tramo de dificultad y las ya vistas (el store
+  baraja las opciones y calcula el `ends_at`).
+- Persiste el arranque y el cierre de la sesión genérica. El store avisa con
+  `on_match_start`/`on_match_end` y el borde abre su propia sesión de base: el
+  vencimiento puede cerrar la partida después de que el handler se haya ido.
+  `game_sessions` usa el id de la partida y `config={rounds, seconds}`,
+  `mode='trivia_versus'` y `play_format='versus'`; ítems e intentos se reconstruyen
+  contiguos desde `started_at` con el mismo criterio que el backfill. Los dos
+  participantes llevan su puntaje y `win`/`lose`/`draw`/`abandoned`/`void`.
+- Sigue escribiendo `matches`/`match_rounds` hasta 5.3, cuando queden de solo
+  lectura hasta la fase 10; `rooms` sigue siendo la tabla del lobby. `on_match_start`
+  revierte el arranque si la fila no se pudo escribir; un cierre que falla deja la
+  sesión `playing` para el barrendero.
 
 El protocolo del cliente no cambia: `room_state`, `match_start`, `round_start`,
 `opponent_answered`, `round_result`, `match_end`, `error` y los de reconexión siguen
-siendo los mismos. Hasta 5.2, `/ws/room` sigue pasando por `runtime/room_manager.py`;
-el store nuevo ya corre el motor y las sillas en tests.
+siendo los mismos.
 
 ## Convenciones
 

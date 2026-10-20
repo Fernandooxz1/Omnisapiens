@@ -120,6 +120,10 @@ el tramo de dificultad, el desempate con tope de 3, el abandono, el `void` y la 
 viven ahí. `InMemorySessionStore` aplica ese motor con lock por sala, `outbox` por
 silla, gracia y pausa del reloj, y entrega los mensajes actuales (`room_state`,
 `match_start`, `round_start`, `round_result`, `match_end`, …) sin serializar nada.
+Desde 5.2 el borde `/ws/room` usa el store directo: elige y carga la pregunta y
+persiste `game_sessions` (ítems, intentos y participantes) con el id de la
+partida. `room_manager.py` desaparece; `matches`/`match_rounds` se siguen
+escribiendo desde el borde hasta 5.3, y `rooms` sigue siendo la tabla del lobby.
 
 ### 3.4 `Progression` y `ScoringPolicy`
 
