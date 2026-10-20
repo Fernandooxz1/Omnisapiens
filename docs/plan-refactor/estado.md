@@ -5,11 +5,11 @@
 
 ```yaml
 activo: true
-fase: 7
-tarea: "7.3"
-rol: frontend
+fase: 8
+tarea: "8.1"
+rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: a36ee38
+ultimo_commit: 498c87d
 fecha: 2026-10-20
 bloqueo: ""
 ```
@@ -25,7 +25,7 @@ bloqueo: ""
 | 4 | Port del arcade | backend | 4.1 – 4.3 | hecho |
 | 5 | Port del 1v1 | backend | 5.1 – 5.3 | hecho |
 | 6 | Registro y rutas genéricas | backend | 6.1 – 6.3 | hecho |
-| 7 | Frontend multi-modo | frontend | 7.1 – 7.3 | pendiente |
+| 7 | Frontend multi-modo | frontend | 7.1 – 7.3 | hecho |
 | 8 | Rosco (**opcional**) | backend + frontend | 8.1 – 8.5 | pendiente |
 | 9 | Medios (**opcional**) | backend + frontend | 9.1 – 9.4 | pendiente |
 | 10 | Cierre | backend | 10.1 – 10.2 | pendiente |
@@ -59,3 +59,4 @@ bloqueo: ""
 | 2026-10-20 | 6.3 | `7d994a1` | Contrato multi-modo documentado (catálogo, `POST /sessions`, protocolo canónico, ranking por modo y errores), matriz de compatibilidad con la ventana de cada alias y tests de paridad en `test_api_compat.py`; `dual-write` eliminado de `api.md`. Tag `refactor-fase-6`. Próxima: 7.1. |
 | 2026-10-20 | 7.1 | `db10e8d` | `fetchModes()` y registry por `code` (ruta, renderer, orden y textos); la home arma los botones desde `GET /modes`, deshabilita los modos sin renderer y muestra el ranking solo si alguno publica tabla. Próxima: 7.2. |
 | 2026-10-20 | 7.2 | `a36ee38` | `/play/[mode]` monta el renderer del registry: `ArcadeScreen` y `VersusScreen` (lobby + sala) viven en `src/lib/modes/`; `/arcade` y `/play` redirigen y la sala sigue en `/room/{code}`. Próxima: 7.3. |
+| 2026-10-20 | 7.3 | `498c87d` | Arcade sobre el canal canónico (`POST /sessions` + `WS /ws/session/{id}`) sin badge de categoría; e2e nuevas de catálogo y rutas `/play/trivia_*`; `/arcade` y `/play` retiradas. Tag `refactor-fase-7`. Próxima: 8.1 (opcional). |
