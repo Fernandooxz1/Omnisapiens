@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 7
-tarea: "7.2"
+tarea: "7.3"
 rol: frontend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: db10e8d
+ultimo_commit: a36ee38
 fecha: 2026-10-20
 bloqueo: ""
 ```
@@ -58,3 +58,4 @@ bloqueo: ""
 | 2026-10-20 | 6.2 | `892070d` | `POST /sessions` valida modo, formato solo y `config_schema`; `WS /ws/session/{id}` juega con el protocolo canónico (`session_start`/`item_start`/`item_result`/`session_end`/`session_state`) sobre el mismo store, con presentador inyectable. El arcade viejo queda como adaptador y el golden no cambia. Próxima: 6.3. |
 | 2026-10-20 | 6.3 | `7d994a1` | Contrato multi-modo documentado (catálogo, `POST /sessions`, protocolo canónico, ranking por modo y errores), matriz de compatibilidad con la ventana de cada alias y tests de paridad en `test_api_compat.py`; `dual-write` eliminado de `api.md`. Tag `refactor-fase-6`. Próxima: 7.1. |
 | 2026-10-20 | 7.1 | `db10e8d` | `fetchModes()` y registry por `code` (ruta, renderer, orden y textos); la home arma los botones desde `GET /modes`, deshabilita los modos sin renderer y muestra el ranking solo si alguno publica tabla. Próxima: 7.2. |
+| 2026-10-20 | 7.2 | `a36ee38` | `/play/[mode]` monta el renderer del registry: `ArcadeScreen` y `VersusScreen` (lobby + sala) viven en `src/lib/modes/`; `/arcade` y `/play` redirigen y la sala sigue en `/room/{code}`. Próxima: 7.3. |
