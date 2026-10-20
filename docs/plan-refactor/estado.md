@@ -5,11 +5,11 @@
 
 ```yaml
 activo: true
-fase: 8
-tarea: "8.1"
+fase: 10
+tarea: "10.2"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 498c87d
+ultimo_commit: 13c46a8
 fecha: 2026-10-20
 bloqueo: ""
 ```
@@ -28,7 +28,7 @@ bloqueo: ""
 | 7 | Frontend multi-modo | frontend | 7.1 – 7.3 | hecho |
 | 8 | Rosco (**opcional**) | backend + frontend | 8.1 – 8.5 | pendiente |
 | 9 | Medios (**opcional**) | backend + frontend | 9.1 – 9.4 | pendiente |
-| 10 | Cierre | backend | 10.1 – 10.2 | pendiente |
+| 10 | Cierre | backend | 10.1 – 10.2 | en curso |
 
 ## Historial
 
@@ -61,3 +61,4 @@ bloqueo: ""
 | 2026-10-20 | 7.2 | `a36ee38` | `/play/[mode]` monta el renderer del registry: `ArcadeScreen` y `VersusScreen` (lobby + sala) viven en `src/lib/modes/`; `/arcade` y `/play` redirigen y la sala sigue en `/room/{code}`. Próxima: 7.3. |
 | 2026-10-20 | 7.3 | `498c87d` | Arcade sobre el canal canónico (`POST /sessions` + `WS /ws/session/{id}`) sin badge de categoría; e2e nuevas de catálogo y rutas `/play/trivia_*`; `/arcade` y `/play` retiradas. Tag `refactor-fase-7`. Próxima: 8.1 (opcional). |
 | 2026-10-20 | — | `2c52e3e` | Pulido frontend: «partida» en la copia, repaso final plegable, corte de sesión honesto, esqueleto/reintento del catálogo y redirects viejos restaurados. Brief backend en `docs/prompts/backend-partida.md`. Próxima: 8.1 (opcional). |
+| 2026-10-20 | 10.1 | `0006` | Migración `0006` dropea `questions`, `matches`, `match_rounds`, `arcade_runs` y `arcade_answers`; `/me`, el barrendero y el ranking leen `game_sessions`. Próxima: 10.2. |

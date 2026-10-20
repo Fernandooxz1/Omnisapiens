@@ -217,8 +217,8 @@ contenido genérico no las guarda: salen `null` y `[]`.
 
 **`POST /admin/content/{kind}`** — `multipart/form-data`: `file` (CSV o JSON según
 extensión) y `status` opcional (`draft` por defecto). Escribe siempre en
-`content_items`/`content_solutions`; la tabla vieja `questions` ya no recibe escrituras
-(queda de solo lectura hasta la fase 10).
+`content_items`/`content_solutions`; desde la fase 10 la tabla vieja `questions` ya no
+existe.
 
 ```json
 { "total": 12, "imported": 10, "duplicated": 1,
@@ -360,8 +360,9 @@ cliente no cambia ningún payload.
 | `POST /admin/content/{kind}/import` | `POST /admin/content/{kind}` | mismo informe; ruta aceptada pero fuera del OpenAPI | se mantiene después de la fase 10 |
 | `WS /ws/arcade` + `arcade_start/question/result/end` | `WS /ws/session/{id}` + `session_start/item_start/item_result/session_end` | mismo motor y transcripts dorados | hasta la fase 7.3, cuando el cliente pasa al canal nuevo |
 
-- Los alias HTTP no dependen de las tablas viejas (`questions`, `arcade_runs`, `matches`):
-  por eso sobreviven al retiro de esas tablas en la fase 10.
+- Los alias HTTP no dependen de las tablas viejas: leen `content_items` y
+  `game_sessions`, por eso sobreviven al retiro de `questions`, `arcade_runs` y
+  `matches` en la fase 10.
 - Cada socket habla **un solo** protocolo: los mensajes `arcade_*` no aparecen en
   `/ws/session/{id}` y los canónicos no aparecen en `/ws/arcade`.
 - El 1v1 no tiene todavía un canal canónico: `WS /ws/room/{code}` con sus mensajes

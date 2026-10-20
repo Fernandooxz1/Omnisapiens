@@ -6,11 +6,11 @@ from datetime import UTC, datetime, timedelta
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ArcadeRun, Match, User
+from app.models import GameSession, User
 from app.security.tokens import create_guest_token, read_guest_token
 from app.services.leaderboard import week_start
 
-from .factories import arcade_run, match, user
+from .factories import game_participant, game_session, user
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -30,9 +30,9 @@ async def _jugador(session: AsyncSession, nick: str, **overrides: object) -> Use
 
 def _finished(
     usuario: User, *, score: int, ended_at: datetime, status: str = "finished"
-) -> ArcadeRun:
-    return arcade_run(
-        usuario.id,
+) -> GameSession:
+    return game_session(
+        owner_user_id=usuario.id,
         score=score,
         correct_count=5,
         longest_streak=3,
@@ -42,7 +42,8 @@ def _finished(
     )
 
 
-def _duel(
+async def _duel(
+    session: AsyncSession,
     a: User,
     b: User,
     *,
@@ -51,16 +52,37 @@ def _duel(
     score_b: int,
     winner: User | None,
     status: str = "finished",
-) -> Match:
-    return match(
-        a.id,
-        b.id,
+) -> None:
+    """Guarda la sesión y sus dos sillas: el perfil lee los puntajes de las sillas.
+
+    La sesión se flushea antes que las sillas porque no hay `relationship()`
+    entre los dos modelos y el orden de las tablas no basta para el `INSERT`.
+    """
+    if status != "finished":
+        outcome_a = outcome_b = "abandoned"
+    elif winner is None:
+        outcome_a = outcome_b = "draw"
+    else:
+        outcome_a = "win" if winner.id == a.id else "lose"
+        outcome_b = "win" if winner.id == b.id else "lose"
+    partida = game_session(
+        mode="trivia_versus",
+        play_format="versus",
         status=status,
-        score_a=score_a,
-        score_b=score_b,
-        winner_id=None if winner is None else winner.id,
         started_at=ended_at - timedelta(minutes=5),
         ended_at=ended_at,
+    )
+    session.add(partida)
+    await session.flush()
+    session.add_all(
+        [
+            game_participant(
+                partida.id, a.id, seat=0, score=score_a, outcome=outcome_a
+            ),
+            game_participant(
+                partida.id, b.id, seat=1, score=score_b, outcome=outcome_b
+            ),
+        ]
     )
 
 
@@ -273,7 +295,7 @@ async def test_best_marks_are_the_maximum_of_all_time_and_this_week(
             _finished(ana, score=400, ended_at=lunes),
             _finished(ana, score=700, ended_at=ahora),
             # Ni una en curso ni una invalidada son marcas.
-            arcade_run(ana.id, score=9_999, started_at=ahora),
+            game_session(owner_user_id=ana.id, score=9_999, started_at=ahora),
             _finished(ana, score=8_888, ended_at=ahora, status="invalid"),
         ]
     )
@@ -299,7 +321,7 @@ async def test_arcade_history_is_the_latest_ten_finished_runs_of_the_player(
     session.add_all(
         [
             _finished(ana, score=9_000, ended_at=ahora, status="invalid"),
-            arcade_run(ana.id, score=9_001, started_at=ahora),
+            game_session(owner_user_id=ana.id, score=9_001, started_at=ahora),
             _finished(beto, score=9_002, ended_at=ahora),
         ]
     )
@@ -327,53 +349,54 @@ async def test_match_history_shows_the_rival_and_the_result_from_my_side(
     beto = await _jugador(session, "beto")
     caro = await _jugador(session, "caro")
     ahora = datetime.now(UTC)
-    session.add_all(
-        [
-            _duel(
-                ana,
-                beto,
-                ended_at=ahora - timedelta(hours=1),
-                score_a=700,
-                score_b=500,
-                winner=ana,
-            ),
-            # Ana es la jugadora B: el `CASE` tiene que dar vuelta los puntajes.
-            _duel(
-                beto,
-                ana,
-                ended_at=ahora,
-                score_a=300,
-                score_b=600,
-                winner=ana,
-            ),
-            # Terminada sin ganador: empate.
-            _duel(
-                caro,
-                ana,
-                ended_at=ahora - timedelta(hours=2),
-                score_a=450,
-                score_b=450,
-                winner=None,
-            ),
-            # Abandonada y una ajena: las dos quedan afuera.
-            _duel(
-                ana,
-                beto,
-                ended_at=ahora - timedelta(hours=3),
-                score_a=100,
-                score_b=100,
-                winner=None,
-                status="abandoned",
-            ),
-            _duel(
-                beto,
-                caro,
-                ended_at=ahora - timedelta(hours=4),
-                score_a=800,
-                score_b=200,
-                winner=beto,
-            ),
-        ]
+    await _duel(
+        session,
+        ana,
+        beto,
+        ended_at=ahora - timedelta(hours=1),
+        score_a=700,
+        score_b=500,
+        winner=ana,
+    )
+    # Ana es la jugadora B: el `JOIN` tiene que dar vuelta los puntajes.
+    await _duel(
+        session,
+        beto,
+        ana,
+        ended_at=ahora,
+        score_a=300,
+        score_b=600,
+        winner=ana,
+    )
+    # Terminada sin ganador: empate.
+    await _duel(
+        session,
+        caro,
+        ana,
+        ended_at=ahora - timedelta(hours=2),
+        score_a=450,
+        score_b=450,
+        winner=None,
+    )
+    # Abandonada y una ajena: las dos quedan afuera.
+    await _duel(
+        session,
+        ana,
+        beto,
+        ended_at=ahora - timedelta(hours=3),
+        score_a=100,
+        score_b=100,
+        winner=None,
+        status="abandoned",
+    )
+    await _duel(
+        session,
+        beto,
+        caro,
+        ended_at=ahora - timedelta(hours=4),
+        score_a=800,
+        score_b=200,
+        winner=beto,
     )
     await session.flush()
 

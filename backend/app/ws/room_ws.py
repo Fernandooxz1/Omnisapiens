@@ -3,9 +3,7 @@
 Es el controlador del canal en vivo. La sala la decide `runtime/session_store`
 (sillas, gracia, pausa, vencimientos y entrega); acá viven el socket, la elección
 y carga de la pregunta, y la escritura de la sesión genérica de `game_sessions`
-con su historial. Las tablas viejas (`matches`/`match_rounds`) ya no reciben
-escrituras: quedan de solo lectura hasta la fase 10. `rooms` sigue siendo el
-lobby y el borde mantiene su estado.
+con su historial. `rooms` sigue siendo el lobby y el borde mantiene su estado.
 
 Tres cosas que sorprenden a primera vista:
 

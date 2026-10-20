@@ -129,15 +129,21 @@ declaración deja de hacer falta y se levanta sin tocar el resto.
 Convenciones: `snake_case`; PK `uuid` con `default=uuid.uuid4` en Python; timestamps
 `timestamptz` UTC con `server_default=now()`.
 
+> **Estado desde la fase 10.** Las tablas `questions`, `matches`, `match_rounds`,
+> `arcade_runs` y `arcade_answers` se dropearon en la migración `0006`. El esquema
+> vigente del historial es `game_sessions` + `game_participants` + `session_items` +
+> `session_attempts`; el banco es `content_items` + `content_solutions`. Las filas de
+> abajo quedan como registro de la primera versión, no como esquema actual.
+
 | Tabla | Integridad | Índices |
 |---|---|---|
 | `users` | PK uuid; `nick` 1–16; `email`/`provider` nulos; `deleted_at` para borrado lógico | único parcial de `nick` entre vivos (funcional sobre `lower(nick)`) |
-| `questions` | `category` en 6; `difficulty` 1–5; `prompt` ≤ 300; `options` jsonb de 4; `correct_index` 0–3; `status` draft/published/archived; `content_hash` único; `media_type` none/image/audio con "si no es none, `media_url` no es nulo" | `(status, category, difficulty)`; único en `content_hash` |
+| `questions` *(retirada en 0006)* | `category` en 6; `difficulty` 1–5; `prompt` ≤ 300; `options` jsonb de 4; `correct_index` 0–3; `status` draft/published/archived; `content_hash` único; `media_type` none/image/audio con "si no es none, `media_url` no es nulo" | `(status, category, difficulty)`; único en `content_hash` |
 | `rooms` | `host_user_id` FK (**el creador es el host**); `code` varchar(6) único con `CHECK` del alfabeto; `config` jsonb; `status` waiting/playing/finished/expired | `(status, expires_at)`; `host_user_id` |
-| `matches` | FK a `rooms` (`SET NULL`) y a los dos jugadores; `config` jsonb; `status` playing/finished/abandoned/void; `winner_id` nulo en empate/void; scores ≥ 0 | `(status, started_at)`, `player_a_id`, `player_b_id` |
-| `match_rounds` | FK `CASCADE`; único `(match_id, round_index)`; elecciones 0–3 o nulas; `ms` ≥ 0; `points` ≥ 0; + `correct_index`, `difficulty`, `seconds` | FKs |
-| `arcade_runs` | FK a `users`; `score`, `correct_count`, `max_difficulty`, `longest_streak` (≤ `correct_count`); `status` playing/finished/invalid; `ended_at` nulo ⇔ `playing` | `(user_id, score DESC)`, `(score DESC)`, `(ended_at)`, los tres **parciales** `WHERE status='finished'` |
-| `arcade_answers` | FK `CASCADE`; único `(run_id, round_index)`; `chosen_index` nulo si no contestó; `is_correct`, `ms`, `points`, `rejected` | FKs |
+| `matches` *(retirada en 0006)* | FK a `rooms` (`SET NULL`) y a los dos jugadores; `config` jsonb; `status` playing/finished/abandoned/void; `winner_id` nulo en empate/void; scores ≥ 0 | `(status, started_at)`, `player_a_id`, `player_b_id` |
+| `match_rounds` *(retirada en 0006)* | FK `CASCADE`; único `(match_id, round_index)`; elecciones 0–3 o nulas; `ms` ≥ 0; `points` ≥ 0; + `correct_index`, `difficulty`, `seconds` | FKs |
+| `arcade_runs` *(retirada en 0006)* | FK a `users`; `score`, `correct_count`, `max_difficulty`, `longest_streak` (≤ `correct_count`); `status` playing/finished/invalid; `ended_at` nulo ⇔ `playing` | `(user_id, score DESC)`, `(score DESC)`, `(ended_at)`, los tres **parciales** `WHERE status='finished'` |
+| `arcade_answers` *(retirada en 0006)* | FK `CASCADE`; único `(run_id, round_index)`; `chosen_index` nulo si no contestó; `is_correct`, `ms`, `points`, `rejected` | FKs |
 
 Notas que quedan fijadas:
 
@@ -155,12 +161,12 @@ Notas que quedan fijadas:
   `arcade_runs`/`arcade_answers`; usa `game_sessions` con sus ítems e intentos. Se
   borraron `game/arcade_engine.py`, `runtime/arcade_session.py` y
   `services/arcade_runs.py`; las reglas del formato viven en `game/modes/arcade.py`.
-  Las dos tablas viejas siguen existiendo, de solo lectura, hasta la fase 10.
+  Las dos tablas viejas quedaron de solo lectura y se dropearon en `0006`.
 - **Transición (fase 5.3)**: el camino en vivo del 1v1 ya no escribe
   `matches`/`match_rounds`; desde 5.2 usa `game_sessions` con ítems, intentos y
   participantes. Se borraron `game/match_engine.py` y `runtime/room.py`; las reglas
   viven en `game/versus_engine.py` y el estado vivo en `runtime/session_store.py`.
-  Las dos tablas viejas siguen existiendo, de solo lectura, hasta la fase 10.
+  Las dos tablas viejas quedaron de solo lectura y se dropearon en `0006`.
 
 ## A5. Migraciones y tests
 
@@ -181,7 +187,8 @@ por sorted sets de Redis en el MVP.
 
 ## A7. Puntos confirmados al arrancar
 
-1. ⚠️ Fila de `matches` al arrancar (A3.2) para que `void` sea alcanzable.
+1. ⚠️ Fila de `matches` al arrancar (A3.2) para que `void` sea alcanzable. Desde la
+   fase 10 ese rol lo cumple la fila `playing` de `game_sessions`.
 2. ⚠️ Desempate del ranking por el momento más temprano del mejor puntaje.
 3. ⚠️ Índice único parcial de `nick` para reusar tras el borrado lógico.
 4. ⚠️ El host es **quien creó la sala** (`rooms.host_user_id`), no "el primero que entra":

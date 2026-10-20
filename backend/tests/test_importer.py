@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.cli import SEED_FILE
 from app.game.constants import CATEGORIES
 from app.game.modes.quiz import QUIZ
-from app.models import ContentItem, ContentSolution, Question
+from app.models import ContentItem, ContentSolution
 from app.services import importer
 from app.services.importer import (
     ImportFormatError,
@@ -235,9 +235,8 @@ async def test_an_existing_hash_is_reported_as_duplicated(
     report = await importer.import_rows(session, [RawRow(2, fila())])
     assert report.imported == 0
     assert report.duplicated == 1
-    # Ni el contenido ni la tabla vieja crecen: no hay dual-write que acompañe.
+    # Ni el contenido ni las soluciones crecen: no hay dual-write que acompañe.
     assert await _count(session, ContentItem) == 1
-    assert await _count(session, Question) == 0
 
 
 async def test_importing_the_seed_file_loads_all_the_questions(
@@ -313,8 +312,6 @@ async def test_the_seed_lands_only_in_the_generic_tables(
         solucion = await session.get(ContentSolution, item.id)
         assert solucion is not None
         assert solucion.payload["correct_index"] in range(4)
-    # La tabla vieja queda de solo lectura: el importador ya no la escribe.
-    assert await _count(session, Question) == 0
 
 
 async def test_running_the_seed_twice_does_not_grow_either_table(
@@ -325,7 +322,6 @@ async def test_running_the_seed_twice_does_not_grow_either_table(
 
     assert await _count(session, ContentItem) == 120
     assert await _count(session, ContentSolution) == 120
-    assert await _count(session, Question) == 0
 
 
 async def test_a_rejected_row_writes_nothing_to_any_table(
@@ -340,4 +336,3 @@ async def test_a_rejected_row_writes_nothing_to_any_table(
     ]
     assert await _count(session, ContentItem) == 0
     assert await _count(session, ContentSolution) == 0
-    assert await _count(session, Question) == 0

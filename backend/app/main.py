@@ -22,7 +22,7 @@ from app.config import settings
 from app.db import engine, session_factory
 from app.logging_config import configure_logging
 from app.redis import redis_client
-from app.runtime.live import Live, live_arcade_runs
+from app.runtime.live import Live
 from app.runtime.session_store import InMemorySessionStore, session_store
 from app.services.reaper import sweep
 from app.ws import arcade_ws, room_ws, session_ws
@@ -59,25 +59,16 @@ async def _sweep_once(*, startup: bool = False) -> None:
     """
     live = Live(
         rooms=session_store.live_rooms(),
-        arcade_runs=live_arcade_runs.ids(),
         sessions=session_store.live(),
     )
     async with session_factory() as session:
         resultado = await sweep(session, live=live)
 
-    if startup or (
-        resultado.expired_rooms
-        or resultado.voided_matches
-        or resultado.invalidated_runs
-        or resultado.invalidated_sessions
-    ):
+    if startup or (resultado.expired_rooms or resultado.invalidated_sessions):
         logger.info(
-            "%s: %d salas expiradas, %d partidas 1v1 anuladas, %d partidas de "
-            "arcade invalidadas, %d sesiones invalidadas",
+            "%s: %d salas expiradas, %d sesiones invalidadas",
             "barrido inicial" if startup else "barrido periódico",
             resultado.expired_rooms,
-            resultado.voided_matches,
-            resultado.invalidated_runs,
             resultado.invalidated_sessions,
         )
 

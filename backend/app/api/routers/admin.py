@@ -19,8 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import SessionDep, require_admin
 from app.api.errors import ApiError
 from app.game.constants import CATEGORIES, DIFFICULTY_MAX, DIFFICULTY_MIN
-from app.game.modes.quiz import QUIZ, QuizContent, get_content_kind
-from app.models.question import PROMPT_MAX_LENGTH
+from app.game.modes.quiz import (
+    QUIZ,
+    QUIZ_PROMPT_MAX_LENGTH,
+    QuizContent,
+    get_content_kind,
+)
 from app.schemas.admin import (
     AdminQuestionPage,
     ImportReportOut,
@@ -94,7 +98,7 @@ async def list_content(
     difficulty: Annotated[
         int | None, Query(ge=DIFFICULTY_MIN, le=DIFFICULTY_MAX)
     ] = None,
-    q: Annotated[str | None, Query(max_length=PROMPT_MAX_LENGTH)] = None,
+    q: Annotated[str | None, Query(max_length=QUIZ_PROMPT_MAX_LENGTH)] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 20,
 ) -> AdminQuestionPage:
@@ -118,7 +122,7 @@ async def list_questions(
     difficulty: Annotated[
         int | None, Query(ge=DIFFICULTY_MIN, le=DIFFICULTY_MAX)
     ] = None,
-    q: Annotated[str | None, Query(max_length=PROMPT_MAX_LENGTH)] = None,
+    q: Annotated[str | None, Query(max_length=QUIZ_PROMPT_MAX_LENGTH)] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 20,
 ) -> AdminQuestionPage:

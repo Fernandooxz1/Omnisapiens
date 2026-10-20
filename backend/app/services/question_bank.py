@@ -78,7 +78,8 @@ def shuffle_options(loaded: LoadedQuestion, rng: Random) -> LoadedQuestion:
     al servir: "tocar siempre la segunda" acertaba casi la mitad. Se barajan los
     **índices** y no los textos, así un banco con opciones repetidas no desplaza
     la respuesta. La pregunta guardada no se toca: vuelve una copia con la lista
-    y el índice nuevos, y ese índice es el que viaja al motor y a `match_rounds`.
+    y el índice nuevos, y ese índice es el que viaja al motor y al historial de la
+    sesión.
     """
     opciones = loaded.question.options
     if len(opciones) < 2:

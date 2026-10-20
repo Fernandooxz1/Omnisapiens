@@ -72,9 +72,9 @@ partida entera sin esperar en tiempo real. No metas `asyncio.sleep` crudo en el 
 - **Sesión**: `game_sessions` resume cualquier formato; ítems e intentos cuelgan de ella y
   `solution_snapshot` la deja auditable aunque el contenido se archive. `playing` ⇔
   `ended_at` nulo, y `rooms.mode` decide qué `config_schema` valida el `config`.
-- **Barrido**: `sweep` expira salas `waiting`, anula partidas 1v1 y de arcade colgadas, e
-  invalida las sesiones `playing` más viejas que el umbral que este proceso no reporta
-  vivas (`Live.sessions`). Es idempotente: el segundo barrido no encuentra nada.
+- **Barrido**: `sweep` expira salas `waiting` e invalida las sesiones `playing` más viejas
+  que el umbral que este proceso no reporta vivas (`Live.sessions`). Es idempotente: el
+  segundo barrido no encuentra nada.
 - **Errores**: `{"error": {"code", "message"}}` con la tabla de `docs/api.md`; no se inventan
   códigos ni se reusan con otro significado.
 - **Sin logs del token**: viaja en la URL del WS; no se loguea.
@@ -97,19 +97,18 @@ el id de la fila lo genera el servicio.
 El arcade escribe acá desde la fase 4.2: `arcade_ws` arranca la sesión con
 `mode='trivia_arcade'`, `play_format='arcade'`, `config={}` (las reglas fijas de
 `ruleset_version=1`) y la cierra con los ítems y los intentos del `SoloEngine`.
-`arcade_runs`/`arcade_answers` ya no reciben escrituras del camino en vivo y,
-desde 4.3, tampoco existen los módulos viejos (`game/arcade_engine.py`,
-`runtime/arcade_session.py`, `services/arcade_runs.py`): las reglas del formato
-viven en `game/modes/arcade.py` y las tablas quedan de solo lectura hasta la
-fase 10.
+Las reglas del formato viven en `game/modes/arcade.py`; el panel y el ranking
+leen las mismas filas, sin tablas propias del arcade.
 
 El versus escribe acá desde 5.2: `/ws/room` arranca la sesión con
 `mode='trivia_versus'` y `play_format='versus'`, y la cierra con los ítems y los
 intentos de las dos sillas. El historial se reconstruye contiguo desde
-`started_at`, igual que el backfill; el `id` de la sesión es el de la partida,
-así las filas viejas de `matches` que ya existan se corresponden uno a uno. Desde
-5.3 `game/match_engine.py` y `runtime/room.py` no existen: las reglas viven en
+`started_at`; el `id` de la sesión es el de la partida. Las reglas viven en
 `game/versus_engine.py` y el estado vivo en `runtime/session_store.py`.
+
+Desde la fase 10 no existen `questions`, `matches`, `match_rounds`, `arcade_runs`
+ni `arcade_answers` (migración `0006`): `game_sessions` es la única fuente de
+verdad del historial y el perfil (`/me`) la consulta directamente.
 
 ## Sesiones en vivo
 
@@ -179,11 +178,10 @@ y es el borde el que hace lo que antes hacía el manager:
   vencimiento puede cerrar la partida después de que el handler se haya ido.
   `game_sessions` usa el id de la partida y `config={rounds, seconds}`,
   `mode='trivia_versus'` y `play_format='versus'`; ítems e intentos se reconstruyen
-  contiguos desde `started_at` con el mismo criterio que el backfill. Los dos
-  participantes llevan su puntaje y `win`/`lose`/`draw`/`abandoned`/`void`.
-- Desde 5.3 no escribe `matches`/`match_rounds`: esas tablas quedan de solo lectura
-  hasta la fase 10. `rooms` sigue siendo la tabla del lobby y el borde mantiene su
-  estado (`playing`/`finished`) y el techo de vencimiento de la partida.
+  contiguos desde `started_at`. Los dos participantes llevan su puntaje y
+  `win`/`lose`/`draw`/`abandoned`/`void`.
+- `rooms` sigue siendo la tabla del lobby y el borde mantiene su estado
+  (`playing`/`finished`) y el techo de vencimiento de la partida.
   `on_match_start` revierte el arranque si la fila no se pudo escribir; un cierre
   que falla deja la sesión `playing` para el barrendero.
 

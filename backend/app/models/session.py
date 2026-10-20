@@ -3,7 +3,7 @@
 Un solo esquema cubre lineal y tablero, solo y versus. `item_key` distingue
 rondas numeradas de posiciones de tablero, y `attempt_seq` permite más de un
 intento sobre el mismo ítem. `solution_snapshot` deja la fila auditable aunque
-el contenido se archive, con el mismo criterio que `match_rounds.correct_index`.
+el contenido se archive.
 """
 
 import uuid

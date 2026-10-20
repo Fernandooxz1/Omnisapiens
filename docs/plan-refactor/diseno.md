@@ -357,9 +357,13 @@ Migraciones separadas, una por fase:
 | `0006_media.py` | 9 (opcional) | crea `media_assets` |
 | `0007_drop_legacy.py` | 10 | dropea las tablas viejas |
 
+Implementación real: como las fases 8 y 9 quedaron opcionales, el drop entró como
+`0006_drop_legacy.py` (si algún día se hace medios, la suya pasa a `0007`).
+
 El backfill **no** va dentro de la migración: es un comando idempotente de `app/cli.py`
 (`backfill-content`, `backfill-sessions`), con reporte y test. Una migración no debería
-depender de datos que pueden faltar.
+depender de datos que pueden faltar. Los dos comandos eran de una sola vez y se
+retiraron en la fase 10.1, junto con las tablas que leían.
 
 1. `questions` → `content_items(kind='quiz')` + `content_solutions` (mismo UUID).
    Implementado en 2.2 como `backfill-content --kind quiz` (`make backfill-content`):

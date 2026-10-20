@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import ContentItem, ContentSolution, Question
+from app.models import ContentItem, ContentSolution
 from app.services import importer
 from app.services.question_bank import candidates
 
@@ -546,5 +546,3 @@ async def test_importing_through_any_route_writes_only_the_generic_tables(
     item = (await session.execute(select(ContentItem))).scalar_one()
     assert item.kind == "quiz"
     assert await session.get(ContentSolution, item.id) is not None
-    # La tabla vieja quedó de solo lectura: la importación no la toca.
-    assert (await session.execute(select(Question))).scalars().all() == []

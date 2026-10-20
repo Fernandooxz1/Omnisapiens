@@ -5,8 +5,10 @@ distintas: el máximo aparece en el encabezado, y las dos listas tienen formas
 que no comparten columnas. Mezclarlas en una timeline obligaría a inventar un
 `type` y campos opcionales para ahorrar una vuelta a la base.
 
-Solo entra lo `finished`. Una partida cortada o anulada no es una
-marca ni un resultado: mostrarlas en el perfil sería ruido.
+Desde la fase 10 leen `game_sessions`/`game_participants`: el arcade es una
+sesión con dueño y el versus una sesión con dos sillas. Solo entra lo `finished`.
+Una partida cortada o anulada no es una marca ni un resultado: mostrarlas en el
+perfil sería ruido.
 """
 
 import uuid
@@ -14,17 +16,19 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
-from app.game.solo_engine import RunStatus
-from app.game.versus_engine import MatchStatus
-from app.models import ArcadeRun, Match, User
-from app.services.leaderboard import week_start
+from app.models import GameParticipant, GameSession, User
+from app.services.leaderboard import ARCADE_MODE, week_start
 
 # Tope fijo: el perfil es un resumen, no un archivo. Un parámetro de paginación
 # acá sería contrato nuevo para algo que el MVP no necesita.
 HISTORY_LIMIT = 10
+
+VERSUS_FORMAT = "versus"
+FINISHED = "finished"
 
 
 class Outcome(StrEnum):
@@ -59,15 +63,16 @@ async def best_marks(
     La semana se corta con el mismo `week_start` del ranking (lunes 00:00 de
     Buenos Aires), así la marca y la posición semanal no pueden discrepar.
     """
-    marca = func.max(ArcadeRun.score)
+    marca = func.max(GameSession.score)
     fila = (
         await session.execute(
             select(
                 marca.label("all_time"),
-                marca.filter(ArcadeRun.ended_at >= week_start(now)).label("week"),
+                marca.filter(GameSession.ended_at >= week_start(now)).label("week"),
             ).where(
-                ArcadeRun.user_id == user_id,
-                ArcadeRun.status == RunStatus.FINISHED.value,
+                GameSession.owner_user_id == user_id,
+                GameSession.mode == ARCADE_MODE,
+                GameSession.status == FINISHED,
             )
         )
     ).one()
@@ -76,17 +81,18 @@ async def best_marks(
 
 async def recent_runs(
     session: AsyncSession, *, user_id: uuid.UUID, limit: int = HISTORY_LIMIT
-) -> list[ArcadeRun]:
-    """Las últimas partidas, de la más nueva a la más vieja."""
+) -> list[GameSession]:
+    """Las últimas partidas de arcade, de la más nueva a la más vieja."""
     return list(
         (
             await session.scalars(
-                select(ArcadeRun)
+                select(GameSession)
                 .where(
-                    ArcadeRun.user_id == user_id,
-                    ArcadeRun.status == RunStatus.FINISHED.value,
+                    GameSession.owner_user_id == user_id,
+                    GameSession.mode == ARCADE_MODE,
+                    GameSession.status == FINISHED,
                 )
-                .order_by(ArcadeRun.ended_at.desc(), ArcadeRun.id.desc())
+                .order_by(GameSession.ended_at.desc(), GameSession.id.desc())
                 .limit(limit)
             )
         ).all()
@@ -98,30 +104,34 @@ async def recent_matches(
 ) -> list[MatchSummary]:
     """Las últimas partidas 1v1, ya puestas desde el punto de vista del jugador.
 
-    `matches` no tiene "mis puntos" y "los del otro" (A3.4): el lado depende de
-    la columna. Los `CASE` traducen una sola vez y el `JOIN` trae el nick rival
-    sin una consulta por fila.
+    Cada silla es una fila de `game_participants`: el `JOIN` con la silla rival
+    trae el puntaje y el nick sin una consulta por partida.
     """
-    i_am_a = Match.player_a_id == user_id
-    opponent_id = case((i_am_a, Match.player_b_id), else_=Match.player_a_id)
-    my_score = case((i_am_a, Match.score_a), else_=Match.score_b)
-    their_score = case((i_am_a, Match.score_b), else_=Match.score_a)
+    mia = aliased(GameParticipant)
+    rival = aliased(GameParticipant)
+    rival_user = aliased(User)
 
     filas = await session.execute(
         select(
-            Match.id,
-            Match.ended_at,
-            Match.winner_id,
-            my_score.label("my_score"),
-            their_score.label("opponent_score"),
-            User.nick.label("opponent_nick"),
+            GameSession.id,
+            GameSession.ended_at,
+            mia.score.label("my_score"),
+            rival.score.label("opponent_score"),
+            mia.outcome,
+            rival_user.nick.label("opponent_nick"),
         )
-        .join(User, User.id == opponent_id)
+        .join(mia, mia.session_id == GameSession.id)
+        .join(
+            rival,
+            (rival.session_id == GameSession.id) & (rival.user_id != user_id),
+        )
+        .join(rival_user, rival_user.id == rival.user_id)
         .where(
-            or_(i_am_a, Match.player_b_id == user_id),
-            Match.status == MatchStatus.FINISHED.value,
+            mia.user_id == user_id,
+            GameSession.play_format == VERSUS_FORMAT,
+            GameSession.status == FINISHED,
         )
-        .order_by(Match.ended_at.desc(), Match.id.desc())
+        .order_by(GameSession.ended_at.desc(), GameSession.id.desc())
         .limit(limit)
     )
     return [
@@ -131,15 +141,18 @@ async def recent_matches(
             opponent_nick=fila.opponent_nick,
             my_score=fila.my_score,
             opponent_score=fila.opponent_score,
-            result=_outcome(fila.winner_id, user_id),
+            result=_outcome(fila.outcome),
         )
         for fila in filas
     ]
 
 
-def _outcome(winner_id: uuid.UUID | None, user_id: uuid.UUID) -> Outcome:
-    # Una partida terminada sin ganador es empate: el motor deja `winner` en
-    # `None` cuando los puntajes coinciden.
-    if winner_id is None:
-        return Outcome.DRAW
-    return Outcome.WIN if winner_id == user_id else Outcome.LOSS
+def _outcome(outcome: str | None) -> Outcome:
+    # El motor cierra una partida terminada como win/lose/draw; el `None` solo
+    # puede venir de una fila escrita a mano, y mostrarla como empate es lo menos
+    # engañoso.
+    if outcome == Outcome.WIN.value:
+        return Outcome.WIN
+    if outcome == Outcome.LOSS.value:
+        return Outcome.LOSS
+    return Outcome.DRAW

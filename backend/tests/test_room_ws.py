@@ -23,8 +23,6 @@ from app.main import app
 from app.models import (
     GameParticipant,
     GameSession,
-    Match,
-    MatchRound,
     Room,
     SessionAttempt,
     SessionItem,
@@ -374,15 +372,6 @@ async def test_a_complete_match_writes_the_generic_session_history(
     assert len(intentos) == 6
     assert sum(1 for intento in intentos if intento.correct) == 3
 
-    # Las tablas viejas quedaron de solo lectura en 5.3.
-    assert await api.session.get(Match, match_id) is None
-    rondas = (
-        await api.session.scalars(
-            select(MatchRound).where(MatchRound.match_id == match_id)
-        )
-    ).all()
-    assert rondas == []
-
 
 async def test_an_abandoned_match_is_closed_for_both_players(
     api: Api, connect: Callable[..., WebSocketClient]
@@ -415,8 +404,6 @@ async def test_an_abandoned_match_is_closed_for_both_players(
         )
     ).all()
     assert {silla.outcome for silla in sillas} == {"abandoned"}
-
-    assert await api.session.get(Match, match_id) is None
 
     # Al irse uno de una sala terminada, vuelve al lobby en la base.
     sala = await api.session.get(Room, api.room.id)

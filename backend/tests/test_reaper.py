@@ -9,11 +9,11 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ArcadeRun, GameSession, Match, Room
+from app.models import GameSession, Room
 from app.runtime.live import Live, LiveRooms
 from app.services.reaper import sweep
 
-from .factories import arcade_run, game_session, match, room, user
+from .factories import game_session, room, user
 
 NOW = datetime(2026, 10, 17, 12, 0, tzinfo=UTC)
 
@@ -44,54 +44,6 @@ async def test_the_sweeper_expires_only_waiting_rooms_past_their_deadline(
     assert await _status(session, Room, vencida.id) == "expired"
     assert await _status(session, Room, fresca.id) == "waiting"
     assert await _status(session, Room, en_partida.id) == "playing"
-
-
-async def test_the_sweeper_voids_matches_a_dead_process_left_playing(
-    session: AsyncSession,
-) -> None:
-    ana, beto = user(nick="ana"), user(nick="beto")
-    session.add_all([ana, beto])
-    await session.flush()
-
-    vieja = match(ana.id, beto.id, started_at=NOW - timedelta(minutes=30))
-    fresca = match(ana.id, beto.id, started_at=NOW - timedelta(minutes=5))
-    session.add_all([vieja, fresca])
-    await session.flush()
-
-    resultado = await sweep(session, now=NOW, stale_after=timedelta(minutes=15))
-
-    assert resultado.voided_matches == 1
-    assert await _status(session, Match, vieja.id) == "void"
-    assert await _status(session, Match, fresca.id) == "playing"
-
-    ended = await session.scalar(select(Match.ended_at).where(Match.id == vieja.id))
-    winner = await session.scalar(select(Match.winner_id).where(Match.id == vieja.id))
-    assert ended == NOW
-    assert winner is None
-
-
-async def test_the_sweeper_invalidates_arcade_runs_a_dead_process_left_playing(
-    session: AsyncSession,
-) -> None:
-    ana = user(nick="ana")
-    session.add(ana)
-    await session.flush()
-
-    vieja = arcade_run(ana.id, started_at=NOW - timedelta(minutes=30))
-    fresca = arcade_run(ana.id, started_at=NOW - timedelta(minutes=5))
-    session.add_all([vieja, fresca])
-    await session.flush()
-
-    resultado = await sweep(session, now=NOW, stale_after=timedelta(minutes=15))
-
-    assert resultado.invalidated_runs == 1
-    assert await _status(session, ArcadeRun, vieja.id) == "invalid"
-    assert await _status(session, ArcadeRun, fresca.id) == "playing"
-
-    ended = await session.scalar(
-        select(ArcadeRun.ended_at).where(ArcadeRun.id == vieja.id)
-    )
-    assert ended == NOW
 
 
 async def test_the_sweeper_invalidates_sessions_a_dead_process_left_playing(
@@ -126,7 +78,6 @@ async def test_the_sweep_is_idempotent(session: AsyncSession) -> None:
     session.add(ana)
     await session.flush()
     session.add(room(ana.id, expires_at=NOW - timedelta(minutes=1)))
-    session.add(arcade_run(ana.id, started_at=NOW - timedelta(minutes=30)))
     session.add(
         game_session(owner_user_id=ana.id, started_at=NOW - timedelta(minutes=30))
     )
@@ -135,18 +86,8 @@ async def test_the_sweep_is_idempotent(session: AsyncSession) -> None:
     primera = await sweep(session, now=NOW)
     segunda = await sweep(session, now=NOW)
 
-    assert (
-        primera.expired_rooms,
-        primera.voided_matches,
-        primera.invalidated_runs,
-        primera.invalidated_sessions,
-    ) == (1, 0, 1, 1)
-    assert (
-        segunda.expired_rooms,
-        segunda.voided_matches,
-        segunda.invalidated_runs,
-        segunda.invalidated_sessions,
-    ) == (0, 0, 0, 0)
+    assert (primera.expired_rooms, primera.invalidated_sessions) == (1, 1)
+    assert (segunda.expired_rooms, segunda.invalidated_sessions) == (0, 0)
 
 
 async def test_the_sweeper_leaves_what_the_process_reports_live(
@@ -157,45 +98,27 @@ async def test_the_sweeper_leaves_what_the_process_reports_live(
     El barrido periódico recibe lo vivo en memoria y lo excluye; el siguiente
     barrido, sin nada vivo (proceso muerto), sí las cierra.
     """
-    ana, beto = user(nick="ana"), user(nick="beto")
-    session.add_all([ana, beto])
+    ana = user(nick="ana")
+    session.add(ana)
     await session.flush()
 
     sala_viva = room(ana.id, expires_at=NOW - timedelta(minutes=1))
-    partida_viva = match(ana.id, beto.id, started_at=NOW - timedelta(minutes=30))
-    corrida_viva = arcade_run(ana.id, started_at=NOW - timedelta(minutes=30))
     sesion_viva = game_session(
         owner_user_id=ana.id, started_at=NOW - timedelta(minutes=30)
     )
-    session.add_all([sala_viva, partida_viva, corrida_viva, sesion_viva])
+    session.add_all([sala_viva, sesion_viva])
     await session.flush()
 
     live = Live(
-        rooms=LiveRooms(
-            room_ids=frozenset({sala_viva.id}),
-            match_ids=frozenset({partida_viva.id}),
-        ),
-        arcade_runs=frozenset({corrida_viva.id}),
+        rooms=LiveRooms(room_ids=frozenset({sala_viva.id})),
         sessions=frozenset({sesion_viva.id}),
     )
     primero = await sweep(session, now=NOW, live=live)
 
-    assert (
-        primero.expired_rooms,
-        primero.voided_matches,
-        primero.invalidated_runs,
-        primero.invalidated_sessions,
-    ) == (0, 0, 0, 0)
+    assert (primero.expired_rooms, primero.invalidated_sessions) == (0, 0)
     assert await _status(session, Room, sala_viva.id) == "waiting"
-    assert await _status(session, Match, partida_viva.id) == "playing"
-    assert await _status(session, ArcadeRun, corrida_viva.id) == "playing"
     assert await _status(session, GameSession, sesion_viva.id) == "playing"
 
     segundo = await sweep(session, now=NOW)
 
-    assert (
-        segundo.expired_rooms,
-        segundo.voided_matches,
-        segundo.invalidated_runs,
-        segundo.invalidated_sessions,
-    ) == (1, 1, 1, 1)
+    assert (segundo.expired_rooms, segundo.invalidated_sessions) == (1, 1)

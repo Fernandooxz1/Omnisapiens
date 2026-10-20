@@ -1,8 +1,8 @@
 """Las escrituras de una sesión: el arranque y los tres cierres.
 
-Mismo reparto que `arcade_runs.py`: el motor puro decide qué pasó y este módulo
-lo guarda. La sesión la pone el borde (el WebSocket) y acá se commitea a mano:
-el handler no corre en un pedido HTTP que cierre la transacción.
+El motor puro decide qué pasó y este módulo lo guarda. La sesión la pone el
+borde (el WebSocket) y acá se commitea a mano: el handler no corre en un pedido
+HTTP que cierre la transacción.
 
 Tres decisiones que se ven en las firmas:
 

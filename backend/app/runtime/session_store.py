@@ -363,7 +363,7 @@ class VersusSessionStore(Protocol):
         ...
 
     def live_rooms(self) -> LiveRooms:
-        """Las salas con presencia y sus partidas en curso (barrido de salas)."""
+        """Las salas con presencia (barrido de salas)."""
         ...
 
     def versus_sessions(self) -> Mapping[str, VersusSessionView]:
@@ -560,24 +560,18 @@ class InMemorySessionStore:
         return frozenset(sessions | matches)
 
     def live_rooms(self) -> LiveRooms:
-        """Las salas con alguna conexión y las partidas versus en curso.
+        """Las salas con alguna conexión.
 
         Es la vista que necesita el barrido de salas: una `waiting` con gente
-        conectada no se expira, y una `matches` viva no se anula.
+        conectada no se expira. Las partidas versus en curso ya viajan en
+        `live()`, que es lo que protege su fila de `game_sessions`.
         """
         rooms = {
             uuid.UUID(entry.room_id)
             for entry in self._versus.values()
             if entry.outboxes
         }
-        matches = {
-            uuid.UUID(entry.state.match_id)
-            for entry in self._versus.values()
-            if entry.state.match_id is not None
-            and entry.state.match is not None
-            and entry.state.match.status is versus_engine.MatchStatus.PLAYING
-        }
-        return LiveRooms(room_ids=frozenset(rooms), match_ids=frozenset(matches))
+        return LiveRooms(room_ids=frozenset(rooms))
 
     def sessions(self) -> Mapping[str, SoloSessionView]:
         return {

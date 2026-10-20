@@ -7,6 +7,7 @@ contenido; por ahora vive acá para que la CLI y el admin resuelvan `--kind` y
 
 from app.game.modes.quiz.content import QUIZ, QuizContent
 from app.game.modes.quiz.models import (
+    QUIZ_PROMPT_MAX_LENGTH,
     QUIZ_SCHEMA_VERSION,
     QuizCandidatesConfig,
     QuizPayload,
@@ -31,6 +32,7 @@ def get_content_kind(code: str) -> QuizContent:
 __all__ = [
     "CONTENT_KINDS",
     "QUIZ",
+    "QUIZ_PROMPT_MAX_LENGTH",
     "QUIZ_RULES",
     "QUIZ_SCHEMA_VERSION",
     "QuizCandidatesConfig",

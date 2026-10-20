@@ -1,4 +1,4 @@
-.PHONY: up down api front migrate seed import backfill-content backfill-sessions check-schema test cov lint fmt
+.PHONY: up down api front migrate seed import check-schema test cov lint fmt
 
 up:
 	docker compose up -d --wait
@@ -25,14 +25,6 @@ seed:
 # Carga un archivo propio: make import FILE=mis-preguntas.csv
 import:
 	cd backend && uv run python -m app.cli import-questions $(FILE)
-
-# Copia `questions` a las tablas genéricas de contenido. Idempotente.
-backfill-content:
-	cd backend && uv run python -m app.cli backfill-content --kind quiz
-
-# Copia arcade y 1v1 a las tablas de sesión. Idempotente.
-backfill-sessions:
-	cd backend && uv run python -m app.cli backfill-sessions
 
 # Guardarraíl: falla si los modelos y las migraciones se desincronizaron.
 check-schema:
