@@ -47,3 +47,54 @@ test('the home shows the modes from the real backend', async ({ page }) => {
 	await expect(nav.getByRole('button', { name: /^Jugar 1v1/ })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Ranking semanal' })).toBeVisible();
 });
+
+test('the home reserves the space of the catalog while it loads', async ({ page }) => {
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => (release = resolve));
+
+	await page.route(/\/modes$/, async (route) => {
+		await gate;
+		await route.fulfill({
+			status: 200,
+			headers: { 'access-control-allow-origin': '*' },
+			json: [mode('trivia_arcade', 'Arcade', true)]
+		});
+	});
+
+	await page.goto('/');
+	await expect(page.locator('.mode-skeleton')).toHaveCount(2);
+
+	release();
+	await expect(page.getByRole('navigation', { name: 'Modos de juego' })).toBeVisible();
+});
+
+test('the home retries the catalog after a failure', async ({ page }) => {
+	let calls = 0;
+
+	await page.route(/\/modes$/, (route) => {
+		calls += 1;
+
+		if (calls === 1) {
+			return route.fulfill({
+				status: 500,
+				headers: { 'access-control-allow-origin': '*' },
+				json: { error: { code: 'SERVER', message: 'boom' } }
+			});
+		}
+
+		return route.fulfill({
+			status: 200,
+			headers: { 'access-control-allow-origin': '*' },
+			json: [mode('trivia_arcade', 'Arcade', true)]
+		});
+	});
+
+	await page.goto('/');
+	await expect(page.getByText('No se pudieron cargar los modos.')).toBeVisible();
+
+	await page.getByRole('button', { name: 'Reintentar' }).click();
+
+	const nav = page.getByRole('navigation', { name: 'Modos de juego' });
+	await expect(nav.getByRole('button', { name: /^Arcade/ })).toBeVisible();
+	expect(calls).toBe(2);
+});

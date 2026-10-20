@@ -31,6 +31,7 @@
 	"home.modes": "Modos de juego",
 	"home.mode_unavailable": "Próximamente.",
 	"home.modes_error": "No se pudieron cargar los modos.",
+	"home.modes_retry": "Reintentar",
 	"home.play_arcade": "Arcade",
 	"home.play_arcade_hint": "Tres vidas y dificultad creciente.",
 	"home.play_online": "Jugar 1v1",

@@ -21,6 +21,7 @@
 	let entering = $state(false);
 	let error = $state<MessageKey | null>(null);
 	let modes = $state<GameMode[]>([]);
+	let modesLoading = $state(true);
 	let modesFailed = $state(false);
 	const nickReady = $derived(nick.trim().length > 0);
 	const fieldError = $derived(error && FIELD_ERRORS.includes(error) ? t(error) : undefined);
@@ -37,11 +38,14 @@
 	});
 
 	async function loadModes() {
+		modesLoading = true;
 		try {
 			modes = await fetchModes();
 			modesFailed = false;
 		} catch {
 			modesFailed = true;
+		} finally {
+			modesLoading = false;
 		}
 	}
 
@@ -115,8 +119,16 @@
 			<p class="home__error" role="alert">{t(error)}</p>
 		{/if}
 
-		{#if modesFailed}
-			<p class="home__error" role="alert">{t('home.modes_error')}</p>
+		{#if modesLoading && catalog.length === 0}
+			<div class="modes" aria-hidden="true">
+				<span class="mode-skeleton"></span>
+				<span class="mode-skeleton"></span>
+			</div>
+		{:else if modesFailed}
+			<div class="error-block">
+				<p class="home__error" role="alert">{t('home.modes_error')}</p>
+				<Button variant="slate" title={t('home.modes_retry')} onclick={() => loadModes()} />
+			</div>
 		{:else if catalog.length > 0}
 			<nav class="modes" aria-label={t('home.modes')}>
 				{#each catalog as mode (mode.code)}
@@ -184,5 +196,24 @@
 		color: var(--red-ink);
 		font-size: 0.875rem;
 		font-weight: 600;
+	}
+
+	.error-block {
+		display: flex;
+		flex-direction: column;
+		gap: var(--s-2);
+	}
+
+	.error-block .home__error {
+		margin-top: 0;
+	}
+
+	.mode-skeleton {
+		display: block;
+		min-height: var(--key-h);
+		border-radius: var(--r-key);
+		background: var(--panel-bg);
+		box-shadow: 0 5px 0 var(--panel-edge);
+		opacity: 0.55;
 	}
 </style>

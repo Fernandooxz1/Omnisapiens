@@ -42,6 +42,9 @@ renderer, orden, textos y pastilla). Un modo sin entrada en el registry se muest
 deshabilitado con `home.mode_unavailable`; la home no se rompe. El acceso al ranking aparece
 solo si algún modo publica `ranking: true`.
 
+Mientras llega el catálogo, la home reserva el espacio con dos placeholders con la forma de los
+botones. Si la carga falla, avisa y ofrece `Reintentar`; el reintento vuelve a pedir `GET /modes`.
+
 ## Rutas y pantallas por modo
 
 `src/routes/play/[mode]/+page.svelte` resuelve el modo del catálogo con `modeEntry()` y monta
