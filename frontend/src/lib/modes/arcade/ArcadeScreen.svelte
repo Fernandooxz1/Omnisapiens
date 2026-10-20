@@ -10,6 +10,7 @@
 	import Button from '#lib/components/Button.svelte';
 	import LifeStrip from '#lib/components/LifeStrip.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
+	import ReviewList from '#lib/components/ReviewList.svelte';
 	import TimerBadge from '#lib/components/TimerBadge.svelte';
 	import { t, type MessageKey } from '#lib/i18n';
 	import { bindAnswerKeys } from '#lib/keyboard.svelte';
@@ -216,6 +217,10 @@
 
 		{#if end.personalBest !== null && !end.isNewBest}
 			<p class="end-best">{t('arcade.end_best', { n: end.personalBest })}</p>
+		{/if}
+
+		{#if run && run.review.length > 0}
+			<ReviewList items={run.review} />
 		{/if}
 
 		<div class="modes">

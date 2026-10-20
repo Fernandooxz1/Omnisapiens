@@ -37,6 +37,16 @@ export interface ArcadeResult {
 	correctCount: number;
 }
 
+/** Una ronda cerrada, para repasar cuando la partida ya terminó. */
+export interface ArcadeReviewItem {
+	round: number;
+	prompt: string;
+	options: string[];
+	correctIndex: number;
+	choice: number | null;
+	explanation: string | null;
+}
+
 export interface ArcadeEnd {
 	runId: string;
 	score: number;
@@ -72,7 +82,7 @@ interface ItemResultWire {
 	item_key: string;
 	correct: boolean;
 	submission: SubmissionWire | null;
-	solution: { correct_index?: number } | null;
+	solution: { correct_index?: number; explanation?: string | null } | null;
 	points: number;
 	scores: {
 		score?: number;
@@ -112,6 +122,7 @@ export function createArcadeRun(token: string, mode = 'trivia_arcade') {
 
 	let question = $state<ArcadeQuestion | null>(null);
 	let result = $state<ArcadeResult | null>(null);
+	let review = $state<ArcadeReviewItem[]>([]);
 	let picked = $state<number | null>(null);
 	let end = $state<ArcadeEnd | null>(null);
 	let score = $state(0);
@@ -171,6 +182,20 @@ export function createArcadeRun(token: string, mode = 'trivia_arcade') {
 				correctCount = result.correctCount;
 				picked = result.you.choice;
 				phase = 'reveal';
+
+				if (question) {
+					review = [
+						...review,
+						{
+							round: result.round,
+							prompt: question.prompt,
+							options: question.options,
+							correctIndex: result.correctIndex,
+							choice: result.you.choice,
+							explanation: resolved.solution?.explanation ?? null
+						}
+					];
+				}
 				break;
 			}
 			case 'session_end': {
@@ -210,6 +235,7 @@ export function createArcadeRun(token: string, mode = 'trivia_arcade') {
 		result = null;
 		picked = null;
 		end = null;
+		review = [];
 		score = 0;
 		lives = 3;
 		streak = 0;
@@ -283,6 +309,9 @@ export function createArcadeRun(token: string, mode = 'trivia_arcade') {
 		},
 		get result() {
 			return result;
+		},
+		get review() {
+			return review;
 		},
 		get picked() {
 			return picked;

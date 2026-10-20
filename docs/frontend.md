@@ -57,6 +57,14 @@ sin badge. El 1v1 sigue en `WS /ws/room/{code}` y conserva el badge de categorí
 
 Ninguna pantalla habla con la red: `fetch` y `WebSocket` viven solo en `src/lib/api/`.
 
+## Repaso de la partida
+
+La explicación no aparece durante la ronda: solo después, en el resultado, dentro de
+`src/lib/components/ReviewList.svelte`. Es un bloque plegable (cerrado por defecto) con una
+fila por pregunta: enunciado, respuesta elegida, respuesta correcta y explicación si el
+contenido la trae. El arcade acumula las rondas mientras juega; el 1v1 cruza los enunciados
+de `round_start` con `match_end.rounds`.
+
 ## Modo de trabajo
 
 1. **Una tarea por vez**: la primera sin `[x]` de `docs/tareas.md`.

@@ -18,4 +18,9 @@ test('an arcade run until the three lives are gone', async ({ page }) => {
 	await expect(page.locator('.end-ranks')).toContainText('Global');
 	await expect(page.locator('.end-ranks')).toContainText('Semanal');
 	await expect(page.getByRole('button', { name: 'Otra partida' })).toBeVisible();
+
+	// El repaso final está cerrado por defecto; al abrirlo muestra la solución.
+	await page.getByText('Repasar la partida').click();
+	await expect(page.locator('.review__row').first()).toContainText('Sin respuesta');
+	await expect(page.locator('.review__row')).toHaveCount(3);
 });

@@ -9,6 +9,7 @@
 	import Icon from '#lib/components/Icon.svelte';
 	import PlayerPanel from '#lib/components/PlayerPanel.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
+	import ReviewList from '#lib/components/ReviewList.svelte';
 	import Scoreboard from '#lib/components/Scoreboard.svelte';
 	import TimerBadge from '#lib/components/TimerBadge.svelte';
 	import { categoryKey } from '#lib/categories';
@@ -370,6 +371,9 @@
 						{/each}
 					</ol>
 				</section>
+			{/if}
+			{#if match && match.review.length > 0}
+				<ReviewList items={match.review} />
 			{/if}
 			{#if ended.reason === 'abandoned'}
 				<p class="muted">{t('play.abandoned')}</p>

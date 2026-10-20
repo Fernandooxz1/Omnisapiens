@@ -29,6 +29,17 @@ export interface LiveRoundResult {
 	you: RoundScore;
 	opponent: RoundScore;
 	scores: { you: number; opponent: number };
+	explanation: string | null;
+}
+
+/** Una ronda cerrada, para repasar cuando la partida ya terminó. */
+export interface LiveReviewItem {
+	round: number;
+	prompt: string;
+	options: string[];
+	correctIndex: number;
+	choice: number | null;
+	explanation: string | null;
 }
 
 export interface LiveEnd {
@@ -98,6 +109,7 @@ function asScore(value: unknown): RoundScore {
 interface RoundResultWire {
 	round?: number;
 	correct_index?: number;
+	explanation?: string | null;
 	you?: Partial<RoundScore>;
 	opponent?: Partial<RoundScore>;
 	scores?: { you: number; opponent: number };
@@ -110,7 +122,8 @@ function asResult(value: unknown): LiveRoundResult {
 		correctIndex: raw.correct_index ?? -1,
 		you: asScore(raw.you),
 		opponent: asScore(raw.opponent),
-		scores: raw.scores ?? { you: 0, opponent: 0 }
+		scores: raw.scores ?? { you: 0, opponent: 0 },
+		explanation: raw.explanation ?? null
 	};
 }
 
@@ -136,6 +149,9 @@ export function createLiveMatch(code: string, token: string) {
 	let question = $state<LiveQuestion | null>(null);
 	let picked = $state<number | null>(null);
 	let result = $state<LiveRoundResult | null>(null);
+	let review = $state<LiveReviewItem[]>([]);
+	/** El enunciado solo viaja en `round_start`; el repaso lo cruza con el resultado. */
+	const seen = new Map<number, { prompt: string; options: string[] }>();
 	let scores = $state({ you: 0, opponent: 0 });
 	let history = $state<('won' | 'lost')[]>([]);
 	let rivalAnswered = $state(false);
@@ -164,6 +180,8 @@ export function createLiveMatch(code: string, token: string) {
 				config = start.config;
 				// Partida nueva: lo anterior era de la revancha pasada.
 				history = [];
+				review = [];
+				seen.clear();
 				scores = { you: 0, opponent: 0 };
 				result = null;
 				picked = null;
@@ -184,6 +202,7 @@ export function createLiveMatch(code: string, token: string) {
 					endsAt: round.ends_at,
 					totalSeconds: round.total_seconds
 				};
+				seen.set(round.round, { prompt: round.prompt, options: round.options });
 				picked = null;
 				result = null;
 				rivalAnswered = false;
@@ -207,8 +226,23 @@ export function createLiveMatch(code: string, token: string) {
 				const end = message.d as MatchEnd;
 				ended = end;
 				scores = end.scores;
-				// `rounds` trae todas las rondas resueltas, útiles para las cápsulas.
-				history = end.rounds.map((round) => (round.you.correct ? 'won' : 'lost'));
+				// `rounds` trae todas las rondas resueltas: cápsulas y repaso final.
+				const resolved = end.rounds.map(asResult);
+				history = resolved.map((round) => (round.you.correct ? 'won' : 'lost'));
+				review = resolved.flatMap((round) => {
+					const question = seen.get(round.round);
+					if (!question) return [];
+					return [
+						{
+							round: round.round,
+							prompt: question.prompt,
+							options: question.options,
+							correctIndex: round.correctIndex,
+							choice: round.you.choice,
+							explanation: round.explanation
+						}
+					];
+				});
 				phase = 'over';
 				break;
 			}
@@ -290,6 +324,9 @@ export function createLiveMatch(code: string, token: string) {
 		},
 		get result() {
 			return result;
+		},
+		get review() {
+			return review;
 		},
 		get scores() {
 			return scores;

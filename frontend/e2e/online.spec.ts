@@ -55,6 +55,11 @@ test('a full 1v1 from code to result', async ({ browser }) => {
 		await expect(page.locator('.summary__title')).toHaveText('Ronda a ronda');
 	}
 
+	// La explicación no aparece durante la partida: se consulta en el repaso final.
+	await hostPage.getByText('Repasar la partida').click();
+	await expect(hostPage.locator('.review__row').first()).toBeVisible();
+	await expect(hostPage.locator('.review__row').first()).toContainText('La correcta');
+
 	await host.close();
 	await guest.close();
 });

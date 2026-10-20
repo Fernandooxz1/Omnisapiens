@@ -166,9 +166,9 @@ sin badge y el color de acento es el del modo.
 | Lobby | `/room/{code}`: código gigante, las dos sillas (sin estado de conexión), botón `start` solo para el host |
 | Partida | Marca arriba, pregunta, 4 `AnswerTile` en columna, `TimerBadge` + barra de tiempo, cápsulas de ronda, marcador abierto y aviso de rival |
 | Revelación | Correcta, qué eligió cada uno y puntos; el paso siguiente flota al pie sin mover el tablero |
-| Fin | Ganador, resumen ronda a ronda y revancha |
+| Fin | Ganador, resumen ronda a ronda, repaso plegable (respuesta y explicación) y revancha |
 | Arcade | `/play/trivia_arcade`: pregunta, vidas (`LifeStrip`), racha, puntaje y tiempo; `POST /sessions` + `WS /ws/session/{id}` |
-| Fin de arcade | Puntaje, aciertos, mejor racha, mejor marca y posición |
+| Fin de arcade | Puntaje, aciertos, mejor racha, mejor marca, posición y repaso plegable |
 | Ranking | Global / semanal |
 | Admin | Solo por URL `/admin`: token, listado con filtros y paginación, subida de CSV/JSON con informe |
 
