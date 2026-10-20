@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 6
-tarea: "6.1"
+tarea: "6.2"
 rol: backend
 estado: pendiente        # pendiente | en curso | hecho | bloqueado
-ultimo_commit: cc62f9f
+ultimo_commit: 45c4042
 fecha: 2026-10-20
 bloqueo: ""
 ```
@@ -54,3 +54,4 @@ bloqueo: ""
 | 2026-10-19 | 5.1 | `f6a8651` | `versus_engine` puro (partida, sillas, gracia, pausa, revancha) y sesiones versus en `InMemorySessionStore` con outbox por silla y vencimientos; tests de `match_engine`/`room` portados. Próxima: 5.2. |
 | 2026-10-19 | 5.2 | `9c30ee6` | `/ws/room` corre sobre el store directo: el borde elige y carga la pregunta, persiste `game_sessions` con ítems/intentos/participantes y sigue escribiendo `matches`/`rooms`; `room_manager` eliminado. Golden y e2e de 1v1 sin cambios. Próxima: 5.3. |
 | 2026-10-20 | 5.3 | `cc62f9f` | Borrados `match_engine` y `runtime/room` con sus tests ya portados; `matches`/`match_rounds` quedan de solo lectura y `rooms` sigue en el borde. Golden y e2e de 1v1 sin cambios. Tag `refactor-fase-5`. Próxima: 6.1. |
+| 2026-10-20 | 6.1 | `45c4042` | `trivia_arcade` y `trivia_versus` registrados con reglas/progresión/scoring, `config_schema` y `public_schema`; `GET /modes` y el ranking salen de `mode.ranking`. `GameMode` gana `name`/`input`/`media`. Próxima: 6.2. |
