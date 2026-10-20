@@ -142,6 +142,7 @@
 	"arcade.no_rank": "—",
 	"arcade.error_auth": "La sesión venció. Volvé al inicio.",
 	"arcade.error_offline": "No hay conexión con el servidor.",
+	"arcade.error_disconnected": "Se cortó la conexión. Esta partida no se puede retomar.",
 	"arcade.error_limited": "Demasiados intentos seguidos. Esperá un momento.",
 	"arcade.error_no_questions": "El servidor no tiene preguntas para la partida.",
 	"arcade.error_start": "No se pudo registrar la partida. Probá de nuevo.",

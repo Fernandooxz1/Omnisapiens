@@ -1,6 +1,6 @@
 import { ApiError } from '#lib/api/client';
 import { createSoloSession } from '#lib/api/sessions';
-import { connectSession, type Envelope, type Socket, type SocketStatus } from '#lib/api/ws';
+import { connectSession, type Envelope, type Socket } from '#lib/api/ws';
 
 export type ArcadePhase =
 	| 'connecting'
@@ -115,7 +115,6 @@ interface EndWire {
  */
 export function createArcadeRun(token: string, mode = 'trivia_arcade') {
 	let phase = $state<ArcadePhase>('connecting');
-	let status = $state<SocketStatus>('connecting');
 	let failure = $state<ApiError | null>(null);
 	/** Error suelto del servidor (`NO_QUESTIONS`, `ROUND_MISMATCH`…). */
 	let notice = $state<string | null>(null);
@@ -228,7 +227,6 @@ export function createArcadeRun(token: string, mode = 'trivia_arcade') {
 
 	function reset() {
 		phase = 'connecting';
-		status = 'connecting';
 		failure = null;
 		notice = null;
 		question = null;
@@ -254,7 +252,13 @@ export function createArcadeRun(token: string, mode = 'trivia_arcade') {
 					if (mine === generation) onMessage(message);
 				},
 				onStatus: (next) => {
-					if (mine === generation) status = next;
+					if (mine !== generation || disposed) return;
+					// El canal efímero no reconecta: si se cierra sin `session_end`,
+					// la partida se perdió y hay que decirlo en vez de fingir.
+					if (next === 'closed' && phase !== 'over') {
+						failure = new ApiError(0, 'CONNECTION_LOST', 'Se cortó la conexión.');
+						phase = 'over';
+					}
 				},
 				onRejected: (error) => {
 					if (mine !== generation) return;
@@ -294,9 +298,6 @@ export function createArcadeRun(token: string, mode = 'trivia_arcade') {
 	return {
 		get phase() {
 			return phase;
-		},
-		get status() {
-			return status;
 		},
 		get failure() {
 			return failure;

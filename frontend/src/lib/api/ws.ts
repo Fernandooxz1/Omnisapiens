@@ -30,6 +30,8 @@ interface Options extends Handlers {
 	url: string;
 	/** Lo que repinta el estado después de un corte; la sala usa `hello`. */
 	resume?: string;
+	/** `false` para canales efímeros: al caerse no se reintenta, se cierran. */
+	reconnect?: boolean;
 }
 
 const HEARTBEAT_MS = 15_000;
@@ -69,7 +71,15 @@ function fatal(message: Envelope): ApiError | null {
 	return new ApiError(CLOSE_POLICY, code, text ?? 'El servidor rechazó la conexión.');
 }
 
-function createSocket({ url, resume, onMessage, onStatus, onOpen, onRejected }: Options): Socket {
+function createSocket({
+	url,
+	resume,
+	reconnect = true,
+	onMessage,
+	onStatus,
+	onOpen,
+	onRejected
+}: Options): Socket {
 	let socket: WebSocket | null = null;
 	let status: SocketStatus = 'closed';
 	let attempts = 0;
@@ -181,6 +191,12 @@ function createSocket({ url, resume, onMessage, onStatus, onOpen, onRejected }: 
 				return;
 			}
 
+			if (!reconnect) {
+				// Un canal efímero no se retoma: quien escucha `closed` avisa y corta.
+				setStatus('closed');
+				return;
+			}
+
 			attempts += 1;
 			setStatus('reconnecting');
 			retry = setTimeout(open, Math.min(RETRY_MIN_MS * 2 ** (attempts - 1), RETRY_MAX_MS));
@@ -224,6 +240,7 @@ export function connectSession(
 ): Socket {
 	return createSocket({
 		...handlers,
-		url: endpoint(`/ws/session/${encodeURIComponent(sessionId)}`, token)
+		url: endpoint(`/ws/session/${encodeURIComponent(sessionId)}`, token),
+		reconnect: false
 	});
 }

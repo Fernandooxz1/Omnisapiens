@@ -129,6 +129,8 @@
 				return 'arcade.error_auth';
 			case 'RATE_LIMITED':
 				return 'arcade.error_limited';
+			case 'CONNECTION_LOST':
+				return 'arcade.error_disconnected';
 			default:
 				return 'arcade.error_generic';
 		}
@@ -169,6 +171,9 @@
 	<section class="arcade arcade--center">
 		<h1 class="page-title">{t('arcade.title')}</h1>
 		<p class="muted">{t(problem)}</p>
+		{#if run?.failure?.code === 'CONNECTION_LOST'}
+			<Button variant="green" title={t('arcade.again')} onclick={() => run?.again()} />
+		{/if}
 		<Button variant="slate" title={t('common.back')} onclick={() => goto('/')} />
 	</section>
 {:else if phase === 'over' && end}
@@ -280,9 +285,7 @@
 		</div>
 
 		<div class="match__foot" aria-live="polite">
-			{#if run.status === 'reconnecting'}
-				<p class="muted">{t('play.reconnecting')}</p>
-			{:else if run.notice}
+			{#if run.notice}
 				<p class="muted">{t(noticeKey(run.notice))}</p>
 			{:else if phase === 'question'}
 				<p class="muted">{t('arcade.hint')}</p>
