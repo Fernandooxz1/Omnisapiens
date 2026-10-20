@@ -1,8 +1,8 @@
 # Omnisapiens — plan del producto (frontend)
 
-> Refactor multi-modo en curso: el diseño y el flujo diario viven en
+> El refactor multi-modo cerró el 2026-10-20: el diseño y su historial quedan en
 > [`docs/plan-refactor/`](plan-refactor/README.md). Este archivo sigue siendo la
-> especificación del producto; las reglas de juego no cambian por el refactor.
+> especificación del producto; las reglas de juego no cambiaron por el refactor.
 
 > Especificación viva del MVP. Es **estable**: la cola de trabajo vive en `docs/tareas.md`.
 > El contrato técnico (WS, HTTP, auth, ranking, admin) está en `docs/api.md`; el sistema
@@ -10,12 +10,12 @@
 
 ## Estado
 
-El **backend está terminado** (HTTP, WS, salas, arcade, ranking, panel de admin, 553 tests,
-cobertura 94 %) y no se toca. El **frontend cubre el MVP** en `frontend/` (SvelteKit +
-TypeScript): inicio, creación y unión de salas, partida 1v1, arcade, ranking, panel de admin,
-sonido, teclado, PWA instalable, suite e2e y tratamiento de errores (`+error.svelte`, `Toast`
-con el código de la API y aviso de API caída). La página histórica de prueba (`frontend/dev/`)
-ya no existe.
+El **backend está terminado** (HTTP, WS, salas, arcade, ranking por modo, panel de admin y
+sesiones genéricas, 689 tests, cobertura 92 %) y no se toca. El **frontend cubre el MVP** en
+`frontend/` (SvelteKit + TypeScript): inicio armado desde el catálogo, creación y unión de
+salas, partida 1v1, arcade, ranking, panel de admin, sonido, teclado, PWA instalable, suite
+e2e y tratamiento de errores (`+error.svelte`, `Toast` con el código de la API y aviso de API
+caída). La página histórica de prueba (`frontend/dev/`) ya no existe.
 
 **La próxima tarea está en `docs/tareas.md`.** El detalle del backend quedó archivado en
 `docs/archive/` (no se lee).
@@ -208,6 +208,7 @@ Componentes, tokens y reglas visuales: `docs/diseno.md`.
 | 4 Arcade y ranking | 3 vidas, progresión, corte semanal, récord personal | ✅ backend |
 | 5 Identidad visual | componentes propios, SVG, sonido, teclado, sin scroll, ≤250 KB JS | ✅ frontend |
 | 6 PWA, e2e y docs | instalable, Playwright en CI, plan y README al día | ✅ |
+| Refactor multi-modo | modos registrables, sesiones genéricas, ranking por modo y cliente por registry | ✅ backend + frontend |
 | 7 (opcional) Publicar | `docker-compose.prod.yml`, `docs/deploy.md` | pendiente |
 
 ## Definición de terminado del MVP

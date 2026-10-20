@@ -13,7 +13,7 @@ ronda: recibe eventos, dibuja el estado y envía la elección del jugador.
 |---|---|
 | Backend | Python 3.12, FastAPI, SQLAlchemy asíncrono, Alembic, PostgreSQL 16 y Redis 7 |
 | Frontend | SvelteKit 3, Svelte 5, TypeScript, Vite 8 y PWA con `adapter-static` |
-| Infraestructura local | Docker Compose + `uv` + Node.js |
+| Infraestructura local | Docker Compose + `uv` + Node.js 22+ |
 
 ## Cómo funciona
 
@@ -61,10 +61,10 @@ Las corridas con tiempos imposibles se marcan como inválidas y no entran al ran
 
 - **HTTP/JSON** para autenticación, perfil, ciclo de vida de las salas, ranking y panel de
   administración.
-- **WebSocket/JSON** para el estado vivo de la partida y del arcade.
+- **WebSocket/JSON** para el estado vivo de la partida, del arcade y de las sesiones genéricas.
 - Todos los errores tienen la forma `{"error": {"code", "message"}}`.
 
-El estado de las salas y de las corridas activas está en memoria del proceso de la API. Esto
+El estado de las salas y de las sesiones activas está en memoria del proceso de la API. Esto
 mantiene el MVP simple, pero obliga a correr **un solo worker** y a declararlo con
 `SINGLE_PROCESS=1` fuera del entorno local.
 
@@ -77,11 +77,11 @@ ranking y el alta de usuario requieren red: no hay modo offline del juego.
 
 ```text
 Navegador (SvelteKit SPA + PWA)
-    │  HTTP/JSON  ·  autenticación, salas, ranking, admin
-    │  WS/JSON    ·  /ws/room/{code}, /ws/arcade
+    │  HTTP/JSON  ·  autenticación, catálogo, sesiones, salas, ranking, admin
+    │  WS/JSON    ·  /ws/session/{id}, /ws/room/{code} (/ws/arcade es un adaptador)
     ▼
 API FastAPI (un proceso, estado vivo en memoria)
-    ├── PostgreSQL 16 · usuarios, preguntas, partidas, ranking
+    ├── PostgreSQL 16 · usuarios, contenido, sesiones e historial
     └── Redis 7       · rate limiting y preguntas ya vistas
 ```
 
@@ -89,10 +89,10 @@ API FastAPI (un proceso, estado vivo en memoria)
 
 | Ruta | Responsabilidad |
 |---|---|
-| `app/api/routers/` | Endpoints HTTP de auth, perfil, salas, ranking, admin y health |
-| `app/ws/` | Protocolo WebSocket de sala y arcade |
-| `app/game/` | Reglas puras: puntajes, dificultad, selección de preguntas |
-| `app/runtime/` | Salas y corridas vivas, en memoria |
+| `app/api/routers/` | Endpoints HTTP de auth, perfil, catálogo, sesiones, salas, ranking, admin y health |
+| `app/ws/` | Protocolo WebSocket de sesión, sala y el adaptador del arcade |
+| `app/game/` | Reglas puras y registro de modos: contenido, rondas, progresión y puntaje |
+| `app/runtime/` | Sesiones y salas vivas, en memoria |
 | `app/services/` | Persistencia, ranking, importación y barrido de partidas huérfanas |
 | `app/models/` · `alembic/` | Modelos SQLAlchemy y migraciones |
 | `seeds/questions.csv` | 120 preguntas base listas para importar |
@@ -109,7 +109,7 @@ tiempos inconsistentes.
 |---|---|
 | `src/routes/` | Inicio, jugar, sala, ranking y admin |
 | `src/lib/api/` | Cliente HTTP, sesión y WebSocket; no hay `fetch` ni `WebSocket` fuera de aquí |
-| `src/lib/match/` · `src/lib/arcade/` | Máquinas de estado de la partida y de la corrida |
+| `src/lib/modes/` | Registry de renderers y pantallas por modo (`ArcadeScreen`, `VersusScreen`) |
 | `src/lib/components/` | Componentes propios, sin librería de UI |
 | `src/lib/i18n/es.json` | Todas las cadenas visibles |
 | `src/lib/sound.svelte.ts` | Efectos de sonido y preferencia de silencio |
@@ -124,7 +124,7 @@ de todas las rutas hacia `index.html`.
 
 - Docker con Compose.
 - `uv` (gestiona Python 3.12 y las dependencias del backend).
-- Node.js 22 o superior.
+- Node.js 22 o superior (el CI usa 24).
 
 ### Backend
 
@@ -218,10 +218,10 @@ FILE` es el comando nuevo (con `import-questions` como alias) y los dos aceptan
   corriendo. `make cov` exige una cobertura mínima del 85 %.
 - `make lint` aplica `ruff` y `mypy --strict`; `make check-schema` detecta modelos sin migrar.
 - El frontend pasa `svelte-check` y un build de producción sin advertencias.
-- La suite e2e con Playwright juega un 1v1 completo (dos contextos) y un arcade hasta el final
-  contra el backend real, no contra mocks: necesita `make up && make migrate && make seed` y la
-  API en `:8000`. Se corre con `npm run test:e2e` desde `frontend/`; Playwright levanta la SPA
-  en `:5173`.
+- La suite e2e con Playwright juega un 1v1 completo (dos contextos), un arcade hasta el final,
+  el catálogo de la home y los redirects viejos contra el backend real, no contra mocks:
+  necesita `make up && make migrate && make seed` y la API en `:8000`. Se corre con
+  `npm run test:e2e` desde `frontend/`; Playwright levanta la SPA en `:5173`.
 - El CI ejecuta lint, migraciones, cobertura del backend, `check` + `build` del frontend y la
   suite e2e.
 
@@ -234,12 +234,16 @@ El contrato completo, con formas, códigos de error y detalles del protocolo Web
 |---|---|
 | `POST /auth/guest` | Alta de invitado y emisión del JWT |
 | `GET` · `PATCH` · `DELETE /me` | Perfil, cambio de nick y baja lógica |
-| `POST /rooms` · `GET /rooms/{code}` | Creación y vista previa de una sala 1v1 |
-| `WS /ws/room/{code}` | Partida 1v1 en vivo |
-| `WS /ws/arcade` | Corrida de arcade en vivo |
-| `GET /leaderboard/arcade` · `GET /leaderboard/arcade/me` | Ranking global y semanal |
+| `GET /modes` | Catálogo de modos: formato, jugadores, medios y `config_schema` |
+| `POST /sessions` · `WS /ws/session/{id}` | Sesión `solo` (arcade y modos futuros) por el canal genérico |
+| `POST /rooms` · `GET /rooms/{code}` · `WS /ws/room/{code}` | Sala y partida 1v1 en vivo |
+| `WS /ws/arcade` | Adaptador histórico del arcade (`arcade_*`) |
+| `GET /leaderboard/{mode}` · `GET /leaderboard/{mode}/me` | Ranking global y semanal del modo |
 | `GET` · `POST /admin/content/{kind}` | Listado e importación de contenido (alias `/admin/questions`) |
 | `GET /health` | Estado de la API, PostgreSQL y Redis |
+
+Los alias históricos (`/leaderboard/arcade`, `/admin/questions`, `/ws/arcade`) siguen
+respondiendo igual; la tabla de compatibilidad está en `docs/api.md` §Compatibilidad.
 
 ## Estructura del repositorio
 

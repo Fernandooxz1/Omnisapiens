@@ -206,6 +206,18 @@ Un cambio de contrato se documenta en `docs/api.md` en el mismo commit; si toca 
 también se actualiza esa tabla. Los tests de contrato de los alias viven en
 `tests/test_api_compat.py` y comparan status y body contra la ruta nueva.
 
+## Modos
+
+Un modo es una entrada en `app/game/modes/`: un `ContentKind`, las `RoundRules`, la
+`Progression`, el `ScoringPolicy`, los esquemas y una `GameMode` registrada en
+`app/game/modes/__init__.py`. El borde (`POST /sessions`, `WS /ws/session/{id}`,
+`GET /modes` y el ranking) lee el registro y no tiene ramas por código: agregar un modo no
+toca el barrendero, el handler ni el modelo de datos.
+
+`tests/test_modes_conformance.py` recorre el registro y exige el contrato completo;
+`tests/test_mode_acceptance.py` registra un quiz duplicado y lo juega por el canal genérico.
+Si un modo nuevo pide una rama en el borde, el contrato se rompió.
+
 ## Convenciones
 
 - Código, identificadores, archivos y commits **en inglés**; los mensajes que ve el jugador,

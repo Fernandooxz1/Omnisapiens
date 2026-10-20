@@ -348,20 +348,20 @@ Cliente → servidor: `answer {"round": n, "choice": 0..3}`, `state {}`, `ping {
 
 ## Compatibilidad
 
-Durante el refactor conviven la superficie genérica y la histórica. Los alias responden
-directo (sin redirect) y devuelven exactamente lo mismo que la ruta nueva: migrar el
-cliente no cambia ningún payload.
+Conviven la superficie genérica y la histórica. Los alias responden directo (sin redirect) y
+devuelven exactamente lo mismo que la ruta nueva: migrar el cliente no cambia ningún
+payload. Ninguno depende de las tablas retiradas en la fase 10.
 
 | Superficie vieja | Superficie nueva | Qué se mantiene | Hasta |
 |---|---|---|---|
-| `GET /leaderboard/arcade` y `/leaderboard/arcade/me` | `GET /leaderboard/trivia_arcade` y `/me` | status y body idénticos | se mantiene después de la fase 10 |
-| `GET /admin/questions` | `GET /admin/content/quiz` | misma página y filtros | se mantiene después de la fase 10 |
-| `POST /admin/questions/import` | `POST /admin/content/quiz` | mismo informe de importación | se mantiene después de la fase 10 |
-| `POST /admin/content/{kind}/import` | `POST /admin/content/{kind}` | mismo informe; ruta aceptada pero fuera del OpenAPI | se mantiene después de la fase 10 |
-| `WS /ws/arcade` + `arcade_start/question/result/end` | `WS /ws/session/{id}` + `session_start/item_start/item_result/session_end` | mismo motor y transcripts dorados | hasta la fase 7.3, cuando el cliente pasa al canal nuevo |
+| `GET /leaderboard/arcade` y `/leaderboard/arcade/me` | `GET /leaderboard/trivia_arcade` y `/me` | status y body idénticos | se mantiene |
+| `GET /admin/questions` | `GET /admin/content/quiz` | misma página y filtros | se mantiene |
+| `POST /admin/questions/import` | `POST /admin/content/quiz` | mismo informe de importación | se mantiene |
+| `POST /admin/content/{kind}/import` | `POST /admin/content/{kind}` | mismo informe; ruta aceptada pero fuera del OpenAPI | se mantiene |
+| `WS /ws/arcade` + `arcade_start/question/result/end` | `WS /ws/session/{id}` + `session_start/item_start/item_result/session_end` | mismo motor y transcripts dorados | se mantiene como adaptador, sin fecha de retiro |
 
 - Los alias HTTP no dependen de las tablas viejas: leen `content_items` y
-  `game_sessions`, por eso sobreviven al retiro de `questions`, `arcade_runs` y
+  `game_sessions`, por eso sobrevivieron al retiro de `questions`, `arcade_runs` y
   `matches` en la fase 10.
 - Cada socket habla **un solo** protocolo: los mensajes `arcade_*` no aparecen en
   `/ws/session/{id}` y los canónicos no aparecen en `/ws/arcade`.
