@@ -67,11 +67,24 @@
 		font-size: 0.9rem;
 		font-weight: 700;
 		letter-spacing: 0.04em;
+		list-style: none;
 		cursor: pointer;
 	}
 
-	.review__toggle::marker {
+	.review__toggle::-webkit-details-marker {
+		display: none;
+	}
+
+	.review__toggle::before {
+		content: '▸';
+		display: inline-block;
+		margin-right: var(--s-2);
 		color: var(--ink-3);
+		transition: transform 0.15s ease;
+	}
+
+	.review[open] .review__toggle::before {
+		transform: rotate(90deg);
 	}
 
 	.review__list {
