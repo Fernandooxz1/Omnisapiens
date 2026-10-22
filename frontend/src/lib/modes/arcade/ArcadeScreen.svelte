@@ -47,6 +47,7 @@
 		question ? Math.max(0, Math.ceil((question.endsAt - now) / 1000)) : 0
 	);
 	const alert = $derived(phase === 'question' && seconds <= 5);
+	const danger = $derived(phase === 'question' && seconds <= 4);
 	const timeLeft = $derived(
 		question ? Math.min(100, Math.round((seconds / question.seconds) * 100)) : 0
 	);
@@ -305,7 +306,7 @@
 		</div>
 	</section>
 {:else if question && run}
-	<section class="arcade">
+	<section class="arcade" class:is-danger={danger}>
 		<header class="brand">
 			<h1 class="wordmark">
 				{t('home.wordmark_omni')}<span class="wordmark__accent">{t('home.wordmark_sapiens')}</span>
@@ -363,6 +364,7 @@
 		<QuestionCard
 			prompt={question.prompt}
 			badge={phase === 'question' ? t('play.answer_badge') : undefined}
+			{danger}
 		/>
 
 		<div class="match__tiles">
@@ -380,6 +382,8 @@
 		<div class="match__foot" aria-live="polite">
 			{#if run.notice}
 				<p class="muted">{t(noticeKey(run.notice))}</p>
+			{:else if phase === 'question' && run.streak >= 3}
+				<p class="muted">{t('arcade.streak_hint', { n: run.streak })}</p>
 			{:else if phase === 'question'}
 				<p class="muted">{t('arcade.hint')}</p>
 			{:else if phase === 'answered'}

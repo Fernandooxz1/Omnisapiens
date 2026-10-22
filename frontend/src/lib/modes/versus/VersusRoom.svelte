@@ -52,6 +52,7 @@
 		question ? Math.max(0, Math.ceil((question.endsAt - now) / 1000)) : 0
 	);
 	const alert = $derived(phase === 'question' && seconds <= 5);
+	const danger = $derived(phase === 'question' && seconds <= 4);
 	const timeLeft = $derived(
 		question ? Math.min(100, Math.round((seconds / question.totalSeconds) * 100)) : 0
 	);
@@ -406,7 +407,7 @@
 		</div>
 	</section>
 {:else if question && match}
-	<section class="match match--live">
+	<section class="match match--live" class:is-danger={danger}>
 		<div class="match__head">
 			<header class="brand">
 				<h1 class="wordmark">
@@ -451,6 +452,7 @@
 			categoryLabel={t(categoryKey(question.category))}
 			prompt={question.prompt}
 			badge={phase === 'question' ? t('play.answer_badge') : undefined}
+			{danger}
 		/>
 
 		<div class="match__tiles">

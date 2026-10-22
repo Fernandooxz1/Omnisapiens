@@ -82,6 +82,8 @@
 
 	/* Texto de error: el rojo de relleno no llega a AA sobre la pizarra. */
 	--red-ink: #ff8a75;
+	/* Anillo de peligro: rojo del tablero, translúcido para que el latido sea sutil. */
+	--danger-ring: rgb(230 37 20 / 0.65);
 
 	--focus-ring: #ffffff;
 
@@ -1002,6 +1004,32 @@ input {
 @keyframes timer-pulse {
 	50% {
 		transform: scale(1.06);
+	}
+}
+
+/* ---------- Tensión de los últimos segundos ---------- */
+
+/* El anillo late desde el borde sin mover el contenido: el `outline` no ocupa layout. */
+.question-card.is-danger,
+.match.is-danger,
+.arcade.is-danger {
+	outline: 2.5px solid transparent;
+	outline-offset: 3px;
+	animation: danger-pulse 0.9s ease-in-out infinite;
+}
+
+.match.is-danger,
+.arcade.is-danger {
+	border-radius: var(--r-lg);
+}
+
+@keyframes danger-pulse {
+	0%,
+	100% {
+		outline-color: transparent;
+	}
+	50% {
+		outline-color: var(--danger-ring);
 	}
 }
 
