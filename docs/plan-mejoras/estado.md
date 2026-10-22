@@ -4,12 +4,12 @@
 > No se edita a mano. Si hay conflicto entre este archivo y un prompt, manda este.
 
 ```yaml
-activo: true
+activo: false
 fase: 3
-tarea: "3.2"
+tarea: "—"
 rol: frontend
-estado: pendiente           # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 22e2092
+estado: hecho               # pendiente | en curso | hecho | bloqueado
+ultimo_commit: b2101c6
 fecha: 2026-10-22
 bloqueo: ""
 ```
@@ -20,7 +20,7 @@ bloqueo: ""
 |---|---|---|---|---|
 | 1 | Juiciness y Feedback de Combate | frontend | 1.1 – 1.3 | pendiente |
 | 2 | Expansión de Preguntas (Batch 4) | backend | 2.1 | hecho |
-| 3 | Personalidad y Tensión | frontend | 3.1 – 3.2 | pendiente |
+| 3 | Personalidad y Tensión | frontend | 3.1 – 3.2 | hecho |
 
 ## Historial
 
@@ -32,3 +32,4 @@ bloqueo: ""
 | 2026-10-21 | 1.3 | `ee267d9` | Confetti de victoria/récord y puntaje final con conteo. Próxima: 2.1 (F2, backend). |
 | 2026-10-21 | 2.1 | `ec1cb58` | Batch 4: 150 preguntas nuevas (6 categorías, niveles 1–5) y `make seed` actualizado. Próxima: 3.1 (F3, frontend). |
 | 2026-10-22 | 3.1 | `22e2092` | Emblema de avatar elegible (6 íconos), persistido en `localStorage` y visible en todas las pantallas. Próxima: 3.2 (F3). |
+| 2026-10-22 | 3.2 | `b2101c6` | Pulso de peligro en tarjeta y marco con ≤4 s, copys con humor y línea de racha. Plan cerrado. |
