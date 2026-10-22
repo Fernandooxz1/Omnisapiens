@@ -45,6 +45,30 @@
 		opacity: 0.22;
 		transform: scale(0.82);
 		filter: none;
+		animation: heart-break 0.36s ease both;
+	}
+
+	@keyframes heart-break {
+		0% {
+			opacity: 1;
+			transform: translateX(0) translateY(0) scale(1);
+		}
+		15% {
+			transform: translateX(-3px) translateY(-4px) scale(1.06);
+		}
+		35% {
+			transform: translateX(3px) translateY(-4px) scale(1.04);
+		}
+		55% {
+			transform: translateX(-3px) translateY(-1px) scale(0.98);
+		}
+		75% {
+			transform: translateX(2px) translateY(0) scale(0.88);
+		}
+		100% {
+			opacity: 0.22;
+			transform: translateX(0) translateY(0) scale(0.82);
+		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {

@@ -12,6 +12,7 @@
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
 	import ReviewList from '#lib/components/ReviewList.svelte';
 	import TimerBadge from '#lib/components/TimerBadge.svelte';
+	import { haptics } from '#lib/haptics';
 	import { t, type MessageKey } from '#lib/i18n';
 	import { bindAnswerKeys } from '#lib/keyboard.svelte';
 	import { sound } from '#lib/sound.svelte';
@@ -67,7 +68,11 @@
 		const revealing = phase === 'reveal';
 		if (revealing && !lastReveal) {
 			const correct = result?.you.correct;
-			if (correct !== undefined) sound.play(correct ? 'correct' : 'wrong');
+			if (correct !== undefined) {
+				sound.play(correct ? 'correct' : 'wrong');
+				if (correct) haptics.success();
+				else haptics.error();
+			}
 		}
 		lastReveal = revealing;
 	});

@@ -13,6 +13,7 @@
 	import Scoreboard from '#lib/components/Scoreboard.svelte';
 	import TimerBadge from '#lib/components/TimerBadge.svelte';
 	import { categoryKey } from '#lib/categories';
+	import { haptics } from '#lib/haptics';
 	import { t, type MessageKey } from '#lib/i18n';
 	import { bindAnswerKeys } from '#lib/keyboard.svelte';
 	import { createLiveMatch, type LiveMatch } from '#lib/match/live.svelte';
@@ -93,7 +94,11 @@
 		const revealing = phase === 'reveal';
 		if (revealing && !lastReveal) {
 			const correct = result?.you.correct;
-			if (correct !== undefined) sound.play(correct ? 'correct' : 'wrong');
+			if (correct !== undefined) {
+				sound.play(correct ? 'correct' : 'wrong');
+				if (correct) haptics.success();
+				else haptics.error();
+			}
 		}
 		lastReveal = revealing;
 	});

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { HTMLButtonAttributes } from 'svelte/elements';
+	import { haptics } from '#lib/haptics';
 	import Icon from './Icon.svelte';
 
 	export type TileState = 'idle' | 'selected' | 'correct' | 'wrong' | 'dim';
@@ -25,6 +26,9 @@
 	class="tile is-{state} {className}"
 	class:is-locked={locked}
 	{...rest}
+	onpointerdown={() => {
+		if (!locked) haptics.tap();
+	}}
 >
 	<span class="tile__key">{keycap}</span>
 	<span class="tile__label">{label}</span>
