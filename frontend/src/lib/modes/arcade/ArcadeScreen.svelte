@@ -8,6 +8,7 @@
 	import { createArcadeRun } from '#lib/arcade/live.svelte';
 	import AnswerTile, { type TileState } from '#lib/components/AnswerTile.svelte';
 	import Button from '#lib/components/Button.svelte';
+	import Confetti from '#lib/components/Confetti.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import LifeStrip from '#lib/components/LifeStrip.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
@@ -29,6 +30,10 @@
 	let floater = $state<{ id: number; points: number } | null>(null);
 	let floaterId = 0;
 	let lastFloaterResult: ArcadeResult | null = null;
+
+	/** Pantalla final: el puntaje se revela contando y el récord lleva confetti. */
+	let shownEnd = $state(0);
+	let celebrate = $state(false);
 
 	const phase = $derived(run?.phase ?? 'connecting');
 	const question = $derived(run?.question ?? null);
@@ -121,6 +126,24 @@
 		if (phase !== 'over' || !end || end === lastEnd) return;
 		lastEnd = end;
 		sound.play(end.isNewBest ? 'best_score' : 'match_lose');
+		celebrate = end.isNewBest;
+
+		const target = end.score;
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			shownEnd = target;
+			return;
+		}
+
+		shownEnd = 0;
+		const begin = performance.now();
+		let frame = requestAnimationFrame(function step(time) {
+			const progress = Math.min(1, (time - begin) / 900);
+			const eased = 1 - (1 - progress) ** 3;
+			shownEnd = Math.round(target * eased);
+			if (progress < 1) frame = requestAnimationFrame(step);
+		});
+
+		return () => cancelAnimationFrame(frame);
 	});
 
 	bindAnswerKeys({
@@ -222,6 +245,10 @@
 	</section>
 {:else if phase === 'over' && end}
 	<section class="arcade-end">
+		{#if celebrate}
+			<Confetti count={110} onDone={() => (celebrate = false)} />
+		{/if}
+
 		<header class="brand">
 			<h1 class="wordmark">
 				{t('home.wordmark_omni')}<span class="wordmark__accent">{t('home.wordmark_sapiens')}</span>
@@ -232,7 +259,7 @@
 
 		<div class="end-score">
 			<span class="end-score__label">{t('arcade.end_score')}</span>
-			<span class="end-score__value">{end.score}</span>
+			<span class="end-score__value">{shownEnd}</span>
 			{#if end.isNewBest}
 				<span class="end-score__best">{t('arcade.end_new_best')}</span>
 			{/if}

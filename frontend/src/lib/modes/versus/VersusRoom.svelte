@@ -6,6 +6,7 @@
 	import { session } from '#lib/api/session.svelte';
 	import AnswerTile, { type TileState } from '#lib/components/AnswerTile.svelte';
 	import Button from '#lib/components/Button.svelte';
+	import Confetti from '#lib/components/Confetti.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import PlayerPanel from '#lib/components/PlayerPanel.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
@@ -35,6 +36,8 @@
 	let now = $state(Date.now());
 	/** Opción marcada con `1`–`4`, a la espera de `Enter`. */
 	let selected = $state<number | null>(null);
+	/** La victoria 1v1 se festeja con confetti mientras dura la lluvia. */
+	let celebrate = $state(false);
 
 	const phase = $derived(match?.phase ?? 'connecting');
 	const question = $derived(match?.question ?? null);
@@ -110,6 +113,7 @@
 		sound.play(
 			ended.winner === 'you' ? 'match_win' : ended.winner === 'opponent' ? 'match_lose' : 'reveal'
 		);
+		celebrate = ended.winner === 'you';
 	});
 
 	bindAnswerKeys({
@@ -327,6 +331,10 @@
 	</section>
 {:else if phase === 'over' && ended}
 	<section class="match">
+		{#if celebrate}
+			<Confetti count={80} onDone={() => (celebrate = false)} />
+		{/if}
+
 		<div class="match__foot">
 			<h1 class="page-title">
 				{ended.winner === 'you'
