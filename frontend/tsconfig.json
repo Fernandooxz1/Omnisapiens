@@ -2,6 +2,8 @@
 	"extends": "$app/tsconfig",
 	"compilerOptions": {
 		"strict": true,
+		// Los módulos puros de los juegos se importan con `.ts` para que Node los ejecute.
+		"allowImportingTsExtensions": true,
 		// Vite resuelve #lib por package.json; svelte-check necesita el mismo mapa acá.
 		"paths": {
 			"#lib/*": ["./src/lib/*"]

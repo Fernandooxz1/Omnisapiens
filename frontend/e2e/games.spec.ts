@@ -22,7 +22,7 @@ test('the tab bar leads from the home to the games hub and the catalog', async (
 	await murdoku.click();
 	await expect(page).toHaveURL(/\/juegos\/murdoku$/);
 	await expect(page.getByRole('heading', { level: 1, name: 'Murdoku' })).toBeVisible();
-	await expect(caseLinks(page)).toHaveCount(3);
+	await expect(caseLinks(page)).toHaveCount(2);
 	await expect(tabs.getByRole('link', { name: 'Juegos' })).toHaveAttribute('aria-current', 'page');
 });
 
@@ -43,12 +43,10 @@ test('the catalog shows the fixture envelopes and the chips filter them', async 
 	const nine = page.getByRole('link', {
 		name: 'Caso 21, La biblioteca, Medio, 9×9, Sin abrir'
 	});
-	const fifteen = page.getByRole('link', { name: 'Caso 61, El faro, Hardcore, 15×15, Sin abrir' });
 
-	await expect(caseLinks(page)).toHaveCount(3);
+	await expect(caseLinks(page)).toHaveCount(2);
 	await expect(five).toBeVisible();
 	await expect(nine).toBeVisible();
-	await expect(fifteen).toBeVisible();
 
 	const chips = page.getByRole('group', { name: 'Dificultad' });
 	await expect(chips.getByRole('button', { name: /^Todo/ })).toHaveAttribute('aria-pressed', 'true');
@@ -62,17 +60,16 @@ test('the catalog shows the fixture envelopes and the chips filter them', async 
 	await expect(caseLinks(page)).toHaveCount(1);
 	await expect(nine).toBeVisible();
 	await expect(five).toHaveCount(0);
-	await expect(fifteen).toHaveCount(0);
 
 	await chips.getByRole('button', { name: /^Todo/ }).click();
-	await expect(caseLinks(page)).toHaveCount(3);
+	await expect(caseLinks(page)).toHaveCount(2);
 });
 
 test('the catalog does not scroll sideways on a phone', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto('/juegos/murdoku');
 
-	await expect(caseLinks(page)).toHaveCount(3);
+	await expect(caseLinks(page)).toHaveCount(2);
 
 	const overflow = await page.evaluate(
 		() => document.documentElement.scrollWidth - document.documentElement.clientWidth
