@@ -2,21 +2,6 @@
 
 Monorepo de trivia online: `backend/` (FastAPI) y `frontend/` (SvelteKit + PWA).
 
-## Flujo activo: refactor multi-modo
-
-Mientras `docs/plan-refactor/estado.md` diga `activo: true`, el flujo diario es el de
-`docs/plan-refactor/README.md`:
-
-- Si el usuario escribe **`comenzemos`**, **`seguimos`** o **`terminamos`**, seguí
-  `docs/plan-refactor/prompts/00-comenzemos.md` al pie de la letra.
-- La cola del refactor es `docs/plan-refactor/estado.md`. `docs/tareas.md` y
-  `docs/tareas-backend.md` quedan congeladas hasta que el refactor cierre.
-- El rol, la tarea, la verificación y el mensaje de commit salen de la tarea, no de
-  este archivo.
-- Las reglas de abajo siguen vigentes.
-
-Cuando el refactor cierre (`activo: false`), vuelve el flujo normal de este archivo.
-
 ## Flujo normal
 
 **Cada sesión tiene un rol y no cambia de lado.** Al empezar, leé el brief de tu rol y nada más:

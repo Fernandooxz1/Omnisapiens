@@ -1,7 +1,7 @@
 # Omnisapiens — plan del producto (frontend)
 
 > El refactor multi-modo cerró el 2026-10-20: el diseño y su historial quedan en
-> [`docs/plan-refactor/`](plan-refactor/README.md). Este archivo sigue siendo la
+> [`docs/archive/plan-refactor/`](archive/plan-refactor/README.md). Este archivo sigue siendo la
 > especificación del producto; las reglas de juego no cambiaron por el refactor.
 
 > Especificación viva del MVP. Es **estable**: la cola de trabajo vive en `docs/tareas.md`.

@@ -11,6 +11,7 @@ servidor se comporta de una manera.
 | `backend/trampas.md` | Anexo B: decisiones y trampas del backend (la memoria de lo que ya costó un bug). |
 | `backend/observaciones.md` | Auditoría H-01..H-25, **cerrada**. |
 | `agents-backend.md` | El `AGENTS.md` que regía cuando el trabajo era backend. |
+| `plan-refactor/` | Diseño, plan y registro de las 10 fases del refactor multi-modo (cerrado el 2026-10-20). |
 
 Lo que el frontend **sí** necesita del backend vive en `docs/api.md` (contrato y trampas del
 cliente) y `docs/plan.md` (modos, reglas y puntajes). No hace falta venir acá.
