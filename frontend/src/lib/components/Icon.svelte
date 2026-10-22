@@ -1,8 +1,10 @@
-<script lang="ts">
-	type Name =
+<script module lang="ts">
+	export type IconName =
 		| 'check'
 		| 'x'
 		| 'arrow'
+		| 'home'
+		| 'grid'
 		| 'trophy'
 		| 'crown'
 		| 'flame'
@@ -14,16 +16,18 @@
 		| 'bolt'
 		| 'glasses'
 		| 'star';
+</script>
 
+<script lang="ts">
 	interface Props {
-		name: Name;
+		name: IconName;
 		size?: number;
 	}
 
 	let { name, size = 20 }: Props = $props();
 
 	/** Los macizos no llevan trazo: se pintan con `currentColor`. */
-	const filled: Name[] = ['crown', 'flame', 'heart', 'bolt', 'star'];
+	const filled: IconName[] = ['crown', 'flame', 'heart', 'bolt', 'star'];
 </script>
 
 <svg
@@ -52,6 +56,22 @@
 	{:else if name === 'arrow'}
 		<path
 			d="M5 12h14M13 6l6 6-6 6"
+			stroke="currentColor"
+			stroke-width="2.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		/>
+	{:else if name === 'home'}
+		<path
+			d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-8Z"
+			stroke="currentColor"
+			stroke-width="2.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		/>
+	{:else if name === 'grid'}
+		<path
+			d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z"
 			stroke="currentColor"
 			stroke-width="2.5"
 			stroke-linecap="round"

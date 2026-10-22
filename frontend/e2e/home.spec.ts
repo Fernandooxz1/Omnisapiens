@@ -45,7 +45,10 @@ test('the home shows the modes from the real backend', async ({ page }) => {
 	await expect(nav.getByRole('button')).toHaveCount(2);
 	await expect(nav.getByRole('button', { name: /^Arcade/ })).toBeVisible();
 	await expect(nav.getByRole('button', { name: /^Jugar 1v1/ })).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Ranking semanal' })).toBeVisible();
+
+	// El acceso persistente al ranking es la tab bar, no un link al final del home.
+	const tabs = page.getByRole('navigation', { name: 'Navegación principal' });
+	await expect(tabs.getByRole('link', { name: 'Ranking' })).toBeVisible();
 });
 
 test('the home reserves the space of the catalog while it loads', async ({ page }) => {

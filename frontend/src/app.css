@@ -34,6 +34,7 @@
 	--border-w: 2.5px;
 	--key-h: 78px;
 	--key-h-sm: 64px;
+	--tabbar-h: 64px;
 	--depth-key: 6px;
 
 	--s-1: 4px;
@@ -244,6 +245,20 @@ input {
 
 .shell--center {
 	justify-content: center;
+}
+
+/* Hub y catálogo de juegos respiran más ancho; la partida, todavía más. */
+.shell--wide {
+	max-width: 960px;
+}
+
+.shell--play {
+	max-width: 1100px;
+}
+
+/* Con tab bar visible, el contenido termina por encima de la barra. */
+.shell--tabbar {
+	padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--s-4));
 }
 
 /* ---------- Inicio ---------- */
@@ -1227,11 +1242,6 @@ input {
 .rank-link:active {
 	transform: translateY(3px);
 	box-shadow: 0 2px 0 var(--panel-edge);
-}
-
-.rank-link__icon {
-	display: inline-flex;
-	color: var(--yellow);
 }
 
 /* ---------- Utilidades ---------- */

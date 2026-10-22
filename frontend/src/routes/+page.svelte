@@ -27,8 +27,6 @@
 	const nickReady = $derived(nick.trim().length > 0);
 	const fieldError = $derived(error && FIELD_ERRORS.includes(error) ? t(error) : undefined);
 	const catalog = $derived(orderModes(modes));
-	/** Solo los modos que publican tabla muestran el acceso al ranking. */
-	const showRanking = $derived(modes.some((mode) => mode.ranking));
 	/** El arcade da tres vidas: se muestran como pastilla del modo. */
 	const lives = [1, 2, 3];
 
@@ -162,13 +160,6 @@
 			</nav>
 		{/if}
 	</div>
-
-	{#if showRanking}
-		<a class="rank-link" href="/ranking">
-			<span class="rank-link__icon"><Icon name="trophy" /></span>
-			{t('home.ranking')}
-		</a>
-	{/if}
 </div>
 
 <style>

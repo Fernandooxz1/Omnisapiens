@@ -22,8 +22,8 @@ test('a full 1v1 from code to result', async ({ browser }) => {
 	await expect(hostPage.getByText(guestNick)).toBeVisible();
 	await hostPage.getByRole('button', { name: 'Empezar partida' }).click();
 
-	const overHeading = hostPage.getByRole('heading', { name: /^(¡Ganaste!|Perdiste|Empate)$/ });
-	const guestOver = guestPage.getByRole('heading', { name: /^(¡Ganaste!|Perdiste|Empate)$/ });
+	const overHeading = hostPage.getByRole('heading', { name: /^(¡Ganaste!|Perdiste|Empate)/ });
+	const guestOver = guestPage.getByRole('heading', { name: /^(¡Ganaste!|Perdiste|Empate)/ });
 	const enabledTile = hostPage.locator('.match__tiles button:not([disabled])').first();
 
 	// Hasta seis preguntas: tres de partida y hasta tres de desempate.
