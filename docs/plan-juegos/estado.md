@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 2
-tarea: "2.1"
+tarea: "2.2"
 rol: frontend
 estado: pendiente               # pendiente | en curso | hecho | bloqueado
-ultimo_commit: b8931fc
+ultimo_commit: 7eb1915
 fecha: 2026-10-22
 bloqueo: ""
 ```
@@ -31,3 +31,4 @@ bloqueo: ""
 | 2026-10-22 | 1.1 | `9590b2a` | Escala, tipos y sistema visual alineados. Próxima: 1.2 (F1). |
 | 2026-10-22 | 1.2 | `78c07c2` | Tab bar, hub y registro de juegos. Próxima: 1.3 (F1). |
 | 2026-10-22 | 1.3 | `b8931fc` | Sobres, herramientas y progreso local con fixtures. Próxima: 2.1 (F2). |
+| 2026-10-22 | 2.1 | `7eb1915` | Tipos, reglas, solver y validador; dos fixtures reales con solución única. Próxima: 2.2 (F2). |
