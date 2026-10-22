@@ -5,11 +5,11 @@
 
 ```yaml
 activo: true
-fase: 1
-tarea: "1.3"
-rol: frontend
+fase: 2
+tarea: "2.1"
+rol: backend
 estado: pendiente           # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 83b9b04
+ultimo_commit: ee267d9
 fecha: 2026-10-21
 bloqueo: ""
 ```
@@ -29,3 +29,4 @@ bloqueo: ""
 | 2026-10-21 | — | `f2a4ed9` | Plan y router creados. Próxima: 1.1 (F1). |
 | 2026-10-21 | 1.1 | `1f7d03f` | Pop de acierto, heart-break y haptics. Próxima: 1.2 (F1). |
 | 2026-10-21 | 1.2 | `83b9b04` | Llama de racha, flotador +pts y marcador interpolado. Próxima: 1.3 (F1). |
+| 2026-10-21 | 1.3 | `ee267d9` | Confetti de victoria/récord y puntaje final con conteo. Próxima: 2.1 (F2, backend). |
