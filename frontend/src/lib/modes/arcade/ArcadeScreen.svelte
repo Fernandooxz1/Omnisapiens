@@ -1,13 +1,14 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { NETWORK_ERROR } from '#lib/api/client';
 	import type { ApiError } from '#lib/api/client';
 	import { session } from '#lib/api/session.svelte';
-	import type { ArcadeRun } from '#lib/arcade/live.svelte';
+	import type { ArcadeResult, ArcadeRun } from '#lib/arcade/live.svelte';
 	import { createArcadeRun } from '#lib/arcade/live.svelte';
 	import AnswerTile, { type TileState } from '#lib/components/AnswerTile.svelte';
 	import Button from '#lib/components/Button.svelte';
+	import Icon from '#lib/components/Icon.svelte';
 	import LifeStrip from '#lib/components/LifeStrip.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
 	import ReviewList from '#lib/components/ReviewList.svelte';
@@ -22,6 +23,12 @@
 	let now = $state(Date.now());
 	/** Opción marcada con `1`–`4`, a la espera de `Enter`. */
 	let selected = $state<number | null>(null);
+
+	/** Marcador interpolado (el HUD no salta en seco) y flotador de la ronda. */
+	let shownScore = $state(0);
+	let floater = $state<{ id: number; points: number } | null>(null);
+	let floaterId = 0;
+	let lastFloaterResult: ArcadeResult | null = null;
 
 	const phase = $derived(run?.phase ?? 'connecting');
 	const question = $derived(run?.question ?? null);
@@ -75,6 +82,38 @@
 			}
 		}
 		lastReveal = revealing;
+	});
+
+	/** El marcador del HUD sube con una interpolación corta, no de golpe. */
+	$effect(() => {
+		const target = run?.score ?? 0;
+		const start = untrack(() => shownScore);
+		if (target === start) return;
+
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			shownScore = target;
+			return;
+		}
+
+		const begin = performance.now();
+		let frame = requestAnimationFrame(function step(time) {
+			const progress = Math.min(1, (time - begin) / 250);
+			const eased = 1 - (1 - progress) ** 2;
+			shownScore = Math.round(start + (target - start) * eased);
+			if (progress < 1) frame = requestAnimationFrame(step);
+		});
+
+		return () => cancelAnimationFrame(frame);
+	});
+
+	/** Un `+pts` por ronda resuelta; lo retira la animación al terminar. */
+	$effect(() => {
+		const current = result;
+		if (!current || current === lastFloaterResult) return;
+		lastFloaterResult = current;
+		if (current.you.points > 0) {
+			floater = { id: ++floaterId, points: current.you.points };
+		}
 	});
 
 	let lastEnd: unknown = null;
@@ -247,13 +286,35 @@
 		</header>
 
 		<div class="hud">
-			<div class="stat">
+			<div class="stat stat--score">
 				<span class="stat__label">{t('arcade.score')}</span>
-				<span class="stat__value">{run.score}</span>
+				<span class="stat__value">{shownScore}</span>
+				{#if floater}
+					{#key floater.id}
+						<span
+							class="points-floater"
+							aria-hidden="true"
+							onanimationend={() => (floater = null)}
+						>
+							{delta(floater.points)}
+						</span>
+					{/key}
+				{/if}
 			</div>
-			<div class="stat">
+			<div class="stat stat--streak">
 				<span class="stat__label">{t('arcade.streak')}</span>
-				<span class="stat__value">x{run.streak}</span>
+				<span class="stat__value">
+					{#if run.streak >= 2}
+						{#key run.streak}
+							<span class="streak-badge">
+								<Icon name="flame" size={16} />
+								<span>x{run.streak}</span>
+							</span>
+						{/key}
+					{:else}
+						x{run.streak}
+					{/if}
+				</span>
 			</div>
 			<LifeStrip lives={run.lives} />
 		</div>
@@ -371,6 +432,64 @@
 		font-size: 1.35rem;
 		font-weight: 700;
 		line-height: 1;
+	}
+
+	.stat--score {
+		position: relative;
+	}
+
+	.stat--streak .stat__value {
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.streak-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 2px;
+		padding: 2px 8px 2px 4px;
+		border-radius: var(--r-full);
+		background: var(--well-bg);
+		color: var(--orange);
+		animation: streak-pulse 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+	}
+
+	.points-floater {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		color: var(--green);
+		font-family: var(--font-display);
+		font-size: 1rem;
+		font-weight: 700;
+		pointer-events: none;
+		animation: points-float 0.8s ease-out forwards;
+	}
+
+	@keyframes points-float {
+		from {
+			opacity: 0;
+			transform: translateY(2px);
+		}
+		20% {
+			opacity: 1;
+		}
+		to {
+			opacity: 0;
+			transform: translateY(-20px);
+		}
+	}
+
+	@keyframes streak-pulse {
+		0% {
+			transform: scale(0.85);
+		}
+		60% {
+			transform: scale(1.08);
+		}
+		100% {
+			transform: scale(1);
+		}
 	}
 
 	.arcade__round {
