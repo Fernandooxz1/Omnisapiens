@@ -9,7 +9,7 @@ fase: 1
 tarea: "1.1"
 rol: frontend
 estado: pendiente               # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 0f0e40d
+ultimo_commit: 97579bc
 fecha: 2026-10-22
 bloqueo: ""
 ```
@@ -27,4 +27,4 @@ bloqueo: ""
 
 | Fecha | Tarea | Commit | Nota |
 |---|---|---|---|
-| 2026-10-22 | — | — | Plan y router creados. Próxima: 1.1 (F1). |
+| 2026-10-22 | — | `97579bc` | Plan y router creados. Próxima: 1.1 (F1). |
