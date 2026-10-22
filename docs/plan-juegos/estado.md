@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 1
-tarea: "1.2"
+tarea: "1.3"
 rol: frontend
 estado: pendiente               # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 9590b2a
+ultimo_commit: 78c07c2
 fecha: 2026-10-22
 bloqueo: ""
 ```
@@ -29,3 +29,4 @@ bloqueo: ""
 |---|---|---|---|
 | 2026-10-22 | — | `97579bc` | Plan y router creados. Próxima: 1.1 (F1). |
 | 2026-10-22 | 1.1 | `9590b2a` | Escala, tipos y sistema visual alineados. Próxima: 1.2 (F1). |
+| 2026-10-22 | 1.2 | `78c07c2` | Tab bar, hub y registro de juegos. Próxima: 1.3 (F1). |
