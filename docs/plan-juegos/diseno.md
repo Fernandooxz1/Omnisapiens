@@ -45,13 +45,16 @@ Barra inferior fija con tres destinos:
 Inicio  ·  Juegos  ·  Ranking
 ```
 
-- Visible en `/`, `/juegos*` (hub y catálogo) y `/ranking`.
-- **Oculta** en `/play/*`, `/room/*`, `/admin/*` y `/juegos/murdoku/[case]`.
-  En la partida se vuelve al catálogo con el botón de volver del header.
-- El contenido reserva espacio inferior:
+- Visible en `/`, `/juegos` (hub), `/juegos/<juego>` (catálogo) y `/ranking`.
+- **Oculta** en `/play/*`, `/room/*`, `/admin/*` y en la partida
+  `/juegos/murdoku/[case]`. En la partida se vuelve al catálogo con el botón de
+  volver del header.
+- Alto `--tabbar-h: 64px`; el contenido reserva espacio inferior:
   `padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--s-4))`.
-- Activo: icono y label en `--accent`, con una barra inferior de 3 px. Sin
-  degradados.
+- Fondo `--card-bg` con borde superior `--panel-edge`, labels en `--font-ui`, cada
+  destino con blanco táctil ≥ 44 px.
+- Activo: icono y label en `--accent`, `aria-current="page"` y una barra inferior
+  de 3 px. Sin degradados.
 - El link de ranking del final del home se elimina: la tab bar pasa a ser el
   único acceso persistente.
 
@@ -94,8 +97,9 @@ asesino."** No es una pista más y no se usa para deducir la posición de nadie.
 
 ## 4. Escala de dificultad
 
-La dificultad la manda el tamaño. El nivel es un dato explícito del caso, no una
-consecuencia automática del tamaño, para poder tener 7×7 fáciles y medios.
+La dificultad sigue al tamaño, salvo 7×7 y 9×9, que admiten dos niveles. El nivel
+es un dato explícito del caso, no una consecuencia automática del tamaño, para
+poder tener 7×7 fáciles y medios.
 
 | Tamaño | Nivel | Casos v1 | Pistas | Minutos aprox. |
 |---|---|---|---|---|
@@ -111,11 +115,13 @@ consecuencia automática del tamaño, para poder tener 7×7 fáciles y medios.
 | 14×14 | Hardcore | 2 | 15–17 | 28 |
 | 15×15 | Hardcore | 2 | 16–18 | 32 |
 
-**Total: 62 casos.** Cada sospechoso aporta al menos una pista; por eso el piso
-es N−1. Las pistas extra se agregan solo cuando hacen falta para dejar la
-solución única. El rango de la tabla es orientativo: si un caso grande necesita
-más, se permiten hasta dos pistas por sospechoso. Nunca se publica un caso
-ambiguo para respetar el número de pistas.
+**Total: 62 casos.** Por nivel: Muy fácil 6 · Fácil 14 · Medio 24 · Difícil 10 ·
+Muy difícil 4 · Hardcore 4. Cada sospechoso aporta al menos una pista; por eso el
+piso es N−1 y ninguna fila de la tabla baja de ese valor. Las pistas extra se
+agregan solo cuando hacen falta para dejar la solución única. El rango de la
+tabla es orientativo: si un caso grande necesita más, se permiten hasta dos
+pistas por sospechoso. Nunca se publica un caso ambiguo para respetar el número
+de pistas.
 
 ### Cómo se decide el nivel
 
@@ -147,7 +153,9 @@ número objetivo, el catálogo muestra el conteo real.
 
 ## 5. Modelo de datos
 
-Los tipos viven en `frontend/src/lib/games/` y no importan Svelte.
+Los tipos viven en `frontend/src/lib/games/` y no importan Svelte. Las cadenas de
+interfaz son claves de `es.json`; los títulos, escenarios y nombres de personas
+son contenido del caso y viajan como texto en español neutro.
 
 ```ts
 export type GameId = 'murdoku';

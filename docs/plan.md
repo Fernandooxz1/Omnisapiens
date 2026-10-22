@@ -20,9 +20,17 @@ caída). La página histórica de prueba (`frontend/dev/`) ya no existe.
 **La próxima tarea está en `docs/tareas.md`.** El detalle del backend quedó archivado en
 `docs/archive/` (no se lee).
 
+**La sección de juegos está en curso** (`docs/plan-juegos/`): es un plan solo de frontend, con
+la cola en `docs/plan-juegos/estado.md` y la spec en `docs/plan-juegos/diseno.md`. Mientras
+dure, esa cola manda. El backend sigue **cerrado**: los juegos no agregan endpoints, tablas ni
+migraciones.
+
 ## Producto
 
-**Dos modos.**
+El producto tiene **dos modos de trivia** y una **sección de juegos de lógica**, que es otra
+cosa.
+
+**Modos de trivia.**
 
 1. **Sala privada 1v1 por código:** dos jugadores, pregunta a la vez, ambos responden
    simultáneo, gana quien más puntos junta.
@@ -31,7 +39,8 @@ caída). La página histórica de prueba (`frontend/dev/`) ya no existe.
 
 ### Modos
 
-No es lo mismo el contenido, el formato y el modo:
+Así se reparten las piezas en trivia. La sección de juegos queda **fuera** de este
+vocabulario: no se registra en `/modes`.
 
 - **Contenido** (`quiz`, y en el futuro `rosco`, `song`, `movie`): cómo se guarda, valida,
   importa y sirve un ítem.
@@ -71,6 +80,23 @@ endpoints y variables en inglés.
 **Arquitectura:** navegador (SvelteKit, PWA) ⇄ HTTP/JSON + WS/JSON ⇄ API FastAPI con motor de
 juego en memoria y autoritativo. El frontend no guarda estado de juego propio que el servidor
 no pueda reponer.
+
+### Juegos de lógica
+
+Sección aparte de trivia, en `/juegos`. **Alcance v1:** Murdoku, 62 casos de 5×5 a 15×15 en
+seis niveles, progreso local y cronómetro propio de la partida.
+
+- **Sin backend:** los casos son datos estáticos del frontend. No usa sesiones, WebSocket ni
+  `GET /modes`, y no publica ranking: el tiempo es local y no se compara.
+- **Sin cuenta:** jugar no pide nick ni token. El nick y el acento del jugador siguen siendo
+  de trivia.
+- **Navegación:** la tab bar inferior (Inicio · Juegos · Ranking) es el acceso persistente; el
+  link de ranking al final del home se elimina.
+- **Fuera de la v1:** Sudoku, Nonogram, multijugador, caso diario, editor de casos, cuentas y
+  sincronización en la nube.
+
+La spec completa, con reglas, escala, tipos y verificación, está en
+[`docs/plan-juegos/diseno.md`](plan-juegos/diseno.md).
 
 ## Reglas del juego
 
@@ -160,7 +186,7 @@ sin badge y el color de acento es el del modo.
 
 | Pantalla | Contenido |
 |---|---|
-| Inicio | Nick obligatorio (1–16), un botón por modo del catálogo (arcade como modo principal, después 1v1), enlace al ranking y elección del **color del jugador** |
+| Inicio | Nick obligatorio (1–16), un botón por modo de trivia del catálogo (arcade como modo principal, después 1v1) y elección del **color del jugador**; la tab bar da el acceso a Juegos y Ranking |
 | Modo | `/play/[mode]`: el registry resuelve el modo y monta su pantalla; un modo desconocido avisa y vuelve al inicio |
 | Jugar 1v1 | `/play/trivia_versus`: crear sala (rondas y segundos) o unirse con el código |
 | Lobby | `/room/{code}`: código gigante, las dos sillas (sin estado de conexión), botón `start` solo para el host |
@@ -170,13 +196,17 @@ sin badge y el color de acento es el del modo.
 | Arcade | `/play/trivia_arcade`: pregunta, vidas (`LifeStrip`), racha, puntaje y tiempo; `POST /sessions` + `WS /ws/session/{id}` |
 | Fin de arcade | Puntaje, aciertos, mejor racha, mejor marca, posición y repaso plegable |
 | Ranking | Global / semanal |
+| Juegos | `/juegos`: hub con una tarjeta por juego y el progreso local |
+| Catálogo | `/juegos/murdoku`: sobres por dificultad, chips con conteo, progreso y "Continuar" |
+| Caso | `/juegos/murdoku/[case]`: tablero, expediente de sospechosos y pistas, herramientas y cronómetro local |
 | Admin | Solo por URL `/admin`: token, listado con filtros y paginación, subida de CSV/JSON con informe |
 
 Componentes, tokens y reglas visuales: `docs/diseno.md`.
 
 ## Frontend
 
-- **Mobile first**, columna máx. 480 px, sin scroll en partida, táctiles ≥ 44 px.
+- **Mobile first**, columna máx. 480 px, sin scroll en partida, táctiles ≥ 44 px. Los juegos
+  usan `shell--wide` (960 px) en el hub y el catálogo y `shell--play` (1100 px) en la partida.
 - **Un solo estilo** (pizarra cálida; `docs/diseno.md`): relleno liso, volumen por base sólida
   y bisel, sin degradados de color. El jugador elige su **color de acento** (5 swatches,
   `data-accent` sobre `<html>` + `localStorage`, clave `omni-accent`).

@@ -39,8 +39,9 @@ de ahí.
 La home no conoce los modos: pide `GET /modes` (`src/lib/api/modes.ts`) y arma un botón por
 entrada del catálogo. `src/lib/modes/registry.ts` aporta lo que el backend no sabe (ruta,
 renderer, orden, textos y pastilla). Un modo sin entrada en el registry se muestra
-deshabilitado con `home.mode_unavailable`; la home no se rompe. El acceso al ranking aparece
-solo si algún modo publica `ranking: true`.
+deshabilitado con `home.mode_unavailable`; la home no se rompe. El acceso persistente a
+Inicio, Juegos y Ranking es la **tab bar** inferior (`src/lib/components/TabBar.svelte`); el
+link de ranking del final del home se elimina.
 
 Mientras llega el catálogo, la home reserva el espacio con dos placeholders con la forma de los
 botones. Si la carga falla, avisa y ofrece `Reintentar`; el reintento vuelve a pedir `GET /modes`.
@@ -60,6 +61,17 @@ El arcade se juega sobre el canal canónico (`POST /sessions` + `WS /ws/session/
 sin badge. El 1v1 sigue en `WS /ws/room/{code}` y conserva el badge de categoría.
 
 Ninguna pantalla habla con la red: `fetch` y `WebSocket` viven solo en `src/lib/api/`.
+
+## Sección de juegos
+
+Las rutas son `/juegos` (hub), `/juegos/[game]` (catálogo) y `/juegos/[game]/[case]` (partida).
+`src/lib/games/catalog.ts` resuelve el juego desde el registro y los casos son datos estáticos
+de `src/lib/games/`; el progreso vive en `localStorage` a través de `progress.svelte.ts`.
+
+La sección no habla con la API ni con `/modes`: no abre sesiones ni WebSocket, no pide nick y
+no publica ranking. El cronómetro es local. El layout aplica `shell--wide` al hub y al catálogo
+y `shell--play` a la partida; la tab bar se oculta en `/juegos/[game]/[case]`. Un juego
+desconocido muestra un estado con volver a `/juegos`, sin romper la ruta.
 
 ## Repaso de la partida
 

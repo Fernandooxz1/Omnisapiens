@@ -38,7 +38,8 @@ color ni temas alternativos; lo que cambia es el **acento** del jugador.
   Tampoco hay animaciones en loop: el pulso del reloj solo aparece en los últimos 5 s.
 - **Accesibilidad mínima**: foco visible, contraste AA, blancos táctiles ≥ 44 px, todo
   jugable con teclado (`1`–`4` responde, `Enter` confirma).
-- **Sin scroll en la pantalla de partida**; en el resto, columna máx. 480 px.
+- **Sin scroll en la pantalla de partida de trivia**; fuera de la sección de juegos, columna
+  máx. 480 px (los anchos de juegos están en §Navegación y shell).
 
 ## Paleta
 
@@ -62,20 +63,44 @@ color ni temas alternativos; lo que cambia es el **acento** del jugador.
 }
 ```
 
+Tintes de región del tablero de juegos (tarea 3.2 de `docs/plan-juegos/`). No son familias de
+color: son seis pozos oscuros que se distinguen por **tinte + borde grueso + etiqueta**, nunca
+solo por color.
+
+```css
+:root {
+  --region-1: #221E33;  --region-2: #2A2438;  --region-3: #1F2633;
+  --region-4: #242B31;  --region-5: #2B2530;  --region-6: #231F2C;
+  --region-line: #4A4463;
+}
+```
+
 Cada familia tiene **cuerpo y filo**: el cuerpo rellena (botón, badge, avatar) y el filo es la
 base sólida de 5–6 px y el `text-shadow`. Un color, un uso; nunca se cruzan.
 
 ### Quién usa cada color
 
-- **Verde** — CTA y modo principal (arcade), el acierto al revelar y `science`.
-- **Azul** — modo secundario (1v1), el esticker "respondes" y `geography`.
+- **Verde** — CTA y modo principal (arcade), el acierto al revelar, `science` y la dificultad
+  Muy fácil.
+- **Azul** — modo secundario (1v1), el esticker "respondes", `geography` y la dificultad Fácil.
 - **Amarillo** — el sello del logo (`sapiens`), la corona del que va ganando, la ronda en
-  curso y `history`. Lleva **tinta oscura** (`#3F2D00`) en el badge: blanco sobre amarillo
-  no llega a AA.
-- **Naranja** — el rival en el marcador y `sports`.
-- **Rosa** — `entertainment`. **Rojo** — el fallo al revelar y `art`.
-- **Violeta** — solo como acento elegible del jugador.
+  curso, `history` y la dificultad Medio. Lleva **tinta oscura** (`#3F2D00`) en el badge: blanco
+  sobre amarillo no llega a AA.
+- **Naranja** — el rival en el marcador, `sports` y la dificultad Difícil.
+- **Rosa** — `entertainment`. **Rojo** — el fallo al revelar, `art` y la dificultad Muy difícil.
+- **Violeta** — acento elegible del jugador y la dificultad Hardcore.
 - **Pizarra** (`--well-border`/`#201C30`) — controles neutros (`slate`).
+
+Los seis niveles de la sección de juegos reutilizan estas familias; **no agregan colores**:
+
+| Nivel | Color | Tinta |
+|---|---|---|
+| Muy fácil | `--green` | blanca |
+| Fácil | `--blue` | blanca |
+| Medio | `--yellow` | `#3F2D00` |
+| Difícil | `--orange` | blanca |
+| Muy difícil | `--red` | blanca |
+| Hardcore | `--purple` | blanca |
 
 ### Acento del jugador
 
@@ -84,6 +109,30 @@ El jugador no elige un tema, elige **su color**: `AccentPicker` escribe `data-ac
 `localStorage` (clave `omni-accent`, ver `src/lib/accent.ts`). Los tokens `--accent` y
 `--accent-edge` salen de ahí y pintan **solo el avatar propio** (perfil y marcador). El
 `app.html` lo resuelve antes del primer pintado para que no parpadee.
+
+## Navegación y shell
+
+La **tab bar** inferior es el acceso persistente a `Inicio`, `Juegos` y `Ranking`: alto
+`--tabbar-h: 64px`, fondo `--card-bg`, borde superior `--panel-edge`, labels en `--font-ui` y
+blancos táctiles ≥ 44 px. El destino activo va en `--accent` con `aria-current="page"` y una
+barra inferior de 3 px; sin degradados.
+
+- Se muestra en `/`, `/juegos`, `/juegos/<juego>` y `/ranking`.
+- Se oculta en `/play/*`, `/room/*`, `/admin/*` y en la partida de un caso
+  (`/juegos/murdoku/[case]`), donde se vuelve con el botón del header.
+- Cuando está visible, el contenido reserva
+  `calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--s-4))` de padding inferior.
+
+El ancho de la columna lo decide el layout según la ruta:
+
+| Clase | Ancho máximo | Uso |
+|---|---|---|
+| `.shell` | 480 px | Inicio, ranking, admin |
+| `.shell--wide` | 960 px | `/juegos` y `/juegos/murdoku` |
+| `.shell--play` | 1100 px | `/juegos/murdoku/[case]` en desktop |
+
+En móvil todas usan el ancho disponible con el padding habitual. El link de ranking del final
+del home se elimina: la tab bar es el único acceso persistente.
 
 ## Forma y tipografía
 
@@ -170,6 +219,23 @@ en el medio van las **cápsulas de ronda** o el `vs`. El reloj es una **pastilla
 de reloj sobre `ends_at`; en los últimos 5 s se pinta rojo y late. Debajo del marcador corre
 la **barra de tiempo** (verde → amarillo → rojo) como cuenta atrás visual.
 
+## Sobre de caso
+
+El catálogo de juegos no copia la UI de Murdoku: resuelve la metáfora del sobre con nuestros
+tokens.
+
+- **Cuerpo:** `--panel-bg`, radio 24 px, base sólida `0 6px 0 var(--panel-edge)`.
+- **Solapa:** triángulo SVG en un tono más oscuro del panel, borde de 2.5 px y línea de
+  pliegue. Al hover/focus se levanta 2 px y el sello gira a 0°.
+- **Mini-vista:** grilla de 4×4 o 5×5 muestreada de `regions` (el preview) o de `grid.regions`
+  (el caso completo), con la víctima marcada. **Nunca muestra la posición de los sospechosos.**
+- **Sello:** círculo de 36–40 px con el número de caso, color según dificultad y base sólida,
+  rotado −6°.
+- **Etiqueta:** título, dificultad, `N×N`, estado (`sin abrir` · `en curso` · `resuelto`) y
+  mejor tiempo. Un caso con `resume` muestra "Continuar".
+- Es **un único enlace** accesible: "Caso 12, El estudio, Medio, 9×9, sin resolver".
+- Sin retratos: los sospechosos son tokens con inicial.
+
 ## Componentes
 
 | Componente | Notas |
@@ -189,6 +255,12 @@ la **barra de tiempo** (verde → amarillo → rojo) como cuenta atrás visual.
 | `Toast` | errores de la API con `code` + `message` |
 | `ConnectionBanner` | banda fija cuando la API no responde, con `Reintentar` |
 | `LifeStrip` | 3 vidas del arcade, se apagan con animación corta |
+| `TabBar` | barra inferior fija: Inicio · Juegos · Ranking; activo en `--accent` con `aria-current="page"` |
+| `GameCard` | tarjeta del hub de juegos: icono, título, descripción, conteo y progreso |
+| `CaseEnvelope` | sobre del caso: solapa, mini-vista de regiones, sello de dificultad y estado |
+| `DifficultyChips` | `Todo` + los seis niveles con conteo; el elegido usa su color |
+| `PuzzleHeader` | volver, título, dificultad y slot para el cronómetro local |
+| `PuzzleToolbar` | marcar X, deshacer, pista y reiniciar, con `disabled` según el estado |
 
 ### Errores
 
@@ -238,7 +310,8 @@ dedicatoria (ver `LICENSE.txt`).
 ## Pantallas
 
 Inicio · jugar (crear/unirse) · lobby · partida · revelación · fin · arcade · fin de arcade ·
-ranking · admin. El contenido de cada una está en `docs/plan.md`.
+ranking · juegos · catálogo de casos · partida de caso · admin. El contenido de cada una está
+en `docs/plan.md`.
 
 ## Accesibilidad y movimiento
 
@@ -246,4 +319,9 @@ ranking · admin. El contenido de cada una está en `docs/plan.md`.
 - Teclado: `1`–`4` elige, `Enter` confirma, `Esc` cierra modal.
 - Contraste AA: texto blanco sobre los cuerpos de color con `text-shadow` para el filo; el
   badge de `history` usa tinta oscura sobre el amarillo.
-- `prefers-reduced-motion`: sin pulso del reloj, sin rebote del botón, sin transición de tile.
+- Tablero de juegos: roles `grid`, `row` y `gridcell`, con `aria-label` de fila, columna,
+  región, ocupante o marca. Flechas mueven el foco, `Enter` coloca al sospechoso elegido, `X`
+  alterna el modo marca, `Backspace` borra, `Ctrl/Cmd+Z` deshace y `H` pide pista;
+  `aria-live="polite"` anuncia colocación, conflictos y caso resuelto.
+- `prefers-reduced-motion`: sin pulso del reloj, sin rebote del botón, sin transición de tile,
+  sin sacudida del tablero, sin apertura de solapa y sin confetti.
