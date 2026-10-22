@@ -6,11 +6,11 @@
 ```yaml
 activo: true
 fase: 3
-tarea: "3.1"
+tarea: "3.2"
 rol: frontend
 estado: pendiente           # pendiente | en curso | hecho | bloqueado
-ultimo_commit: ec1cb58
-fecha: 2026-10-21
+ultimo_commit: 22e2092
+fecha: 2026-10-22
 bloqueo: ""
 ```
 
@@ -31,3 +31,4 @@ bloqueo: ""
 | 2026-10-21 | 1.2 | `83b9b04` | Llama de racha, flotador +pts y marcador interpolado. Próxima: 1.3 (F1). |
 | 2026-10-21 | 1.3 | `ee267d9` | Confetti de victoria/récord y puntaje final con conteo. Próxima: 2.1 (F2, backend). |
 | 2026-10-21 | 2.1 | `ec1cb58` | Batch 4: 150 preguntas nuevas (6 categorías, niveles 1–5) y `make seed` actualizado. Próxima: 3.1 (F3, frontend). |
+| 2026-10-22 | 3.1 | `22e2092` | Emblema de avatar elegible (6 íconos), persistido en `localStorage` y visible en todas las pantallas. Próxima: 3.2 (F3). |
