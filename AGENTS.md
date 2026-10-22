@@ -2,6 +2,21 @@
 
 Monorepo de trivia online: `backend/` (FastAPI) y `frontend/` (SvelteKit + PWA).
 
+## Flujo activo: mejoras de experiencia y contenido
+
+Mientras `docs/plan-mejoras/estado.md` diga `activo: true`, el flujo diario es el de
+`docs/plan-mejoras/README.md`:
+
+- Si el usuario escribe **`comenzemos`**, **`seguimos`** o **`terminamos`**, seguí
+  `docs/plan-mejoras/prompts/00-comenzemos.md` al pie de la letra.
+- La cola del plan es `docs/plan-mejoras/estado.md`. `docs/tareas.md` y
+  `docs/tareas-backend.md` quedan congeladas hasta que este plan cierre.
+- El rol, la tarea, la verificación y el mensaje de commit salen de la tarea, no de
+  este archivo.
+- Las reglas de abajo siguen vigentes.
+
+Cuando el plan cierre (`activo: false`), vuelve el flujo normal de este archivo.
+
 ## Flujo normal
 
 **Cada sesión tiene un rol y no cambia de lado.** Al empezar, leé el brief de tu rol y nada más:
