@@ -1,4 +1,5 @@
 import { fixtureCases } from '../../src/lib/games/murdoku/fixtures.ts';
+import { allCases } from '../../src/lib/games/murdoku/cases/index.ts';
 import type { MurdokuCase } from '../../src/lib/games/murdoku/types.ts';
 import { validateCatalog } from '../../src/lib/games/murdoku/validate.ts';
 
@@ -28,9 +29,8 @@ if (id !== null && !id) {
 	process.exit(1);
 }
 
-// Hasta la tarea 2.2 el catálogo publicado son los dos casos de fixture.
-const published: MurdokuCase[] = fixtureCases;
-const source = fixtures ? fixtureCases : published;
+// El catálogo publicado son los casos de `cases/`; `--fixtures` valida los de prueba.
+const source: MurdokuCase[] = fixtures ? fixtureCases : allCases;
 const selected = id ? source.filter((entry) => entry.id === id) : source;
 
 if (selected.length === 0) {

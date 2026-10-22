@@ -2,8 +2,8 @@ import type { CasePreview } from '../types.ts';
 import type { MurdokuCase } from './types.ts';
 
 /**
- * Dos casos reales para arrancar el motor y el catálogo sin generador.
- * El resto del catálogo llega en la tarea 2.2.
+ * Dos casos reales escritos a mano: previews del catálogo y base de los tests.
+ * El catálogo publicado vive en `cases/`.
  */
 
 const study: MurdokuCase = {
