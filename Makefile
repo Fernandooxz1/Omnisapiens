@@ -16,11 +16,12 @@ front:
 migrate:
 	cd backend && uv run alembic upgrade head
 
-# Carga las 308 preguntas semilla (ya publicadas) desde backend/seeds/.
+# Carga las 458 preguntas semilla (ya publicadas) desde backend/seeds/.
 seed:
 	cd backend && uv run python -m app.cli seed
 	cd backend && uv run python -m app.cli import-questions seeds/questions_new.csv --status published
 	cd backend && uv run python -m app.cli import-questions seeds/questions_batch_3.csv --status published
+	cd backend && uv run python -m app.cli import-questions seeds/questions_batch_4.csv --status published
 
 # Carga un archivo propio: make import FILE=mis-preguntas.csv
 import:

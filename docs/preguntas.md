@@ -51,7 +51,7 @@ make import FILE=mis-preguntas.csv
 cd backend && uv run python -m app.cli import-questions ../mis-preguntas.csv --status published
 
 # Valida los CSV de seeds sin tocar la base (encabezado, filas, duplicados,
-# similitud) y después carga las 308 semilla del repo
+# similitud) y después carga las 458 semilla del repo
 make check-seeds
 make seed
 
@@ -64,11 +64,11 @@ API: reusa la validación del importador y agrega detección de duplicados exact
 preguntas reescritas (misma respuesta y vocabulario casi igual). Un par sospechoso falla;
 `--allow-similar` lo deja como aviso para revisarlo a mano.
 
-`make seed` importa `backend/seeds/questions.csv`, `questions_new.csv` y
-`questions_batch_3.csv` como publicados. `questions.csv` sigue siendo la mejor referencia de
-tono, dificultad y opciones. Hoy el banco son 308 preguntas repartidas así: 64 de dificultad
-1, 64 de 2, 62 de 3, 63 de 4 y 55 de 5, con al menos 8 de cada nivel 3–5 en las seis
-categorías. Los lotes nuevos ya pasaron revisión: se descartaron duplicados semánticos y se
+`make seed` importa `backend/seeds/questions.csv`, `questions_new.csv`,
+`questions_batch_3.csv` y `questions_batch_4.csv` como publicados. `questions.csv` sigue
+siendo la mejor referencia de tono, dificultad y opciones. Hoy el banco son 458 preguntas
+repartidas así: 94 de dificultad 1, 94 de 2, 92 de 3, 93 de 4 y 85 de 5, con al menos 8 de
+cada nivel 3–5 en las seis categorías. Los lotes nuevos ya pasaron revisión: se descartaron duplicados semánticos y se
 recalibró la dificultad para no engordar solo los niveles fáciles. Al sumar preguntas,
 mantené esa proporción para que las rondas tardías del 1v1 y el arcade no terminen cayendo en
 preguntas fáciles.
