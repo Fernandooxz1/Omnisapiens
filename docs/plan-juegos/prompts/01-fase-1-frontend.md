@@ -44,6 +44,7 @@
 - Revisión de consistencia: `docs/plan.md` no debe seguir diciendo "dos modos"
   sin aclarar que son los de trivia; no debe haber colores fuera de la paleta.
 - Confirmá que la matriz de dificultad suma 62 casos.
+- Es una tarea solo de docs: no hace falta `npm run check` ni `npm run build`.
 
 **Commit:**
 ```

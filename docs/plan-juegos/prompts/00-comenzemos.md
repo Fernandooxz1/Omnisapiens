@@ -72,7 +72,7 @@ No empieces a editar hasta que el anuncio esté hecho.
 
 ## 4. Verificación
 
-La base para toda tarea de frontend:
+La base para toda tarea de código:
 
 ```bash
 cd frontend && npm run check && npm run build
