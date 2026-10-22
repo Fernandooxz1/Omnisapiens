@@ -388,11 +388,6 @@
 				<p class="muted">{t('arcade.hint')}</p>
 			{:else if phase === 'answered'}
 				<p class="muted">{t('arcade.waiting')}</p>
-			{:else if phase === 'reveal' && result}
-				<p class="arcade__result" class:is-won={result.you.correct} class:is-lost={!result.you.correct}>
-					<span>{result.you.correct ? t('arcade.correct') : t('arcade.wrong')}</span>
-					<span class="arcade__points">{delta(result.you.points)}</span>
-				</p>
 			{/if}
 		</div>
 	</section>
@@ -540,20 +535,8 @@
 		font-weight: 700;
 	}
 
-	.arcade__result.is-won {
-		color: #58e08d;
-	}
-
 	.arcade__result.is-lost {
 		color: var(--red-ink);
-	}
-
-	.arcade__points {
-		padding: 2px 8px;
-		border-radius: var(--r-sm);
-		background: rgb(0 0 0 / 0.2);
-		color: var(--ink);
-		font-size: 0.9rem;
 	}
 
 	.arcade-end {

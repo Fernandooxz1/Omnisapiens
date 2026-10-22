@@ -134,8 +134,6 @@
 	"arcade.round": "Pregunta {n}",
 	"arcade.hint": "Elige una respuesta.",
 	"arcade.waiting": "Esperando la próxima pregunta…",
-	"arcade.correct": "¡Correcto! Sumá y seguí.",
-	"arcade.wrong": "Incorrecto: una vida menos, cero drama.",
 	"arcade.points": "+{n}",
 	"arcade.end_title": "Fin de la partida",
 	"arcade.end_score": "Puntaje",
