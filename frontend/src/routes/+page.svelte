@@ -7,6 +7,7 @@
 	import AccentPicker from '#lib/components/AccentPicker.svelte';
 	import Avatar from '#lib/components/Avatar.svelte';
 	import Button from '#lib/components/Button.svelte';
+	import EmblemPicker from '#lib/components/EmblemPicker.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import NickInput from '#lib/components/NickInput.svelte';
 	import SoundToggle from '#lib/components/SoundToggle.svelte';
@@ -113,6 +114,7 @@
 				{/snippet}
 			</NickInput>
 			<AccentPicker label={t('home.accent_label')} />
+			<EmblemPicker label={t('home.emblem_label')} />
 		</div>
 
 		{#if error && !fieldError}

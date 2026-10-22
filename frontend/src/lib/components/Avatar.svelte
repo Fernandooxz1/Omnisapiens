@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { getEmblem } from '#lib/emblem.svelte';
 	import Icon from './Icon.svelte';
 
 	interface Props {
@@ -12,6 +13,8 @@
 	let { nick, tone = 'you', crown = false }: Props = $props();
 
 	const initial = $derived(nick.trim().charAt(0).toUpperCase() || '?');
+	/** El emblema es del jugador de esta pestaña: el rival mantiene su avatar liso. */
+	const emblem = $derived(tone === 'you' ? getEmblem() : null);
 </script>
 
 <span class="avatar avatar--{tone}" aria-hidden="true">
@@ -19,4 +22,7 @@
 		<span class="avatar__crown"><Icon name="crown" size={20} /></span>
 	{/if}
 	{initial}
+	{#if emblem}
+		<span class="avatar__emblem"><Icon name={emblem} size={13} /></span>
+	{/if}
 </span>

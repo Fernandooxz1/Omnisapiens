@@ -9,7 +9,11 @@
 		| 'heart'
 		| 'clock'
 		| 'sound-on'
-		| 'sound-off';
+		| 'sound-off'
+		| 'brain'
+		| 'bolt'
+		| 'glasses'
+		| 'star';
 
 	interface Props {
 		name: Name;
@@ -19,7 +23,7 @@
 	let { name, size = 20 }: Props = $props();
 
 	/** Los macizos no llevan trazo: se pintan con `currentColor`. */
-	const filled: Name[] = ['crown', 'flame', 'heart'];
+	const filled: Name[] = ['crown', 'flame', 'heart', 'bolt', 'star'];
 </script>
 
 <svg
@@ -95,5 +99,25 @@
 			stroke-linecap="round"
 			stroke-linejoin="round"
 		/>
+	{:else if name === 'brain'}
+		<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<path
+				d="M12 5.5a3 3 0 1 0-6 0 4 4 0 0 0-2.5 5.8A4 4 0 0 0 4 18a3.5 3.5 0 0 0 6 2.3V5.5Z"
+			/>
+			<path d="M12 5.5a3 3 0 1 1 6 0 4 4 0 0 1 2.5 5.8A4 4 0 0 1 20 18a3.5 3.5 0 0 1-6 2.3V5.5Z" />
+		</g>
+	{:else if name === 'bolt'}
+		<path d="M13.5 2 4 14h6l-1.5 8L19 10h-6l.5-8Z" />
+	{:else if name === 'glasses'}
+		<path
+			d="M3 9h18M4 9v2.5a3 3 0 0 0 6 0V9M14 9v2.5a3 3 0 0 0 6 0V9M10 10.5h4"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2.2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		/>
+	{:else if name === 'star'}
+		<path d="m12 2.5 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.3l6.5-.9L12 2.5Z" />
 	{/if}
 </svg>
