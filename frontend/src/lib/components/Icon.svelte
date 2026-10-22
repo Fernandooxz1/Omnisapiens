@@ -5,6 +5,10 @@
 		| 'arrow'
 		| 'home'
 		| 'grid'
+		| 'case'
+		| 'undo'
+		| 'bulb'
+		| 'restart'
 		| 'trophy'
 		| 'crown'
 		| 'flame'
@@ -72,6 +76,38 @@
 	{:else if name === 'grid'}
 		<path
 			d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z"
+			stroke="currentColor"
+			stroke-width="2.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		/>
+	{:else if name === 'case'}
+		<path
+			d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2.5h6.5A2.5 2.5 0 0 1 21 10v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17V7.5Z"
+			stroke="currentColor"
+			stroke-width="2.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		/>
+	{:else if name === 'undo'}
+		<path
+			d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4.5v5h5"
+			stroke="currentColor"
+			stroke-width="2.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		/>
+	{:else if name === 'restart'}
+		<path
+			d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1M20.5 4.5v5h-5"
+			stroke="currentColor"
+			stroke-width="2.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		/>
+	{:else if name === 'bulb'}
+		<path
+			d="M9.5 17.5h5M10.5 20.5h3M12 3a6 6 0 0 0-3.6 10.8V16h7.2v-2.2A6 6 0 0 0 12 3Z"
 			stroke="currentColor"
 			stroke-width="2.5"
 			stroke-linecap="round"

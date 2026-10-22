@@ -754,6 +754,44 @@ input {
 	--cat-ink: var(--cat-art-ink);
 }
 
+/* ---------- Dificultad de los casos ---------- */
+
+[data-difficulty='very_easy'] {
+	--diff: var(--green);
+	--diff-edge: var(--green-edge);
+	--diff-ink: #ffffff;
+}
+
+[data-difficulty='easy'] {
+	--diff: var(--blue);
+	--diff-edge: var(--blue-edge);
+	--diff-ink: #ffffff;
+}
+
+[data-difficulty='medium'] {
+	--diff: var(--yellow);
+	--diff-edge: var(--yellow-edge);
+	--diff-ink: #3f2d00;
+}
+
+[data-difficulty='hard'] {
+	--diff: var(--orange);
+	--diff-edge: var(--orange-edge);
+	--diff-ink: #ffffff;
+}
+
+[data-difficulty='very_hard'] {
+	--diff: var(--red);
+	--diff-edge: var(--red-edge);
+	--diff-ink: #ffffff;
+}
+
+[data-difficulty='hardcore'] {
+	--diff: var(--purple);
+	--diff-edge: var(--purple-edge);
+	--diff-ink: #ffffff;
+}
+
 /* ---------- Teclas de respuesta ---------- */
 
 .tile {
