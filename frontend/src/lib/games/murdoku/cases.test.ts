@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { allCases, byDifficulty, findCase } from './cases/index.ts';
 
-test('el catálogo estándar trae 48 casos ordenados y sin duplicados', () => {
-	assert.equal(allCases.length, 48);
+test('el catálogo trae 62 casos ordenados y sin duplicados', () => {
+	assert.equal(allCases.length, 62);
 
 	const ids = new Set<string>();
 	const titles = new Set<string>();
@@ -18,7 +18,7 @@ test('el catálogo estándar trae 48 casos ordenados y sin duplicados', () => {
 	});
 });
 
-test('el catálogo respeta la matriz de 5×5 a 9×9', () => {
+test('el catálogo respeta la matriz de 5×5 a 15×15', () => {
 	const expected = [
 		[5, 'very_easy', 6],
 		[6, 'easy', 8],
@@ -26,7 +26,11 @@ test('el catálogo respeta la matriz de 5×5 a 9×9', () => {
 		[7, 'medium', 6],
 		[8, 'medium', 8],
 		[9, 'medium', 10],
-		[9, 'hard', 4]
+		[9, 'hard', 4],
+		[10, 'hard', 6],
+		[12, 'very_hard', 4],
+		[14, 'hardcore', 2],
+		[15, 'hardcore', 2]
 	] as const;
 
 	for (const [size, difficulty, count] of expected) {
@@ -40,6 +44,7 @@ test('el catálogo respeta la matriz de 5×5 a 9×9', () => {
 test('findCase y byDifficulty resuelven sobre el catálogo', () => {
 	assert.equal(findCase('murdoku-001'), allCases[0]);
 	assert.equal(findCase('murdoku-999'), undefined);
-	assert.equal(byDifficulty('hard').length, 4);
-	assert.equal(byDifficulty('all').length, 48);
+	assert.equal(byDifficulty('hard').length, 10);
+	assert.equal(byDifficulty('hardcore').length, 4);
+	assert.equal(byDifficulty('all').length, 62);
 });

@@ -23,8 +23,19 @@ const STANDARD_TARGETS: readonly Target[] = [
 	{ size: 9, difficulty: 'hard', count: 4 }
 ];
 
+/** Batch grande: 14 casos de 10×10 a 15×15. */
+const LARGE_TARGETS: readonly Target[] = [
+	{ size: 10, difficulty: 'hard', count: 6 },
+	{ size: 12, difficulty: 'very_hard', count: 4 },
+	{ size: 14, difficulty: 'hardcore', count: 2 },
+	{ size: 15, difficulty: 'hardcore', count: 2 }
+];
+
+/** Los casos grandes siguen la numeración del catálogo estándar. */
+const STANDARD_CASES = 48;
+
 const USAGE =
-	'Uso: npm run games:generate -- --max-size 9 | --size <n> [--difficulty <nivel>] [--count <n>] [--seed <n>]';
+	'Uso: npm run games:generate -- --max-size 9 | --min-size 10 | --size <n> [--difficulty <nivel>] [--count <n>] [--seed <n>]';
 const DIFFICULTY_LABEL: Record<DifficultyKey, string> = {
 	very_easy: 'muy fácil',
 	easy: 'fácil',
@@ -34,7 +45,16 @@ const DIFFICULTY_LABEL: Record<DifficultyKey, string> = {
 	hardcore: 'hardcore'
 };
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const OUTPUT = resolve(ROOT, 'src/lib/games/murdoku/cases/standard.ts');
+
+/**
+ * Presupuesto por caso. El determinismo lo garantiza el tope de nodos de
+ * `generateCase`; este reloj solo evita que un caso patológico frene el batch.
+ */
+function caseBudget(size: number): number {
+	if (size >= 14) return 60_000;
+	if (size >= 10) return 30_000;
+	return 20_000;
+}
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
@@ -109,14 +129,11 @@ if (maxSize === null && minSize === null && size === null) {
 	process.exit(1);
 }
 
-if (minSize !== null && Number(minSize) >= 10) {
-	console.error('Los casos de 10×10 a 15×15 se generan en la tarea 2.3.');
-	process.exit(1);
-}
-
-let targets = STANDARD_TARGETS.filter((target) => {
-	if (maxSize !== null) return target.size <= Number(maxSize);
-	if (minSize !== null) return target.size >= Number(minSize);
+// `--max-size 9` arma el catálogo estándar; de 10 en adelante, el batch grande.
+const large = maxSize === null || Number(maxSize) >= 10;
+let targets = (large ? LARGE_TARGETS : STANDARD_TARGETS).filter((target) => {
+	if (maxSize !== null && target.size > Number(maxSize)) return false;
+	if (minSize !== null && target.size < Number(minSize)) return false;
 	return true;
 });
 
@@ -136,35 +153,47 @@ if (targets.length === 0) {
 	process.exit(1);
 }
 
+const OUTPUT = resolve(
+	ROOT,
+	large ? 'src/lib/games/murdoku/cases/large.ts' : 'src/lib/games/murdoku/cases/standard.ts'
+);
+const EXPORT = large ? 'largeCases' : 'standardCases';
+const COMMAND = large ? 'npm run games:generate -- --min-size 10' : 'npm run games:generate -- --max-size 9';
+
 const baseSeed = seedArg === null ? 20261022 : Number(seedArg);
 const cases: MurdokuCase[] = [];
+const timings: { id: string; size: number; elapsed: number }[] = [];
 const failures: Target[] = [];
 const startedAt = Date.now();
 let totalAttempts = 0;
-let caseNumber = 0;
+let index = 0;
 
 for (const target of targets) {
-	for (let index = 0; index < target.count; index += 1) {
-		caseNumber += 1;
-		const theme = MURDOKU_THEMES[(caseNumber - 1) % MURDOKU_THEMES.length];
-		const titleIndex = Math.floor((caseNumber - 1) / MURDOKU_THEMES.length);
-		const title = theme.titles[titleIndex % theme.titles.length];
+	for (let remaining = 0; remaining < target.count; remaining += 1) {
+		const number = (large ? STANDARD_CASES : 0) + index + 1;
+		const theme = MURDOKU_THEMES[index % MURDOKU_THEMES.length];
+		const titleSlot = large
+			? 6 + Math.floor(index / MURDOKU_THEMES.length)
+			: Math.floor(index / MURDOKU_THEMES.length);
+		const title = theme.titles[titleSlot % theme.titles.length];
 		const caseStartedAt = Date.now();
+		index += 1;
 
 		const generated = generateCase({
 			size: target.size,
 			difficulty: target.difficulty,
-			number: caseNumber,
+			number,
 			title,
 			setting: theme.setting,
 			theme,
-			seed: (baseSeed + caseNumber * 7919) >>> 0
+			seed: (baseSeed + number * 7919) >>> 0,
+			deadline: caseStartedAt + caseBudget(target.size)
 		});
 
 		if (!generated) {
 			failures.push({ ...target, count: 1 });
 			console.error(
-				`  ✗ ${target.size}×${target.size} ${DIFFICULTY_LABEL[target.difficulty]} · sin caso tras 80 intentos`
+				`  ✗ ${target.size}×${target.size} ${DIFFICULTY_LABEL[target.difficulty]} · sin caso dentro del presupuesto`
 			);
 			continue;
 		}
@@ -173,6 +202,7 @@ for (const target of targets) {
 		cases.push(generated.entry);
 
 		const elapsed = Date.now() - caseStartedAt;
+		timings.push({ id: generated.entry.id, size: target.size, elapsed });
 		console.log(
 			`  ✓ ${generated.entry.id} · ${generated.entry.title} (${target.size}×${target.size}, ${DIFFICULTY_LABEL[target.difficulty]}, ${generated.entry.meta.clueCount} pistas, complejidad ${generated.entry.meta.complexity}; ${generated.attempts} intento${generated.attempts === 1 ? '' : 's'}, ${elapsed} ms)`
 		);
@@ -192,8 +222,16 @@ for (const [key, value] of counts) console.log(`  ${key}: ${value}`);
 
 console.log('');
 console.log(
-	`${cases.length} casos en ${(elapsed / 1000).toFixed(1)} s (${totalAttempts} intentos en total).`
+	`${cases.length} casos en ${(elapsed / 1000).toFixed(1)} s (${totalAttempts} intentos, ${totalAttempts - cases.length} reintentos).`
 );
+
+const largest = timings.reduce((biggest, item) => Math.max(biggest, item.size), 0);
+const slowestRun = timings
+	.filter((item) => item.size === largest)
+	.map((item) => `${item.id} ${item.elapsed} ms`)
+	.join(' · ');
+
+if (slowestRun !== '') console.log(`Benchmark ${largest}×${largest}: ${slowestRun}.`);
 
 if (failures.length > 0) {
 	console.error(`${failures.length} casos no se pudieron generar; no se escribe el catálogo.`);
@@ -202,8 +240,8 @@ if (failures.length > 0) {
 
 const header = `import type { MurdokuCase } from '../types.ts';
 
-/** Generado por \`npm run games:generate -- --max-size 9\` (semilla base ${baseSeed}). No editar a mano. */
-export const standardCases: MurdokuCase[] = `;
+/** Generado por \`${COMMAND}\` (semilla base ${baseSeed}). No editar a mano. */
+export const ${EXPORT}: MurdokuCase[] = `;
 
 await mkdir(dirname(OUTPUT), { recursive: true });
 await writeFile(OUTPUT, `${header}${format(cases as unknown as Json, 0)};\n`, 'utf8');

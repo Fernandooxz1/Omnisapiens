@@ -15,7 +15,7 @@ export interface MurdokuTheme {
 }
 
 /**
- * Ocho escenarios con seis títulos cada uno: el catálogo de 48 casos usa cada
+ * Ocho escenarios con ocho títulos cada uno: los 62 casos del catálogo usan cada
  * título una sola vez. Las regiones se recortan a 4–6 por caso.
  */
 export const MURDOKU_THEMES: readonly MurdokuTheme[] = [
@@ -28,7 +28,9 @@ export const MURDOKU_THEMES: readonly MurdokuTheme[] = [
 			'Medianoche en el estudio',
 			'El sillón vacío',
 			'La puerta del estudio',
-			'Un piano desafinado'
+			'Un piano desafinado',
+			'Polvo en el piano',
+			'El retrato del estudio'
 		],
 		regions: ['Estudio', 'Biblioteca', 'Pasillo', 'Cocina', 'Jardín', 'Terraza'],
 		props: [
@@ -53,7 +55,9 @@ export const MURDOKU_THEMES: readonly MurdokuTheme[] = [
 			'Silencio en la biblioteca',
 			'La escala prohibida',
 			'El catálogo roto',
-			'Última consulta'
+			'Última consulta',
+			'La sala de mapas',
+			'El libro devuelto'
 		],
 		regions: ['Vestíbulo', 'Galería', 'Sala de lectura', 'Depósito', 'Patio', 'Torre'],
 		props: [
@@ -78,7 +82,9 @@ export const MURDOKU_THEMES: readonly MurdokuTheme[] = [
 			'Rocío en el invernadero',
 			'La maceta volcada',
 			'El cristal empañado',
-			'Flores de medianoche'
+			'Flores de medianoche',
+			'La regadera olvidada',
+			'Un tallo quebrado'
 		],
 		regions: ['Invernadero', 'Orangerie', 'Fuente', 'Rosaleda', 'Taller', 'Cobertizo'],
 		props: [
@@ -103,7 +109,9 @@ export const MURDOKU_THEMES: readonly MurdokuTheme[] = [
 			'La cena interrumpida',
 			'Vapor en la despensa',
 			'El horno encendido',
-			'La mesa sin postre'
+			'La mesa sin postre',
+			'La despensa abierta',
+			'Café a medianoche'
 		],
 		regions: ['Cocina', 'Despensa', 'Comedor', 'Office', 'Patio', 'Bodega'],
 		props: [
@@ -128,7 +136,9 @@ export const MURDOKU_THEMES: readonly MurdokuTheme[] = [
 			'Después del cierre',
 			'La sala egipcia',
 			'El mármol roto',
-			'Una sombra en el pasillo'
+			'Una sombra en el pasillo',
+			'El inventario incompleto',
+			'La sala griega al alba'
 		],
 		regions: ['Vestíbulo', 'Sala egipcia', 'Sala griega', 'Depósito', 'Taller', 'Patio'],
 		props: [
@@ -153,7 +163,9 @@ export const MURDOKU_THEMES: readonly MurdokuTheme[] = [
 			'La litera nueve',
 			'El andén sin luces',
 			'Un freno de emergencia',
-			'El último silbato'
+			'El último silbato',
+			'Una maleta sin dueño',
+			'El coche de correo'
 		],
 		regions: ['Vagón restaurante', 'Vagón litera', 'Pasillo', 'Furgón', 'Cabina', 'Andén'],
 		props: [
@@ -178,7 +190,9 @@ export const MURDOKU_THEMES: readonly MurdokuTheme[] = [
 			'La lámpara apagada',
 			'El mar embravecido',
 			'La escalera de caracol',
-			'Luces en la niebla'
+			'Luces en la niebla',
+			'Marea baja',
+			'El faro sin guardia'
 		],
 		regions: ['Sala de máquinas', 'Escalera', 'Cocina', 'Dormitorio', 'Terraza', 'Muelle'],
 		props: [
@@ -203,7 +217,9 @@ export const MURDOKU_THEMES: readonly MurdokuTheme[] = [
 			'El palco abandonado',
 			'Telón abajo',
 			'El camerino vacío',
-			'Aplausos de medianoche'
+			'Aplausos de medianoche',
+			'La tramoya a oscuras',
+			'El vestuario de utilería'
 		],
 		regions: ['Escenario', 'Platea', 'Palco', 'Camerinos', 'Vestíbulo', 'Tramoya'],
 		props: [

@@ -1,6 +1,6 @@
 import type { Cell, DifficultyKey } from '../types.ts';
-import { cellKey, holds, isAdjacent } from './rules.ts';
-import { countSolutions, solve } from './solver.ts';
+import { cellKey, holds, isAdjacent, type Assignment } from './rules.ts';
+import { solveWithin } from './solver.ts';
 import type {
 	Clue,
 	MurdokuCase,
@@ -100,6 +100,8 @@ export interface GenerateInput {
 	theme: MurdokuTheme;
 	seed: number;
 	maxAttempts?: number;
+	/** Instante límite (epoch ms) para reintentar semillas. */
+	deadline?: number;
 }
 
 export interface GeneratedCase {
@@ -160,6 +162,16 @@ function complexityBudget(size: number, difficulty: DifficultyKey): number {
 	if (size === 7 && difficulty === 'easy') return 2;
 	if (size === 9 && difficulty === 'medium') return 3;
 	return Number.POSITIVE_INFINITY;
+}
+
+/**
+ * Nodos por consulta al solver. Es determinista a propósito: dos corridas con
+ * la misma semilla gastan los mismos nodos y deciden lo mismo. En los tableros
+ * grandes una consulta que no cierra dentro del presupuesto descarta el intento
+ * y se prueba otra semilla en lugar de colgarse.
+ */
+export function queryBudget(size: number): number {
+	return size <= 9 ? Number.POSITIVE_INFINITY : 250_000;
 }
 
 const ESTIMATED_MINUTES: Record<string, number> = {
@@ -478,28 +490,19 @@ function pickOpening(rnd: Random, pool: ScoredClue[], mode: 'low' | 'mid'): Scor
 }
 
 /**
- * Elige la pista extra que separa la solución declarada de alguna alternativa
- * que el solver ya encontró. Entre las candidatas se queda con la que deja
- * menos soluciones: greedy que alcanza la unicidad con pocas pistas.
+ * Elige la pista extra que rompe más soluciones alternativas conocidas. No
+ * vuelve a resolver: en los tableros grandes el costo está en cada consulta al
+ * solver, así que se reutiliza el pool de alternativas hasta agotarlo.
  */
 function pickDiscriminating(
 	rnd: Random,
 	entry: MurdokuCase,
 	pools: Map<string, ScoredClue[]>,
 	used: Set<string>,
-	budget: number
+	budget: number,
+	alternatives: Assignment[]
 ): { suspect: MurdokuSuspect; candidate: ScoredClue } | null {
-	const ids = entry.suspects.map((suspect) => suspect.id);
-	const alternatives = solve(entry, 2).filter((solution) =>
-		ids.some(
-			(id) =>
-				solution[id]?.row !== entry.solution[id].row ||
-				solution[id]?.col !== entry.solution[id].col
-		)
-	);
-	if (alternatives.length === 0) return null;
-
-	const options: { suspect: MurdokuSuspect; candidate: ScoredClue }[] = [];
+	const options: { suspect: MurdokuSuspect; candidate: ScoredClue; breaks: number }[] = [];
 
 	for (const suspect of entry.suspects) {
 		if (suspect.clues.length >= 2) continue;
@@ -507,42 +510,56 @@ function pickDiscriminating(
 		for (const candidate of pools.get(suspect.id) ?? []) {
 			if (used.has(candidate.key)) continue;
 
-			const separates = alternatives.some(
-				(alternative) => !holds(candidate.clue, alternative, entry)
-			);
-			if (!separates) continue;
+			let breaks = 0;
+			for (const alternative of alternatives) {
+				if (!holds(candidate.clue, alternative, entry)) breaks += 1;
+			}
+			if (breaks === 0) continue;
 			if (complexityOf([...cluesOf(entry), candidate.clue], entry.grid.size) > budget) continue;
 
-			options.push({ suspect, candidate });
+			options.push({ suspect, candidate, breaks });
 		}
 	}
 
 	if (options.length === 0) return null;
 
-	// Greedy: entre las que separan, la que deja menos soluciones.
-	const shortlist = shuffle(rnd, options).slice(0, 24);
-	let best: { suspect: MurdokuSuspect; candidate: ScoredClue; count: number } | null = null;
-
-	for (const option of shortlist) {
-		option.suspect.clues.push(option.candidate.clue);
-		const count = countSolutions(entry, 2);
-		option.suspect.clues.pop();
-
-		if (count === 0) continue;
-
-		const better =
-			!best ||
-			count < best.count ||
-			(count === best.count && option.candidate.cost < best.candidate.cost);
-		if (better) best = { suspect: option.suspect, candidate: option.candidate, count };
+	let most = 0;
+	let cheapest = Number.POSITIVE_INFINITY;
+	for (const option of options) {
+		if (option.breaks > most) most = option.breaks;
+	}
+	for (const option of options) {
+		if (option.breaks === most && option.candidate.cost < cheapest) cheapest = option.candidate.cost;
 	}
 
-	if (!best) return null;
-	return { suspect: best.suspect, candidate: best.candidate };
+	const finalists = options.filter(
+		(option) => option.breaks === most && option.candidate.cost === cheapest
+	);
+	const chosen = finalists[randInt(rnd, finalists.length)];
+
+	return { suspect: chosen.suspect, candidate: chosen.candidate };
+}
+
+/**
+ * Soluciones distintas de la declarada. En un tablero grande probar que una
+ * configuración es ambigua puede costar millones de nodos: si el presupuesto se
+ * agota, la respuesta es `null` y el intento se descarta con otra semilla.
+ */
+function alternativesOf(entry: MurdokuCase, budget: number): Assignment[] | null {
+	const result = solveWithin(entry, 2, budget);
+	if (result.exhausted) return null;
+
+	return result.solutions.filter((solution) =>
+		entry.suspects.some((suspect) => {
+			const cell = solution[suspect.id];
+			const expected = entry.solution[suspect.id];
+			return !cell || cell.row !== expected.row || cell.col !== expected.col;
+		})
+	);
 }
 
 /** Elimina pistas extra sin romper la unicidad; cada sospechoso conserva la primera. */
-function pruneExtras(rnd: Random, entry: MurdokuCase): void {
+function pruneExtras(rnd: Random, entry: MurdokuCase, budget: number): void {
 	const extras: { suspect: MurdokuSuspect; clue: Clue }[] = [];
 
 	for (const suspect of entry.suspects) {
@@ -556,7 +573,8 @@ function pruneExtras(rnd: Random, entry: MurdokuCase): void {
 		if (index <= 0) continue;
 
 		item.suspect.clues.splice(index, 1);
-		if (countSolutions(entry, 2) === 1) continue;
+		const check = solveWithin(entry, 2, budget);
+		if (!check.exhausted && check.solutions.length === 1) continue;
 		item.suspect.clues.splice(index, 0, item.clue);
 	}
 }
@@ -565,7 +583,8 @@ function buildClues(
 	rnd: Random,
 	layout: Layout,
 	difficulty: DifficultyKey,
-	entry: MurdokuCase
+	entry: MurdokuCase,
+	deadline?: number
 ): boolean {
 	const pools = candidateClues(layout);
 	const used = new Set<string>();
@@ -589,25 +608,36 @@ function buildClues(
 		entry.suspects.find((suspect) => suspect.id === person.id)?.clues.push(chosen.clue);
 	}
 
-	let solutions = countSolutions(entry, 2);
-	if (solutions === 0) return false;
-
+	let alternatives = alternativesOf(entry, queryBudget(layout.size));
+	if (alternatives === null) return false;
 	const maxRounds = 2 * (layout.size - 1);
 	let round = 0;
 
-	while (solutions > 1) {
+	for (;;) {
+		// Las alternativas viejas dejan de servir cuando una pista nueva las rompe.
+		alternatives = alternatives.filter((alternative) =>
+			cluesOf(entry).every((clue) => holds(clue, alternative, entry))
+		);
+
+		if (alternatives.length === 0) {
+			const found = alternativesOf(entry, queryBudget(layout.size));
+			if (found === null) return false;
+			alternatives = found;
+			if (alternatives.length === 0) break;
+		}
+
 		round += 1;
 		if (round > maxRounds) return false;
+		if (deadline !== undefined && Date.now() > deadline) return false;
 
-		const extra = pickDiscriminating(rnd, entry, pools, used, budget);
+		const extra = pickDiscriminating(rnd, entry, pools, used, budget, alternatives);
 		if (!extra) return false;
 
 		extra.suspect.clues.push(extra.candidate.clue);
 		used.add(extra.candidate.key);
-		solutions = countSolutions(entry, 2);
 	}
 
-	pruneExtras(rnd, entry);
+	pruneExtras(rnd, entry, queryBudget(layout.size));
 	return true;
 }
 
@@ -619,18 +649,21 @@ export function generateCase(input: GenerateInput): GeneratedCase | null {
 	const maxAttempts = input.maxAttempts ?? 80;
 
 	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+		if (input.deadline !== undefined && Date.now() > input.deadline) return null;
+
 		const seed = (input.seed + attempt * 104729) >>> 0;
 		const rnd = mulberry32(seed);
 		const layout = buildLayout(rnd, input.size, input.difficulty, input.theme);
 		if (!layout) continue;
 
 		const entry = provisionalCase(layout);
-		if (!buildClues(rnd, layout, input.difficulty, entry)) continue;
+		if (!buildClues(rnd, layout, input.difficulty, entry, input.deadline)) continue;
 
 		const clues = cluesOf(entry);
 		const complexity = complexityOf(clues, input.size);
 		if (classifyCase(input.size, complexity) !== input.difficulty) continue;
-		if (countSolutions(entry, 2) !== 1) continue;
+		const check = solveWithin(entry, 2, queryBudget(input.size));
+		if (check.exhausted || check.solutions.length !== 1) continue;
 
 		entry.id = `murdoku-${String(input.number).padStart(3, '0')}`;
 		entry.number = input.number;

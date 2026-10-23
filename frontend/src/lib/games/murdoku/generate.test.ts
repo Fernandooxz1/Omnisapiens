@@ -5,6 +5,7 @@ import {
 	clueCost,
 	complexityOf,
 	generateCase,
+	queryBudget,
 	type GenerateInput
 } from './generate.ts';
 import { MURDOKU_THEMES } from './themes.ts';
@@ -86,4 +87,19 @@ test('complexityOf suma negativas, diagonales y el exceso de pistas', () => {
 	const region = { type: 'region', who: 's1', region: 0 } as const;
 	const crowded = Array.from({ length: 7 }, () => region);
 	assert.equal(complexityOf(crowded, 5), 1);
+});
+
+test('los tableros grandes usan un presupuesto de nodos finito', () => {
+	assert.equal(queryBudget(9), Number.POSITIVE_INFINITY);
+	assert.ok(Number.isFinite(queryBudget(10)));
+	assert.ok(Number.isFinite(queryBudget(15)));
+});
+
+test('genera un 10×10 que se valida dentro del presupuesto', () => {
+	const generated = generateCase({ ...input(10, 'hard', 5150), deadline: Date.now() + 30_000 });
+
+	assert.ok(generated);
+	assert.equal(generated.entry.size, 10);
+	assert.equal(generated.entry.difficulty, 'hard');
+	assert.deepEqual(validateCase(generated.entry), []);
 });
