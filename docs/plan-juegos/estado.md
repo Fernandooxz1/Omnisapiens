@@ -6,10 +6,10 @@
 ```yaml
 activo: true
 fase: 2
-tarea: "2.3"
+tarea: "2.4"
 rol: frontend
 estado: pendiente               # pendiente | en curso | hecho | bloqueado
-ultimo_commit: 9032964
+ultimo_commit: ce81ad9
 fecha: 2026-10-22
 bloqueo: ""
 ```
@@ -33,3 +33,4 @@ bloqueo: ""
 | 2026-10-22 | 1.3 | `b8931fc` | Sobres, herramientas y progreso local con fixtures. Próxima: 2.1 (F2). |
 | 2026-10-22 | 2.1 | `7eb1915` | Tipos, reglas, solver y validador; dos fixtures reales con solución única. Próxima: 2.2 (F2). |
 | 2026-10-22 | 2.2 | `9032964` | Generador determinista, 8 temas y 48 casos de 5×5 a 9×9 validados. Próxima: 2.3 (F2). |
+| 2026-10-22 | 2.3 | `ce81ad9` | Solver con AC-3 y 14 casos de 10×10 a 15×15 en 3,9 s (62 válidos). Próxima: 2.4 (F2). |
